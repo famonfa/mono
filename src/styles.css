@@ -58,10 +58,12 @@
 }
 
 :root {
-  font-family: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  font-family: var(--font-sans);
   font-size: 13px;
-  font-feature-settings: "cv11", "ss01", "ss03";
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   color: var(--text);
   background: var(--bg-app);
 }
@@ -115,7 +117,7 @@ select {
 .mono,
 code,
 .row-id {
-  font-family: "SF Mono", ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 
 .muted {
@@ -195,7 +197,7 @@ code,
   height: 18px;
   padding: 0 4px;
   border-radius: 4px;
-  font: 500 11px/1 "Inter Variable", sans-serif;
+  font: 500 11px/1 var(--font-sans);
   color: var(--text-3);
   background: var(--bg-active);
   border: 1px solid var(--border);
@@ -857,7 +859,7 @@ code,
 }
 
 .dialog-input.mono {
-  font-family: "SF Mono", ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   color: var(--text-2);
 }
@@ -961,7 +963,7 @@ code,
 .palette-sub {
   color: var(--text-3);
   font-size: 12px;
-  font-family: "SF Mono", ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 
 .palette-shortcut {
@@ -1121,7 +1123,7 @@ code,
   padding: 10px 12px;
   border-radius: 8px;
   background: var(--bg-hover);
-  font-family: "SF Mono", ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 12.5px;
 }
 
@@ -1528,7 +1530,7 @@ code,
   border: none;
   border-right: 1px solid var(--border);
   padding: 24px;
-  font-family: "SF Mono", ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 12.5px;
   line-height: 1.6;
   resize: none;
@@ -1977,7 +1979,7 @@ code,
 .card-files {
   font-size: 11px;
   color: var(--text-3);
-  font-family: "SF Mono", ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2260,7 +2262,7 @@ code,
   border-radius: 5px;
   background: var(--bg-active);
   font-size: 11.5px;
-  font-family: "SF Mono", ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
   color: var(--text-2);
   cursor: pointer;
   white-space: nowrap;
@@ -2276,7 +2278,7 @@ code,
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 13px;
-  font-family: "Inter Variable", sans-serif;
+  font-family: var(--font-sans);
 }
 
 /* Agents — feed */
@@ -2402,7 +2404,7 @@ code,
 }
 
 .tool-call-name {
-  font-family: "SF Mono", ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11.5px;
   color: var(--text-3);
   flex-shrink: 0;
@@ -2442,7 +2444,7 @@ code,
   border-radius: 7px;
   background: var(--bg-panel);
   border: 1px solid var(--border);
-  font: 11.5px/1.55 "SF Mono", ui-monospace, Menlo, monospace;
+  font: 11.5px/1.55 var(--font-mono);
   color: var(--text-2);
   white-space: pre-wrap;
   word-break: break-word;
@@ -2617,7 +2619,7 @@ code,
   border-radius: 8px;
   background: var(--bg-app);
   padding: 10px 12px;
-  font: 11.5px/1.55 "SF Mono", ui-monospace, Menlo, monospace;
+  font: 11.5px/1.55 var(--font-mono);
   resize: vertical;
   outline: none;
 }
@@ -2803,7 +2805,7 @@ code,
   gap: 5px;
   color: var(--text);
   font-weight: 500;
-  font-family: "SF Mono", ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 
 .permission-title {
@@ -3015,7 +3017,7 @@ code,
   place-items: center;
   flex-shrink: 0;
   border-radius: 5px;
-  font-family: "SF Mono", ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1;
