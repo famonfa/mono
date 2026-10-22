@@ -28,8 +28,8 @@ npm run desktop:package  # genera apps/desktop/release/mac-arm64/Mono.app → co
 Cada persona corre Mono en **su** Mac, con su Claude Code. Un único relay en la nube les da login con Google y acceso desde el celu o la web; cada uno ve solo sus máquinas.
 
 **Una vez (admin):**
-1. Deploy del relay en Fly: ver los pasos en `apps/relay/fly.toml` y las variables en `apps/relay/.env.example`. `ADMIN_EMAILS` es tu email.
-2. Google Cloud Console → Credentials → *OAuth client ID* (Web application), con el redirect `https://<relay>/_mono/auth/callback`.
+1. El relay corre en la VM gratis de Oracle que comparte con Omno: `https://mono.155-181-39-178.sslip.io`. Para deployar, `apps/relay/deploy.sh` (ssh `pelado-oracle`): sincroniza `/srv/mono-relay`, y la primera vez crea el `.env`, el servicio `mono-relay` (con tope de 512 MB y 50% de CPU) y su entrada en Caddy. La entrada de Omno no se toca. Las credenciales van en `/srv/mono-relay/.env` y las variables están explicadas en `apps/relay/.env.example`.
+2. Google Cloud Console → Credentials → *OAuth client ID* (Web application), con el redirect `https://mono.155-181-39-178.sslip.io/_mono/auth/callback`.
 3. Publicar el paquete: `cd apps/server && npm publish` (publica `@famonfa/mono` con la UI ya compilada).
 
 **Invitar:** entrás a `https://<relay>/_mono/admin`, ponés el email de Google de la persona y le mandás el link. Para quitarle el acceso, "Quitar": se corta su sesión y se desconectan sus Macs.
@@ -38,9 +38,9 @@ Cada persona corre Mono en **su** Mac, con su Claude Code. Un único relay en la
 ```bash
 npm i -g @famonfa/mono
 mono service install     # queda corriendo y se reconecta al iniciar sesión
-mono connect             # abre el navegador, entra con Google y aprueba el código
+mono connect             # usa el relay por defecto; abre el navegador, entra con Google y aprueba el código
 ```
-Después usa `https://<relay>` desde cualquier navegador o la app móvil (`npm run mobile:ios` / `mobile:android`).
+Después usa `https://mono.155-181-39-178.sslip.io` desde cualquier navegador o la app móvil (`npm run mobile:ios` / `mobile:android`).
 
 Fuera del repo, Mono guarda todo en `~/.mono/` (config, conexión y `data/`) y le instala a Claude Code el skill `/workspace` si no lo tiene. La carpeta por defecto de los chats nuevos es `defaultCwd` en `~/.mono/config.json` (si no está, el home).
 

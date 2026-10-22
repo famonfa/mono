@@ -23,7 +23,8 @@ const REQUEST_TIMEOUT_MS = 120_000;
 
 if (SECRET.length < 32) throw new Error("SESSION_SECRET tiene que tener al menos 32 caracteres (openssl rand -hex 32)");
 if (!access.hasAdmins()) throw new Error("Falta ADMIN_EMAILS (tu email de Google; desde ahí invitás al resto)");
-if (!DEV_LOGIN && !(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET)) throw new Error("Faltan GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET");
+const GOOGLE_READY = Boolean(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET);
+if (!GOOGLE_READY) console.warn("Faltan GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET: el login con Google queda apagado");
 
 // ---------- signing & cookies ----------
 
@@ -233,6 +234,7 @@ async function relayRoute(req, res, url) {
   if (route === "/login") return html(res, loginPage({ next: safeNext(url.searchParams.get("next")), dev: DEV_LOGIN, app: (req.headers["user-agent"] ?? "").includes("MonoApp"), ios: /iPhone|iPad/.test(req.headers["user-agent"] ?? "") }));
 
   if (route === "/auth/google") {
+    if (!GOOGLE_READY) return html(res, messagePage("Login no configurado", "Este relay todavía no tiene credenciales de Google."), 503);
     const state = randomId();
     setCookie(res, "mono_oauth", sign({ t: "oauth", state, next: url.searchParams.get("next") ?? "/", exp: Date.now() + 10 * 60_000 }), 600);
     const google = new URL("https://accounts.google.com/o/oauth2/v2/auth");

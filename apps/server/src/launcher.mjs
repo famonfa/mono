@@ -9,7 +9,7 @@ const HOME = os.homedir();
 export const PORT = Number(process.env.PORT ?? 4600);
 export const APP_URL = `http://localhost:${PORT}`;
 /** The shared relay everyone signs in to; override with MONO_RELAY or `mono connect <url>`. */
-export const DEFAULT_RELAY = process.env.MONO_RELAY ?? "https://mono-relay.fly.dev";
+export const DEFAULT_RELAY = process.env.MONO_RELAY ?? "https://mono.155-181-39-178.sslip.io";
 const SERVER_MAIN = path.join(PKG_DIR, "src", "main.mjs");
 const CLI = path.join(PKG_DIR, "bin", "mono.mjs");
 /** `npx` runs from a cache folder that can disappear, so nothing long-lived should point at it. */
