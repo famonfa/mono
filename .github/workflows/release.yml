@@ -1,0 +1,63 @@
+# Release Mono from a version tag (npm run release): builds the desktop app on a Mac, uploads it to
+# the relay, deploys the relay, and publishes @famonfa/mono to npm. Order matters: the app zips go
+# up before npm, because `npx @famonfa/mono` installs the app version that matches the package.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # npm trusted publishing (no token, no 2FA prompt)
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-14
+    timeout-minutes: 40
+    env:
+      MONO_RELAY_HOST: ubuntu@155.181.39.178
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Check the tag matches the package versions
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          for f in apps/server/package.json apps/desktop/package.json; do
+            v=$(node -p "require('./$f').version")
+            [ "$v" = "$tag" ] || { echo "$f está en $v pero el tag es v$tag" >&2; exit 1; }
+          done
+
+      - run: npm ci
+
+      - name: Build the desktop app (Apple Silicon + Intel)
+        run: npm run desktop:dist
+
+      - name: SSH access to the relay VM
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.RELAY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H 155.181.39.178 >> ~/.ssh/known_hosts
+
+      - name: Publish the desktop app to the relay
+        run: apps/relay/publish-desktop.sh
+
+      - name: Deploy the relay
+        run: apps/relay/deploy.sh
+
+      - name: Publish @famonfa/mono to npm
+        run: |
+          npm install -g npm@11
+          node apps/server/scripts/stage.mjs publish

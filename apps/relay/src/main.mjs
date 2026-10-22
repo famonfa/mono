@@ -248,6 +248,15 @@ async function relayRoute(req, res, url) {
   if (route === "/health") return send(res, 200, { ok: true, hosts: hosts.size });
   if (route === "/privacidad") return html(res, privacyPage());
 
+  if (route === "/version") {
+    // Written by publish-desktop.sh next to the zips; the desktop app checks it to offer updates.
+    try {
+      return send(res, 200, JSON.parse(fs.readFileSync(path.join(DOWNLOADS_DIR, "latest.json"), "utf8")));
+    } catch {
+      return send(res, 404, { error: "Todavía no hay versiones publicadas" });
+    }
+  }
+
   if (route.startsWith("/download/")) {
     const name = route.slice("/download/".length);
     const file = path.join(DOWNLOADS_DIR, name);

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, dialog, Menu, nativeTheme, Notification, shell } from "electron";
+import { checkForUpdates } from "./updater.mjs";
 
 const PORT = Number(process.env.PORT ?? 4600);
 const APP_URL = `http://localhost:${PORT}`;
@@ -102,6 +103,7 @@ function buildMenu() {
       label: "Mono",
       submenu: [
         { role: "about", label: "Acerca de Mono" },
+        { label: "Buscar actualizaciones…", click: () => checkForUpdates({ manual: true }) },
         { type: "separator" },
         { label: "Conectar con el celular…", click: connectPhone },
         { label: "Instalar el comando “mono” en la terminal…", click: installCommand },
@@ -164,6 +166,8 @@ app.whenReady().then(async () => {
   }
   createWindow();
   app.on("activate", () => BrowserWindow.getAllWindows().length === 0 && createWindow());
+  setTimeout(() => checkForUpdates(), 5000);
+  setInterval(() => checkForUpdates(), 6 * 60 * 60 * 1000);
 });
 
 app.on("window-all-closed", () => process.platform !== "darwin" && app.quit());
