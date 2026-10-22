@@ -336,6 +336,59 @@
     flex-wrap: wrap;
   }
 
+  /* ---------- Sessions inside a task: one side at a time (TaskSessions in Chat.tsx) ---------- */
+  .task-sessions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .session-list {
+    border-right: 0;
+    padding: 10px 8px calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .session-item {
+    padding: 11px 10px;
+  }
+
+  .session-pane-head {
+    gap: 8px;
+    padding: 0 8px 0 4px;
+    height: 44px;
+  }
+
+  .session-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 8px 6px 4px;
+    color: var(--accent);
+    font-weight: 500;
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+
+  .session-pane-title {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  /* "Enviar a grupo" stays as an icon; "Ver en Agentes" is one tap away from the sidebar. */
+  .session-pane-head .link-btn {
+    font-size: 0;
+    flex-shrink: 0;
+  }
+
+  .session-pane-head .link-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .session-pane-head a.link-btn {
+    display: none;
+  }
+
   /* ---------- New session ---------- */
   .new-session {
     grid-template-columns: minmax(0, 1fr);
@@ -347,6 +400,10 @@
   .new-session-inner {
     max-width: none;
     min-width: 0;
+  }
+
+  .session-pane .new-session {
+    padding-top: 16px;
   }
 
   /* ---------- Task view: properties under the content ---------- */

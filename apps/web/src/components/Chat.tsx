@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Bot, Check, CircleHelp, ClipboardList, Cpu, File as FileIcon, Folder, FolderGit2, Gauge, Loader2, Paperclip, Plus, ShieldCheck, Square, X, Zap } from "lucide-react";
+import { ArrowUp, Bot, Check, ChevronLeft, CircleHelp, ClipboardList, Cpu, File as FileIcon, Folder, FolderGit2, Gauge, Loader2, Paperclip, Plus, ShieldCheck, Square, X, Zap } from "lucide-react";
 import { useApp } from "../app-context";
 import { chatApi, PERMISSION_MODES, useChatDefaults, useChatState, type Attachment, type ChatState, type ModelOption, type PendingPermission, type PermissionMode, type SlashCommand, type Worktree } from "../chat";
 import { href, navigate } from "../router";
 import { rememberSession, useSessionFeed, type SessionSummary } from "../sessions";
 import type { Task } from "../types";
 import { formatDate, Menu } from "../ui";
+import { useIsMobile } from "../mobile";
 import { useMarkSeen, useUnread } from "../unread";
 import { Feed, StatusDot, ToolIcon } from "./Agents";
 import { SendToGroup } from "./GroupCanvas";
@@ -642,11 +643,31 @@ export function TaskSessions({ task, sessionId }: { task: Task; sessionId?: stri
   }, [sessionId, task.id]);
   useMarkSeen(current);
   const isUnread = useUnread();
+  // Phones show one side at a time: the list, or the open session / new session with a way back.
+  const mobile = useIsMobile();
+  const [composing, setComposing] = useState(false);
+  useEffect(() => setComposing(false), [sessionId]);
+  const showList = !mobile || (!sessionId && !composing);
+  const showPane = !mobile || Boolean(sessionId) || composing;
+  const back = mobile && (
+    <a className="session-back" href={href.taskSession(task.id)} onClick={() => setComposing(false)}>
+      <ChevronLeft size={16} /> Sesiones
+    </a>
+  );
 
   return (
     <div className="task-sessions">
+      {showList && (
       <aside className="session-list">
-        <a className={`session-new ${!sessionId ? "active" : ""}`} href={href.taskSession(task.id)}>
+        <a
+          className={`session-new ${!sessionId && !mobile ? "active" : ""}`}
+          href={href.taskSession(task.id)}
+          onClick={(e) => {
+            if (!mobile) return;
+            e.preventDefault();
+            setComposing(true);
+          }}
+        >
           <Plus size={14} /> Nueva sesión
         </a>
         <div className="prop-title session-list-title">Sesiones · {linked.length}</div>
@@ -664,10 +685,13 @@ export function TaskSessions({ task, sessionId }: { task: Task; sessionId?: stri
         ))}
         {!linked.length && <p className="hint session-empty">Todavía no hay sesiones vinculadas a esta tarea.</p>}
       </aside>
+      )}
+      {showPane && (
       <section className="session-pane">
         {sessionId ? (
           <>
             <header className="session-pane-head">
+              {back}
               <StatusDot status={current?.status ?? "inactive"} size={7} />
               <span className="session-pane-title">{current?.title ?? "Sesión"}</span>
               <span className="spacer" />
@@ -679,9 +703,13 @@ export function TaskSessions({ task, sessionId }: { task: Task; sessionId?: stri
             <SessionChat key={sessionId} sessionId={sessionId} summary={current} />
           </>
         ) : (
-          <NewSession task={task} />
+          <>
+            {back && <header className="session-pane-head">{back}</header>}
+            <NewSession task={task} />
+          </>
         )}
       </section>
+      )}
     </div>
   );
 }
