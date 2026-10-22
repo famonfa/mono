@@ -30,18 +30,16 @@ Cada persona corre Mono en **su** Mac, con su Claude Code. Un único relay en la
 **Una vez (admin):**
 1. El relay corre en la VM gratis de Oracle que comparte con Omno: `https://mono.155-181-39-178.sslip.io`. Para deployar, `apps/relay/deploy.sh` (ssh `pelado-oracle`): sincroniza `/srv/mono-relay`, y la primera vez crea el `.env`, el servicio `mono-relay` (con tope de 512 MB y 50% de CPU) y su entrada en Caddy. La entrada de Omno no se toca. Las credenciales van en `/srv/mono-relay/.env` y las variables están explicadas en `apps/relay/.env.example`.
 2. Google Cloud Console → Credentials → *OAuth client ID* (Web application), con el redirect `https://mono.155-181-39-178.sslip.io/_mono/auth/callback`.
-3. Publicar el paquete: `cd apps/server && npm publish` (publica `@famonfa/mono` con la UI ya compilada).
+3. Publicar el paquete: `npm run release -w @famonfa/mono`. Arma `@famonfa/mono` con la UI compilada y sus dependencias empaquetadas, sin el binario de Claude (~6 MB en vez de 320 MB), y lo publica.
 
 **Invitar:** entrás a `https://<relay>/_mono/admin`, ponés el email de Google de la persona y le mandás el link. Para quitarle el acceso, "Quitar": se corta su sesión y se desconectan sus Macs.
 
-**App de escritorio para invitados:** `npm run desktop:publish` arma `Mono-arm64.dmg` y `Mono-x64.dmg` (la app trae el server adentro, sin el binario de Claude) y los sube al relay. Se descargan desde la landing. Adentro, el menú **Mono → Conectar con el celular…** deja el server corriendo en segundo plano y empareja la Mac. Hasta que la app esté firmada (Apple Developer), macOS pide "Abrir igual" la primera vez.
-
-**Cada invitado, por terminal (alternativa):**
+**Cada invitado, en su Mac** (único camino de instalación, como `npx t3`):
 ```bash
-npm i -g @famonfa/mono
-mono service install     # queda corriendo y se reconecta al iniciar sesión
-mono connect             # usa el relay por defecto; abre el navegador, entra con Google y aprueba el código
+npx @famonfa/mono            # abre Mono; la primera vez se instala en ~/.mono/runtime
+npx @famonfa/mono connect    # queda corriendo en segundo plano y se empareja con Google
 ```
+`npx` solo arranca la instalación: copia la misma versión a `~/.mono/runtime` y le pasa los comandos, porque la caché de npx se puede borrar y el servicio de launchd necesita una ruta fija.
 Después usa `https://mono.155-181-39-178.sslip.io` desde cualquier navegador o la app móvil (`npm run mobile:ios` / `mobile:android`).
 
 Fuera del repo, Mono guarda todo en `~/.mono/` (config, conexión y `data/`) y le instala a Claude Code el skill `/workspace` si no lo tiene. La carpeta por defecto de los chats nuevos es `defaultCwd` en `~/.mono/config.json` (si no está, el home).

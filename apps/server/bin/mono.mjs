@@ -7,6 +7,8 @@ import * as sessions from "../src/sessions.mjs";
 import * as groups from "../src/groups.mjs";
 import * as launcher from "../src/launcher.mjs";
 
+launcher.runFromRuntime();
+
 const USAGE = `mono (alias: ws) — CLI de Mono (http://localhost:4600)
 
   mono                                     Arranca el server si hace falta y abre la app (escritorio o navegador)

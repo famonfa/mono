@@ -21,8 +21,8 @@
   },
   "scripts": {
     "start": "node src/main.mjs",
-    "prepack": "npm run build -w @mono/web --prefix ../.. && rm -rf web && cp -R ../web/dist web",
-    "postpack": "rm -rf web"
+    "pack": "node scripts/stage.mjs pack",
+    "release": "node scripts/stage.mjs publish"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.308",

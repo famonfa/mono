@@ -1,4 +1,4 @@
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -68,6 +68,30 @@ export function openApp(hash = "") {
   return "browser";
 }
 
+/**
+ * `npx @famonfa/mono` runs from npm's cache, which can be wiped, while the server has to outlive it
+ * (launchd, remote access). So npx only bootstraps: it installs the same version into ~/.mono/runtime
+ * once and hands every command to that copy.
+ */
+export function runFromRuntime() {
+  if (!EPHEMERAL || process.env.MONO_NO_BOOTSTRAP) return;
+  const pkg = JSON.parse(fs.readFileSync(path.join(PKG_DIR, "package.json"), "utf8"));
+  const runtime = path.join(HOME, ".mono", "runtime");
+  const installed = path.join(runtime, "node_modules", ...pkg.name.split("/"));
+  let current = null;
+  try {
+    current = JSON.parse(fs.readFileSync(path.join(installed, "package.json"), "utf8")).version;
+  } catch {}
+  if (current !== pkg.version) {
+    console.log(current ? `Actualizando Mono ${current} → ${pkg.version}…` : `Instalando Mono ${pkg.version}…`);
+    fs.mkdirSync(runtime, { recursive: true });
+    if (!fs.existsSync(path.join(runtime, "package.json"))) fs.writeFileSync(path.join(runtime, "package.json"), '{ "private": true }\n');
+    execFileSync("npm", ["install", "--prefix", runtime, "--no-audit", "--no-fund", "--omit=dev", "--loglevel=error", process.env.MONO_RUNTIME_SPEC ?? `${pkg.name}@${pkg.version}`], { stdio: "inherit" });
+  }
+  const result = spawnSync(process.execPath, [path.join(installed, "bin", "mono.mjs"), ...process.argv.slice(2)], { stdio: "inherit", env: { ...process.env, MONO_NO_BOOTSTRAP: "1" } });
+  process.exit(result.status ?? 1);
+}
+
 export async function launch(hash) {
   await ensureServer();
   const where = openApp(hash);
@@ -97,9 +121,9 @@ export async function connect(relayArg, name = os.hostname().replace(/\.local$/,
     const result = await post("/_mono/pair/poll", { pollToken });
     if (result.status === "approved") {
       writeRemote({ relay, token: result.token, hostId: result.hostId, email: result.email, name });
-      await ensureServer();
       // Remote access only helps if the server is still up after a reboot.
-      if (!fs.existsSync(PLIST)) console.log(EPHEMERAL ? "Para que quede siempre conectada: npm i -g @famonfa/mono && mono service install" : "Para que quede siempre conectada: mono service install");
+      if (!fs.existsSync(PLIST) && !REPO_ROOT) installService();
+      await ensureServer();
       console.log(`✓ ${name} conectado a ${relay} como ${result.email}. Abrí ${relay} desde el celular.`);
       return;
     }
@@ -113,15 +137,18 @@ export function disconnect() {
   console.log("✓ Desconectado del relay");
 }
 
+/** How to spell commands back to the user: npx users don't have `mono` on their PATH. */
+const CMD = process.env.MONO_NO_BOOTSTRAP ? "npx @famonfa/mono" : "mono";
+
 export async function status() {
   const remote = readRemote();
   let live = null;
   try {
     live = JSON.parse(fs.readFileSync(STATUS_FILE, "utf8"));
   } catch {}
-  console.log(`Server:  ${(await isUp()) ? `✓ ${APP_URL}` : "✗ apagado (corré `mono`)"}`);
-  console.log(`Servicio: ${fs.existsSync(PLIST) ? "instalado (arranca solo al iniciar sesión)" : "no instalado (`mono service install`)"}`);
-  if (!remote) return console.log("Remoto:  sin conectar (`mono connect <relay-url>`)");
+  console.log(`Server:  ${(await isUp()) ? `✓ ${APP_URL}` : `✗ apagado (corré \`${CMD}\`)`}`);
+  console.log(`Servicio: ${fs.existsSync(PLIST) ? "instalado (arranca solo al iniciar sesión)" : `no instalado (\`${CMD} service install\`)`}`);
+  if (!remote) return console.log(`Remoto:  sin conectar (\`${CMD} connect\`)`);
   console.log(`Remoto:  ${remote.relay} · ${remote.email} · ${live?.state ?? "?"}${live?.reason ? ` (${live.reason})` : ""}`);
 }
 
@@ -129,7 +156,7 @@ export async function status() {
 export function installService({ ifMissing = false } = {}) {
   // The desktop app asks with ifMissing so it never replaces a service someone set up from a checkout.
   if (ifMissing && fs.existsSync(PLIST)) return console.log(`✓ Servicio ${SERVICE} ya instalado`);
-  if (EPHEMERAL) throw new Error("Instalalo primero: npm i -g @famonfa/mono && mono service install");
+  if (EPHEMERAL) throw new Error("Corré `npx @famonfa/mono service install`");
   setup();
   // npm's global install already puts mono/ws on PATH; a checkout links them into ~/.local/bin.
   if (REPO_ROOT) {

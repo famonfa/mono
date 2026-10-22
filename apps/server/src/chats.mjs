@@ -267,6 +267,7 @@ function linkSessionToTask(taskId, sessionId) {
  */
 export function startChat({ taskId, cwd, prompt, resume, model, effort, permissionMode, attachments = [] }) {
   const mode = modeOrDefault(permissionMode);
+  if (!CLAUDE_BIN) throw new Error("No encontré Claude Code en esta Mac. Instalalo (https://docs.claude.com/en/docs/claude-code/setup) y reiniciá Mono.");
   if (resume && chats.get(resume) && !chats.get(resume).closed) throw new Error("La sesión ya está abierta en el workspace");
   const task = taskId ? store.getTask(taskId) : null;
   const focus = cwd ? expandHome(cwd) : defaultCwd();

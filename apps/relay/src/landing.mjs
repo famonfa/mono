@@ -71,10 +71,6 @@ export function landingPage({ relay }) {
   .step::before { counter-increment: step; content: counter(step); display: grid; place-items: center; width: 28px; height: 28px; margin-bottom: 16px; border-radius: 8px; background: rgb(132 204 22 / 0.14); color: var(--accent); font-weight: 700; font-size: 14px; }
   .step h3 { margin: 0 0 6px; font-size: 17px; }
   .step p { margin: 0 0 14px; color: var(--muted); font-size: 15px; }
-  .dl { display: grid; gap: 8px; margin-bottom: 12px; }
-  .note { font-size: 13px !important; margin: 0 !important; }
-  .alt { margin: 18px 0 0; color: var(--muted); font-size: 14px; }
-  .alt code { color: var(--text); font-size: 13px; }
   pre { margin: 0; padding: 12px 14px; border-radius: 10px; background: #0f0f12; border: 1px solid var(--border); font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: #d4d4d8; white-space: pre-wrap; word-break: break-all; }
   pre .c { color: #6b6b74; }
 
@@ -106,8 +102,8 @@ export function landingPage({ relay }) {
   <h1>Tus agentes de Claude Code, <span>a la vista.</span></h1>
   <p class="lead">Mono convierte lo que hacen tus agentes en tableros que entendés de un vistazo. Corre en tu Mac, con tu Claude Code, y lo seguís desde el celu.</p>
   <div class="ctas">
-    <a class="btn primary" href="#instalar">Descargar para Mac</a>
-    <a class="btn ghost" href="/_mono/login">Entrar con Google</a>
+    <a class="btn primary" href="/_mono/login">Entrar con Google</a>
+    <a class="btn ghost" href="#instalar">Cómo instalarlo</a>
   </div>
   <div class="shot">
     <img class="desktop" src="/_mono/static/app-board.jpg" alt="Mono en la Mac: el flujo de pago de una tarea, antes y después" width="1200" height="750" />
@@ -127,13 +123,10 @@ export function landingPage({ relay }) {
   <h2>Listo en tres pasos.</h2>
   <p class="sub">Necesitás una Mac con <a href="https://docs.claude.com/en/docs/claude-code/setup">Claude Code</a> y una invitación.</p>
   <div class="steps">
-    <div class="step"><h3>Bajá Mono</h3><p>Arrastralo a Aplicaciones y abrilo.</p>
-      <div class="dl"><a class="btn primary" href="/_mono/download/Mono-arm64.dmg">Apple Silicon</a><a class="btn ghost" href="/_mono/download/Mono-x64.dmg">Intel</a></div>
-      <p class="note">La primera vez macOS avisa que no puede verificarla: Ajustes → Privacidad y seguridad → “Abrir igual”.</p></div>
-    <div class="step"><h3>Conectá tu Mac</h3><p>En el menú <b>Mono → Conectar con el celular…</b> Se abre el navegador: entrás con Google y aprobás el código.</p></div>
-    <div class="step"><h3>Usalo donde estés</h3><p>En la Mac, o desde cualquier navegador en:</p><pre>${escape(relay.replace(/^https?:\/\//, ""))}</pre></div>
+    <div class="step"><h3>Abrí Mono</h3><p>En la terminal de tu Mac. La primera vez se instala solo.</p><pre>npx ${escape(PACKAGE)}</pre></div>
+    <div class="step"><h3>Conectá tu Mac</h3><p>Queda corriendo en segundo plano. Se abre el navegador: entrás con Google y aprobás el código.</p><pre>npx ${escape(PACKAGE)} connect</pre></div>
+    <div class="step"><h3>Usalo donde estés</h3><p>Desde el celu o cualquier navegador en:</p><pre>${escape(relay.replace(/^https?:\/\//, ""))}</pre></div>
   </div>
-  <p class="alt">¿Preferís la terminal? <code>npm i -g ${escape(PACKAGE)} &amp;&amp; mono service install &amp;&amp; mono connect</code></p>
 
   <div class="final">
     <h2>¿Tenés invitación?</h2>
