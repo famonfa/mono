@@ -26,6 +26,14 @@ export function writeRemote(config) {
 /** Status the relay connection publishes for `mono status`. */
 export const STATUS_FILE = path.join(CONFIG_DIR, "remote-status.json");
 
+export function remoteStatus() {
+  try {
+    return JSON.parse(fs.readFileSync(STATUS_FILE, "utf8"));
+  } catch {
+    return { state: "off" };
+  }
+}
+
 /**
  * Keeps an outbound WebSocket to the relay (`mono connect`) so the phone or any browser can use this
  * machine without opening ports. The relay sends HTTP requests over the socket; they are replayed

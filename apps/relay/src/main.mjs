@@ -75,9 +75,16 @@ function sessionEmail(req) {
   return session?.t === "session" && allowed(session.email) ? session.email : null;
 }
 
-function startSession(res, email) {
-  setCookie(res, "mono_session", sign({ t: "session", email, exp: Date.now() + SESSION_DAYS * 86_400_000 }), SESSION_DAYS * 86_400);
+/** Name and picture ride along in the signed cookie so the app's user widget needs no database. */
+function startSession(res, email, profile = {}) {
+  const session = { t: "session", email, name: profile.name, picture: profile.picture, exp: Date.now() + SESSION_DAYS * 86_400_000 };
+  setCookie(res, "mono_session", sign(session), SESSION_DAYS * 86_400);
 }
+
+const sessionProfile = (req) => {
+  const session = verify(parseCookies(req).mono_session);
+  return { name: session?.name ?? null, picture: session?.picture ?? null };
+};
 
 // ---------- http helpers ----------
 
@@ -217,12 +224,12 @@ setInterval(() => {
 // ---------- routes ----------
 
 /** Google said who you are; you're in if you're an admin, a user, or have a pending invite. */
-function finishLogin(res, rawEmail, next) {
+function finishLogin(res, rawEmail, next, profile) {
   const email = String(rawEmail).trim().toLowerCase();
   if (!allowed(email) && !access.acceptInvite(email)) {
     return html(res, messagePage("Sin acceso", `${email || "Ese email"} no tiene invitación. Pedile a quien usa Mono que te invite.`, { href: "/_mono/logout", label: "Probar con otra cuenta" }), 403);
   }
-  startSession(res, email);
+  startSession(res, email, profile);
   return redirect(res, safeNext(next));
 }
 
@@ -255,7 +262,7 @@ async function relayRoute(req, res, url) {
     const state = randomId();
     setCookie(res, "mono_oauth", sign({ t: "oauth", state, next: url.searchParams.get("next") ?? "/", exp: Date.now() + 10 * 60_000 }), 600);
     const google = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-    google.search = new URLSearchParams({ client_id: GOOGLE_CLIENT_ID, redirect_uri: `${PUBLIC_URL}/_mono/auth/callback`, response_type: "code", scope: "openid email", state, prompt: "select_account" }).toString();
+    google.search = new URLSearchParams({ client_id: GOOGLE_CLIENT_ID, redirect_uri: `${PUBLIC_URL}/_mono/auth/callback`, response_type: "code", scope: "openid email profile", state, prompt: "select_account" }).toString();
     return redirect(res, google.toString());
   }
 
@@ -273,7 +280,7 @@ async function relayRoute(req, res, url) {
     const validIssuer = ["accounts.google.com", "https://accounts.google.com"].includes(claims.iss);
     if (!validIssuer || claims.aud !== GOOGLE_CLIENT_ID || !claims.email_verified) return html(res, messagePage("No se pudo entrar", "Google no confirmó tu email."), 403);
     setCookie(res, "mono_oauth", "", 0);
-    return finishLogin(res, claims.email, pending.next);
+    return finishLogin(res, claims.email, pending.next, { name: claims.name, picture: claims.picture });
   }
 
   if (route === "/auth/dev" && DEV_LOGIN) return finishLogin(res, url.searchParams.get("email") ?? "", url.searchParams.get("next"));
@@ -318,7 +325,14 @@ async function relayRoute(req, res, url) {
   }
 
   // Everything below needs a signed-in user.
-  if (!email) return redirect(res, `/_mono/login?next=${encodeURIComponent(url.pathname + url.search)}`);
+  if (!email) return route === "/me" ? send(res, 401, { error: "Iniciá sesión" }) : redirect(res, `/_mono/login?next=${encodeURIComponent(url.pathname + url.search)}`);
+
+  if (route === "/me") {
+    const picked = pickedHost(req, email);
+    const mine = hostsFor(email);
+    const host = mine.find((h) => h.id === picked) ?? (mine.length === 1 ? mine[0] : null);
+    return send(res, 200, { mode: "remote", email, ...sessionProfile(req), admin: access.isAdmin(email), host: host && { id: host.id, name: host.name }, hosts: mine.map(({ id, name }) => ({ id, name })) });
+  }
 
   if (route === "/mobile/done") {
     const code = randomId(24);

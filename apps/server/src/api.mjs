@@ -1,5 +1,8 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { PKG_DIR, REPO_ROOT } from "./paths.mjs";
+import { remoteStatus } from "./remote.mjs";
 import * as store from "./store.mjs";
 import * as sessions from "./sessions.mjs";
 import * as chats from "./chats.mjs";
@@ -81,6 +84,20 @@ function sessionList(days) {
     s.projectId = projects.projectForPath(focus[s.id] ?? s.firstCwd ?? s.cwd);
   }
   return list;
+}
+
+/** What the user widget shows when Mono is used on this Mac (through the relay it asks the relay instead). */
+function localAccount() {
+  const remote = remoteStatus();
+  const pkg = JSON.parse(fs.readFileSync(path.join(PKG_DIR, "package.json"), "utf8"));
+  return {
+    mode: "local",
+    hostname: os.hostname().replace(/\.local$/, ""),
+    user: os.userInfo().username,
+    version: pkg.version,
+    remote: remote.state === "connected" ? { email: remote.email, relay: remote.relay } : null,
+    connectCommand: REPO_ROOT ? "mono connect" : "npx @famonfa/mono connect",
+  };
 }
 
 const withProjects = (task) => ({ ...task, projectIds: projects.projectsForTask(task) });
@@ -184,6 +201,7 @@ export function createApi(broadcast) {
       const [resource, id, sub, subId] = parts;
 
       if (resource === "health") return send(res, 200, { app: "mono", ok: true });
+      if (resource === "me" && method === "GET") return send(res, 200, localAccount());
       if (resource === "chats") return await handleChats(res, method, parts, body);
       if (resource === "groups") return handleGroups(res, method, parts, body);
       if (resource === "models" && method === "GET") return send(res, 200, chats.listModels());

@@ -4,6 +4,7 @@ import "@xyflow/react/dist/style.css";
 import "./styles.css";
 import "./desktop.css";
 import "./mobile.css";
+import "./user-widget.css";
 import { App } from "./App";
 
 createRoot(document.getElementById("root")!).render(

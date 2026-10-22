@@ -11,6 +11,7 @@ import { GroupView } from "./components/GroupCanvas";
 import { Home } from "./components/Home";
 import { ALL_PROJECTS, inProject, projectScope, ProjectSwitcher, sessionInProject } from "./components/Projects";
 import { TaskOverview, TaskTopBar } from "./components/TaskView";
+import { UserWidget } from "./components/UserWidget";
 import { StatusIcon, STATUS_META, STATUS_ORDER } from "./icons";
 import { groupsApi, reloadGroups, useGroups } from "./groups";
 import { href, navigate, useRoute, type Route } from "./router";
@@ -252,6 +253,7 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
         {!recent.length && <span className="sidebar-empty">Sin tareas todavía</span>}
       </nav>
 
+      <UserWidget />
       <div className="sidebar-bottom">
         <button className="icon-btn" onClick={toggleTheme} title="Cambiar tema">
           {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
