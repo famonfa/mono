@@ -65,6 +65,30 @@ function CopyCommand({ command }: { command: string }) {
   );
 }
 
+/** Mono runs the Claude Code installed on the Mac; say so, or how to fix it when it's missing. */
+function ClaudeStatus({ account }: { account: Account }) {
+  if (account.claude === undefined) return null;
+  return (
+    <div className="user-menu-section">
+      <div className="user-menu-caption">Agentes</div>
+      {account.claude ? (
+        <div className="user-menu-host">
+          <span className="user-dot" />
+          Claude Code {account.claude.version ?? ""}
+        </div>
+      ) : (
+        <p className="user-menu-text">
+          <span className="user-warn">No encontré Claude Code en esta Mac.</span>{" "}
+          <a href="https://docs.claude.com/en/docs/claude-code/setup" target="_blank" rel="noreferrer">
+            Instalalo
+          </a>{" "}
+          y reiniciá Mono.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function MenuContent({ account }: { account: Account }) {
   if (account.mode === "remote") {
     return (
@@ -83,6 +107,7 @@ function MenuContent({ account }: { account: Account }) {
             {account.host?.name ?? "Ninguna conectada"}
           </div>
         </div>
+        <ClaudeStatus account={account} />
         <div className="user-menu-divider" />
         {account.hosts.length > 1 && (
           <Item icon={<ArrowLeftRight size={14} />} href="/_mono/hosts">
@@ -109,6 +134,7 @@ function MenuContent({ account }: { account: Account }) {
           <div className="user-menu-sub">Esta Mac · {account.user}</div>
         </div>
       </div>
+      <ClaudeStatus account={account} />
       <div className="user-menu-divider" />
       {account.remote ? (
         <>

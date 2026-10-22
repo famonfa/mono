@@ -17,18 +17,32 @@ const IDLE_CLOSE_MS = 20 * 60_000;
 const DEFAULT_PERMISSION_MODE = "bypassPermissions";
 const PERMISSION_MODES = new Set(["bypassPermissions", "acceptEdits", "default", "plan"]);
 const modeOrDefault = (mode) => (PERMISSION_MODES.has(mode) ? mode : DEFAULT_PERMISSION_MODE);
-/** Apps opened from the Dock don't get the shell's PATH, so also ask a login shell (covers nvm and friends). */
+/**
+ * The same `claude` the user gets in their terminal: ask a login shell first (apps opened from the
+ * Dock don't inherit the shell's PATH, and stale copies can linger elsewhere), then common locations.
+ */
 function findClaude() {
-  const known = [path.join(HOME, ".local/bin/claude"), path.join(HOME, ".claude/local/claude"), path.join(HOME, ".npm-global/bin/claude"), "/opt/homebrew/bin/claude", "/usr/local/bin/claude"].find((p) => fs.existsSync(p));
-  if (known) return known;
   try {
     const found = execFileSync(process.env.SHELL || "/bin/zsh", ["-lc", "command -v claude"], { encoding: "utf8", timeout: 5000 }).trim();
-    return found && fs.existsSync(found) ? found : undefined;
-  } catch {
-    return undefined;
-  }
+    if (found && fs.existsSync(found)) return found;
+  } catch {}
+  return [path.join(HOME, ".npm-global/bin/claude"), "/opt/homebrew/bin/claude", "/usr/local/bin/claude", path.join(HOME, ".local/bin/claude"), path.join(HOME, ".claude/local/claude")].find((p) => fs.existsSync(p));
 }
 const CLAUDE_BIN = findClaude();
+
+let claudeVersion;
+/** Which Claude Code Mono drives, for the user widget; null when it isn't installed. */
+export function claudeInfo() {
+  if (!CLAUDE_BIN) return null;
+  if (claudeVersion === undefined) {
+    try {
+      claudeVersion = execFileSync(CLAUDE_BIN, ["--version"], { encoding: "utf8", timeout: 5000 }).trim().split(" ")[0];
+    } catch {
+      claudeVersion = null;
+    }
+  }
+  return { path: CLAUDE_BIN, version: claudeVersion };
+}
 const PATH = [path.join(HOME, ".local/bin"), path.join(HOME, ".npm-global/bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", process.env.PATH].join(":");
 
 /** Chats this server is driving, keyed by Claude session id. */

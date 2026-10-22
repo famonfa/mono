@@ -97,6 +97,7 @@ function localAccount() {
     version: pkg.version,
     remote: remote.state === "connected" ? { email: remote.email, relay: remote.relay } : null,
     connectCommand: REPO_ROOT ? "mono connect" : "npx @famonfa/mono connect",
+    claude: chats.claudeInfo(),
   };
 }
 

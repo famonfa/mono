@@ -67,14 +67,23 @@ export function Home({ filter }: { filter: HomeFilter }) {
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="empty-state">
-      <div className="empty-icon">🥑</div>
-      <h2>Tu workspace está vacío</h2>
+      <div className="empty-icon">🐒</div>
+      <h2>Todavía no hay tareas</h2>
       <p>
-        En Claude Code corré <code>/workspace IME-XXXX</code> y la IA arma el resumen, el story map y los flujos de testeo acá.
+        Pedile a un agente que documente lo que está haciendo: en Claude Code corré <code>/workspace</code> (o <code>/workspace TICKET-123</code>) y arma acá el
+        resumen, el story map y los flujos de testeo.
       </p>
-      <button className="btn primary" onClick={onCreate}>
-        <Plus size={14} /> Nueva tarea <kbd className="kbd on-primary">C</kbd>
-      </button>
+      <div className="empty-actions">
+        <a className="btn primary" href={href.newSession()}>
+          <Plus size={14} /> Nueva sesión
+        </a>
+        <a className="btn" href={href.agents()}>
+          Ver mis agentes
+        </a>
+        <button className="btn" onClick={onCreate}>
+          Nueva tarea <kbd className="kbd">C</kbd>
+        </button>
+      </div>
     </div>
   );
 }

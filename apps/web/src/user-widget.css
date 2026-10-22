@@ -190,8 +190,24 @@
   color: var(--text-3);
 }
 
+.user-warn {
+  color: #f59e0b;
+}
+
+.user-menu-text a {
+  color: var(--text);
+}
+
 .user-menu-foot {
   padding: 6px 8px 2px;
   color: var(--text-4);
   font-size: 11px;
+}
+
+/* Home empty state actions (components/Home.tsx). */
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
 }
