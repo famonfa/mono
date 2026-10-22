@@ -17,31 +17,44 @@ const IDLE_CLOSE_MS = 20 * 60_000;
 const DEFAULT_PERMISSION_MODE = "bypassPermissions";
 const PERMISSION_MODES = new Set(["bypassPermissions", "acceptEdits", "default", "plan"]);
 const modeOrDefault = (mode) => (PERMISSION_MODES.has(mode) ? mode : DEFAULT_PERMISSION_MODE);
+const versionOf = (bin) => {
+  try {
+    return execFileSync(bin, ["--version"], { encoding: "utf8", timeout: 5000 }).trim().split(" ")[0];
+  } catch {
+    return null;
+  }
+};
+const newer = (a, b) => {
+  const [x, y] = [a, b].map((v) => v.split(".").map(Number));
+  for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
+  return false;
+};
+
 /**
- * The same `claude` the user gets in their terminal: ask a login shell first (apps opened from the
- * Dock don't inherit the shell's PATH, and stale copies can linger elsewhere), then common locations.
+ * Machines often have more than one Claude Code (npm, the native installer, Homebrew) and an app
+ * opened from the Dock doesn't see the shell's PATH, so look everywhere and drive the newest one.
  */
 function findClaude() {
+  const candidates = new Set([path.join(HOME, ".npm-global/bin/claude"), "/opt/homebrew/bin/claude", "/usr/local/bin/claude", path.join(HOME, ".local/bin/claude"), path.join(HOME, ".claude/local/claude")]);
   try {
     const found = execFileSync(process.env.SHELL || "/bin/zsh", ["-lc", "command -v claude"], { encoding: "utf8", timeout: 5000 }).trim();
-    if (found && fs.existsSync(found)) return found;
+    if (found) candidates.add(found);
   } catch {}
-  return [path.join(HOME, ".npm-global/bin/claude"), "/opt/homebrew/bin/claude", "/usr/local/bin/claude", path.join(HOME, ".local/bin/claude"), path.join(HOME, ".claude/local/claude")].find((p) => fs.existsSync(p));
+  let best = null;
+  for (const bin of candidates) {
+    if (!fs.existsSync(bin)) continue;
+    const version = versionOf(bin);
+    if (version && (!best || newer(version, best.version))) best = { bin, version };
+  }
+  claudeVersion = best?.version ?? null;
+  return best?.bin;
 }
+let claudeVersion = null;
 const CLAUDE_BIN = findClaude();
 
-let claudeVersion;
 /** Which Claude Code Mono drives, for the user widget; null when it isn't installed. */
 export function claudeInfo() {
-  if (!CLAUDE_BIN) return null;
-  if (claudeVersion === undefined) {
-    try {
-      claudeVersion = execFileSync(CLAUDE_BIN, ["--version"], { encoding: "utf8", timeout: 5000 }).trim().split(" ")[0];
-    } catch {
-      claudeVersion = null;
-    }
-  }
-  return { path: CLAUDE_BIN, version: claudeVersion };
+  return CLAUDE_BIN ? { path: CLAUDE_BIN, version: claudeVersion } : null;
 }
 const PATH = [path.join(HOME, ".local/bin"), path.join(HOME, ".npm-global/bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", process.env.PATH].join(":");
 
