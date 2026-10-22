@@ -386,7 +386,7 @@ export function SessionView({ sessionId, agentId, sessions }: { sessionId: strin
 
   useEffect(() => {
     if (summary) document.title = `${summary.title} · Agentes`;
-    return () => void (document.title = "Avocado Workspace");
+    return () => void (document.title = "Mono");
   }, [summary]);
 
   if (feed.error) return <div className="empty">No se pudo abrir la sesión: {feed.error}</div>;

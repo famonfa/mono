@@ -38,4 +38,4 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, HOST, () => console.log(`Avocado Workspace en http://localhost:${PORT}`));
+server.listen(PORT, HOST, () => console.log(`Mono en http://localhost:${PORT}`));

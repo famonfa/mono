@@ -3,14 +3,14 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.famonfa.avocado-workspace</string>
+  <string>com.famonfa.mono</string>
   <key>ProgramArguments</key>
   <array>
     <string>/usr/local/bin/node</string>
-    <string>/Users/facundomonsegur/avocado-workspace/server/main.mjs</string>
+    <string>/Users/facundomonsegur/mono/server/main.mjs</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/facundomonsegur/avocado-workspace</string>
+  <string>/Users/facundomonsegur/mono</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
@@ -21,8 +21,8 @@
   <key>KeepAlive</key>
   <true/>
   <key>StandardOutPath</key>
-  <string>/Users/facundomonsegur/Library/Logs/avocado-workspace.log</string>
+  <string>/Users/facundomonsegur/Library/Logs/mono.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/facundomonsegur/Library/Logs/avocado-workspace.log</string>
+  <string>/Users/facundomonsegur/Library/Logs/mono.log</string>
 </dict>
 </plist>

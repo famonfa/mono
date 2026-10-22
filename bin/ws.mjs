@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import * as store from "../server/store.mjs";
 import * as sessions from "../server/sessions.mjs";
 
-const USAGE = `ws — CLI del Avocado Workspace (http://localhost:4600)
+const USAGE = `mono (alias: ws) — CLI de Mono (http://localhost:4600)
 
   ws list                                  Lista las tareas
   ws show <task>                           Muestra task.json + boards/docs/assets

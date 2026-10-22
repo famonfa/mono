@@ -117,7 +117,7 @@ function focusContext(launchCwd, focusCwd) {
 
 function taskContext(task) {
   const lines = [
-    `Estás trabajando en la tarea ${task.id} — "${task.title}" del Avocado Workspace personal de Facundo (http://localhost:4600/#/t/${task.id}).`,
+    `Estás trabajando en la tarea ${task.id} — "${task.title}" de Mono, el workspace personal de Facundo (http://localhost:4600/#/t/${task.id}).`,
     task.tldr?.problema && `Problema: ${task.tldr.problema}`,
     task.tldr?.solucion && `Solución: ${task.tldr.solucion}`,
     task.repos?.length && `Repos/PRs: ${task.repos.map((r) => `${r.name}${r.branch ? ` (${r.branch})` : ""}${r.pr ? ` ${r.pr}` : ""}`).join(", ")}`,

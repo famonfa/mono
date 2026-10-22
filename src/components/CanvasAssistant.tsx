@@ -13,7 +13,7 @@ function canvasPrompt(task: Task, boardId: string, request: string, selected: Se
     request,
     "",
     "---",
-    `Contexto: estás editando el board \`${boardId}\` de la tarea ${task.id} ("${task.title}") en el Avocado Workspace, que el usuario está mirando en vivo.`,
+    `Contexto: estás editando el board \`${boardId}\` de la tarea ${task.id} ("${task.title}") en Mono, el workspace de Facundo, que el usuario está mirando en vivo.`,
     `- Leelo con \`ws get ${task.id} ${boardId}\`.`,
     `- Aplicá el pedido escribiendo un JSON con los nodos nuevos o cambiados y cargalo con \`ws board ${task.id} ${boardId} <archivo> --patch\` (reusá ids existentes; el canvas se actualiza solo).`,
     "- Para borrar nodos, mandá el board completo sin --patch (los nodos creados o editados a mano se conservan igual).",
