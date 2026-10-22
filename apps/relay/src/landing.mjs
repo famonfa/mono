@@ -134,7 +134,7 @@ export function landingPage({ relay }) {
     </button>
     <a class="btn ghost big" href="/_mono/login">Entrar con Google</a>
   </div>
-  <p class="hero-alt">Corrélo en la terminal de tu Mac: abre Mono en el navegador y la primera vez se instala solo.</p>
+  <p class="hero-alt">Corrélo en la terminal de tu Mac: instala la app de Mono y la abre.</p>
   <p class="hero-phone">También en el celu: <a href="/_mono/login">entrá con Google</a> desde el navegador</p>
   <div class="shot">
     <img class="desktop" src="/_mono/static/app-board.jpg" alt="Mono en la Mac: el flujo de pago de una tarea, antes y después" width="1200" height="750" />
@@ -154,8 +154,8 @@ export function landingPage({ relay }) {
   <h2>Listo en tres pasos.</h2>
   <p class="sub">Necesitás una Mac con <a href="https://docs.claude.com/en/docs/claude-code/setup">Claude Code</a> y una invitación.</p>
   <div class="steps">
-    <div class="step"><h3>Abrí Mono</h3><p>En la terminal de tu Mac. La primera vez se instala solo y se abre en el navegador.</p><pre>npx ${escape(PACKAGE)}</pre></div>
-    <div class="step"><h3>Conectá tu Mac</h3><p>Queda corriendo en segundo plano. Se abre el navegador: entrás con Google y aprobás el código.</p><pre>npx ${escape(PACKAGE)} connect</pre></div>
+    <div class="step"><h3>Instalá Mono</h3><p>En la terminal de tu Mac. Instala la app de escritorio y la abre; después la tenés en Aplicaciones.</p><pre>npx ${escape(PACKAGE)}</pre></div>
+    <div class="step"><h3>Conectá tu Mac</h3><p>En la app: menú <b>Mono → Conectar con el celular…</b> Entrás con Google, aprobás el código y queda corriendo en segundo plano.</p></div>
     <div class="step"><h3>Usalo donde estés</h3><p>Desde el celu o cualquier navegador en:</p><pre>${escape(relay.replace(/^https?:\/\//, ""))}</pre></div>
   </div>
 

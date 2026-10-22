@@ -15,6 +15,7 @@
     "relay": "npm run start -w @mono/relay",
     "mobile:ios": "npm run ios -w @mono/mobile",
     "mobile:android": "npm run android -w @mono/mobile",
-    "desktop:dist": "npm run build && npm run dist -w @mono/desktop"
+    "desktop:dist": "npm run build && npm run dist -w @mono/desktop",
+    "desktop:publish": "npm run desktop:dist && apps/relay/publish-desktop.sh"
   }
 }

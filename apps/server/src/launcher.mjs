@@ -53,19 +53,88 @@ export async function ensureServer() {
   throw new Error(`El server no arrancó; mirá ${LOG}`);
 }
 
-/** Opens Mono like `t3` does: the installed desktop app, the dev Electron shell, or the browser. */
-export function openApp(hash = "") {
-  const installed = ["/Applications/Mono.app", path.join(HOME, "Applications", "Mono.app")].find((p) => fs.existsSync(p));
-  if (installed) return execFileSync("open", ["-a", installed]), "desktop";
+const USER_APP = path.join(HOME, "Applications", "Mono.app");
+
+function appVersion(app) {
+  try {
+    return execFileSync("plutil", ["-extract", "CFBundleShortVersionString", "raw", "-o", "-", path.join(app, "Contents", "Info.plist")], { encoding: "utf8" }).trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Installs (or updates) the desktop app into ~/Applications. Downloaded here rather than in a
+ * browser, the app carries no quarantine flag, so macOS opens it without the "unverified" warning.
+ */
+async function installDesktop() {
+  const wanted = JSON.parse(fs.readFileSync(path.join(PKG_DIR, "package.json"), "utf8")).version;
+  const existing = ["/Applications/Mono.app", USER_APP].find((p) => fs.existsSync(p));
+  if (existing && appVersion(existing) === wanted) return existing;
+
+  const url = `${DEFAULT_RELAY}/_mono/download/Mono-${process.arch === "arm64" ? "arm64" : "x64"}.zip`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`no pude bajar la app (${res.status})`);
+  const total = Number(res.headers.get("content-length")) || 0;
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), "mono-app-"));
+  const zip = path.join(work, "Mono.zip");
+  const out = fs.createWriteStream(zip);
+  let done = 0;
+  for await (const chunk of res.body) {
+    out.write(chunk);
+    done += chunk.length;
+    if (total && process.stdout.isTTY) process.stdout.write(`\r${existing ? "Actualizando" : "Bajando"} la app de Mono… ${Math.round((done / total) * 100)}%`);
+  }
+  await new Promise((resolve) => out.end(resolve));
+  if (process.stdout.isTTY) process.stdout.write("\n");
+  execFileSync("ditto", ["-x", "-k", zip, work]);
+
+  fs.mkdirSync(path.dirname(USER_APP), { recursive: true });
+  if (existing) {
+    // macOS only lets Finder remove installed apps; the shell gets a half-deleted bundle.
+    try {
+      execFileSync("osascript", ["-e", `tell application "Finder" to delete (POSIX file "${existing}" as alias)`], { stdio: "ignore" });
+    } catch {
+      throw new Error(`no pude reemplazar ${existing}: tiralo a la papelera y volvé a correr el comando`);
+    }
+  }
+  fs.renameSync(path.join(work, "Mono.app"), USER_APP);
+  fs.rmSync(work, { recursive: true, force: true });
+  return USER_APP;
+}
+
+/**
+ * Opens Mono in its desktop app, installing it on first run. `--web` (or a failed download) falls
+ * back to the browser; a monorepo checkout uses its dev Electron shell.
+ */
+export async function openApp({ hash = "", web = false } = {}) {
   const electron = REPO_ROOT && path.join(REPO_ROOT, "node_modules", ".bin", "electron");
-  if (electron && fs.existsSync(electron)) {
-    // Terminals inside Electron apps (T3 Code, VS Code) export ELECTRON_RUN_AS_NODE, which would start Electron as plain Node.
+  if (!web && electron && fs.existsSync(electron)) {
+    // Terminals inside Electron-based apps export ELECTRON_RUN_AS_NODE, which would start Electron as plain Node.
     const { ELECTRON_RUN_AS_NODE, ...env } = process.env;
     spawn(electron, [path.join(REPO_ROOT, "apps", "desktop")], { detached: true, stdio: "ignore", env: { ...env, MONO_HASH: hash } }).unref();
     return "desktop";
   }
+  if (!web && process.platform === "darwin") {
+    try {
+      const app = await installDesktop();
+      // `open` forwards the caller's environment; from a terminal inside an Electron-based app that
+      // includes ELECTRON_RUN_AS_NODE, which would make Mono start as plain Node and quit.
+      const { ELECTRON_RUN_AS_NODE, ...env } = process.env;
+      execFileSync("open", ["-a", app], { env });
+      return "desktop";
+    } catch (error) {
+      console.log(`No pude abrir la app de escritorio (${error.message}); la abro en el navegador.`);
+    }
+  }
   execFileSync("open", [`${APP_URL}/${hash}`]);
   return "browser";
+}
+
+export async function launch({ hash, web } = {}) {
+  await ensureServer();
+  const where = await openApp({ hash, web });
+  console.log(where === "desktop" ? "🐒 Mono abierto" : `🐒 Mono en ${APP_URL}`);
 }
 
 /**
@@ -92,11 +161,6 @@ export function runFromRuntime() {
   process.exit(result.status ?? 1);
 }
 
-export async function launch(hash) {
-  await ensureServer();
-  const where = openApp(hash);
-  console.log(`🐒 Mono en ${APP_URL} (${where === "desktop" ? "app de escritorio" : "navegador"})`);
-}
 
 /**
  * Pairs this machine with a relay so the phone/web can reach it: the relay hands out a short code,

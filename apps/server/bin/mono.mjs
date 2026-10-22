@@ -11,7 +11,7 @@ launcher.runFromRuntime();
 
 const USAGE = `mono (alias: ws) — CLI de Mono (http://localhost:4600)
 
-  mono                                     Arranca el server si hace falta y abre la app (escritorio o navegador)
+  mono [--web]                             Arranca el server si hace falta y abre la app de escritorio (o el navegador)
   mono serve                               Corre el server en primer plano
   mono status                              Estado del server, del servicio y de la conexión remota
   mono connect <relay-url>                 Conecta esta máquina al relay (Google) para usarla desde el celu/web
@@ -52,9 +52,10 @@ function requireArgs(count) {
 // `ws` with no args keeps printing usage (the /workspace skill relies on it); `mono` opens the app.
 const invokedAs = path.basename(process.argv[1] ?? "");
 
-switch (command ?? (invokedAs === "ws" ? "help" : "launch")) {
+// `mono --web` is still the launch command, just opened in the browser.
+switch (command === "--web" ? "launch" : (command ?? (invokedAs === "ws" ? "help" : "launch"))) {
   case "launch":
-    await launcher.launch();
+    await launcher.launch({ web: process.argv.includes("--web") });
     break;
   case "serve":
     await import("../src/main.mjs");

@@ -25,6 +25,9 @@ const SECURE = PUBLIC_URL.startsWith("https:");
 const SESSION_DAYS = 30;
 const REQUEST_TIMEOUT_MS = 120_000;
 const PUBLIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "public");
+/** Desktop app zips that `npx @famonfa/mono` installs (uploaded by publish-desktop.sh, kept across deploys). */
+const DOWNLOADS_DIR = process.env.DOWNLOADS_DIR ?? path.resolve("downloads");
+const DOWNLOADS = new Set(["Mono-arm64.zip", "Mono-x64.zip"]);
 const STATIC_TYPES = { ".jpg": "image/jpeg", ".png": "image/png", ".svg": "image/svg+xml", ".webp": "image/webp" };
 
 if (SECRET.length < 32) throw new Error("SESSION_SECRET tiene que tener al menos 32 caracteres (openssl rand -hex 32)");
@@ -244,6 +247,15 @@ async function relayRoute(req, res, url) {
 
   if (route === "/health") return send(res, 200, { ok: true, hosts: hosts.size });
   if (route === "/privacidad") return html(res, privacyPage());
+
+  if (route.startsWith("/download/")) {
+    const name = route.slice("/download/".length);
+    const file = path.join(DOWNLOADS_DIR, name);
+    if (!DOWNLOADS.has(name) || !fs.existsSync(file)) return send(res, 404, { error: "not found" });
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Length", fs.statSync(file).size);
+    return fs.createReadStream(file).pipe(res);
+  }
 
 
 

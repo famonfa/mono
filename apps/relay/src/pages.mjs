@@ -88,8 +88,8 @@ export function invitePage({ invite, dev }) {
 
 const installSteps = (relay) => `<ol class="steps">
   <li>Tené <a href="https://docs.claude.com/en/docs/claude-code/setup">Claude Code</a> instalado y logueado en tu Mac.</li>
-  <li>En la terminal de esa Mac (queda corriendo en segundo plano):<pre>npx ${escape(PACKAGE)} connect</pre></li>
-  <li>Se abre el navegador: aprobá el código con Google y volvé acá.</li>
+  <li>En la terminal de esa Mac instalá la app:<pre>npx ${escape(PACKAGE)}</pre></li>
+  <li>En la app: menú <b>Mono → Conectar con el celular…</b>, aprobá el código con Google y volvé acá.</li>
 </ol>`;
 
 export function hostsPage({ email, hosts, current, admin, relay }) {
