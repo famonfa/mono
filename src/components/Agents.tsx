@@ -202,7 +202,7 @@ function ToolCallRow({ call, sessionId, live }: { call: ToolCall; sessionId: str
           <ToolIcon name={call.name} />
         </span>
         <span className="tool-call-name">{shortTool(call.name)}</span>
-        <span className="tool-call-title">{call.title}</span>
+        <span className={`tool-call-title${running ? " live-tool-shine" : ""}`}>{call.title}</span>
         <span className="spacer" />
         {call.agentId && (
           <span
@@ -231,18 +231,38 @@ function ToolCallRow({ call, sessionId, live }: { call: ToolCall; sessionId: str
 export function Feed({ events, sessionId, live, isSubagent, pendingText }: { events: SessionEvent[]; sessionId: string; live: boolean; isSubagent: boolean; pendingText?: string | null }) {
   const items = useMemo(() => buildFeed(events), [events]);
   const scroller = useRef<HTMLDivElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
   const [pinned, setPinned] = useState(true);
+  const pinnedRef = useRef(true);
+  pinnedRef.current = pinned;
   const [unseen, setUnseen] = useState(0);
   const lastCount = useRef(0);
+  // Items present on first paint render still; only ones that arrive live get the enter animation.
+  const firstPaintCount = useRef<number | null>(null);
+  if (firstPaintCount.current === null && items.length) firstPaintCount.current = items.length;
 
   useLayoutEffect(() => {
     const el = scroller.current;
     if (!el) return;
     const added = events.length - lastCount.current;
+    const initial = lastCount.current === 0;
     lastCount.current = events.length;
-    if (pinned) el.scrollTop = el.scrollHeight;
+    if (pinned) el.scrollTo({ top: el.scrollHeight, behavior: initial ? "auto" : "smooth" });
     else if (added > 0) setUnseen((u) => u + added);
   }, [events, pinned, pendingText]);
+
+  // Like T3: stay glued to the bottom while content grows (images loading, rows expanding), not only on new events.
+  useEffect(() => {
+    if (!inner.current) return;
+    const observer = new ResizeObserver(() => {
+      const el = scroller.current;
+      if (el && pinnedRef.current) el.scrollTop = el.scrollHeight;
+    });
+    observer.observe(inner.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const enter = (i: number) => (firstPaintCount.current !== null && i >= firstPaintCount.current ? " feed-enter" : "");
 
   const onScroll = () => {
     const el = scroller.current!;
@@ -254,23 +274,23 @@ export function Feed({ events, sessionId, live, isSubagent, pendingText }: { eve
   return (
     <div className="feed-wrap">
       <div className="feed" ref={scroller} onScroll={onScroll}>
-        <div className="feed-inner">
+        <div className="feed-inner" ref={inner}>
           {items.map((item, i) =>
             item.type === "tools" ? (
-              <div key={i} className="tool-group-feed">
+              <div key={i} className={`tool-group-feed${enter(i)}`}>
                 {item.calls.map((call) => (
                   <ToolCallRow key={call.id} call={call} sessionId={sessionId} live={live} />
                 ))}
               </div>
             ) : item.event.kind === "prompt" ? (
-              <div key={i} className="msg prompt">
+              <div key={i} className={`msg prompt${enter(i)}`}>
                 <div className="msg-author">
                   <MessageSquare size={12} /> {isSubagent && i === 0 ? "Instrucciones del orquestador" : "Vos"} <span className="msg-time">{formatDate(item.event.ts)}</span>
                 </div>
                 <PromptBody text={item.event.text ?? ""} images={item.event.images ?? 0} />
               </div>
             ) : item.event.kind === "text" ? (
-              <div key={i} className="msg assistant">
+              <div key={i} className={`msg assistant${enter(i)}`}>
                 <div className="msg-author">
                   <Sparkles size={12} /> Claude <span className="msg-time">{formatDate(item.event.ts)}</span>
                 </div>
@@ -279,13 +299,13 @@ export function Feed({ events, sessionId, live, isSubagent, pendingText }: { eve
                 </div>
               </div>
             ) : (
-              <div key={i} className="msg-notice">
+              <div key={i} className={`msg-notice${enter(i)}`}>
                 {item.event.text}
               </div>
             ),
           )}
           {pendingText && (
-            <div className="msg prompt pending">
+            <div className="msg prompt pending feed-enter">
               <div className="msg-author">
                 <MessageSquare size={12} /> Vos <span className="msg-time">enviando…</span>
               </div>
@@ -293,11 +313,9 @@ export function Feed({ events, sessionId, live, isSubagent, pendingText }: { eve
             </div>
           )}
           {live && (
-            <div className="typing">
-              <span />
-              <span />
-              <span />
-              trabajando…
+            <div className="typing feed-enter">
+              <Sparkles size={12} className="typing-icon" />
+              <span className="live-tool-shine">Trabajando…</span>
             </div>
           )}
         </div>
@@ -306,7 +324,7 @@ export function Feed({ events, sessionId, live, isSubagent, pendingText }: { eve
         <button
           className="follow-btn"
           onClick={() => {
-            scroller.current!.scrollTop = scroller.current!.scrollHeight;
+            scroller.current!.scrollTo({ top: scroller.current!.scrollHeight, behavior: "smooth" });
             setPinned(true);
             setUnseen(0);
           }}

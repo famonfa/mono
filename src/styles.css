@@ -803,7 +803,7 @@ code,
 @keyframes pop {
   from {
     opacity: 0;
-    transform: scale(0.97) translateY(-4px);
+    transform: scale(0.98);
   }
 }
 
@@ -2126,8 +2126,6 @@ code,
 
 .live-dot.working {
   background: #4cb782;
-  box-shadow: 0 0 0 0 rgb(76 183 130 / 0.6);
-  animation: pulse 1.6s infinite;
 }
 
 .live-dot.idle {
@@ -2488,28 +2486,6 @@ code,
   font-size: 12px;
 }
 
-.typing span {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #4cb782;
-  animation: blink 1.2s infinite;
-}
-
-.typing span:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.typing span:nth-child(3) {
-  animation-delay: 0.4s;
-  margin-right: 4px;
-}
-
-@keyframes blink {
-  50% {
-    opacity: 0.2;
-  }
-}
 
 .follow-btn {
   position: absolute;
@@ -3432,4 +3408,176 @@ a.icon-btn {
 .board-crash-actions {
   display: flex;
   gap: 8px;
+}
+
+/* Motion — same timing as T3 Code: 150ms standard transitions, expo-out for things entering. */
+:root {
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --duration: 0.15s;
+}
+
+button,
+a,
+input,
+textarea,
+.menu-item,
+.palette-item,
+.project-item,
+.row,
+.sub-row,
+.agent-row,
+.session-item,
+.sub-agent,
+.tool-call-head,
+.kanban-card,
+.node {
+  transition:
+    background-color var(--duration) var(--ease-standard),
+    border-color var(--duration) var(--ease-standard),
+    color var(--duration) var(--ease-standard),
+    box-shadow var(--duration) var(--ease-standard),
+    opacity var(--duration) var(--ease-standard),
+    transform var(--duration) var(--ease-standard);
+}
+
+.btn:active:not(:disabled),
+.composer-send:active:not(:disabled),
+.composer-stop:active,
+.icon-btn:active,
+.tool:active,
+.mode-trigger:active {
+  transform: scale(0.96);
+}
+
+.menu,
+.project-menu,
+.dialog,
+.palette,
+.canvas-assistant-status,
+.permission-card {
+  animation: pop var(--duration) var(--ease-standard);
+}
+
+.overlay,
+.lightbox {
+  animation: fade var(--duration) var(--ease-standard);
+}
+
+.inspector {
+  animation: slide-in 0.3s var(--ease-out-expo);
+}
+
+.feed-enter {
+  animation: feed-enter 0.5s var(--ease-out-expo) both;
+}
+
+@keyframes feed-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.composer textarea {
+  transition: height var(--duration) var(--ease-standard);
+}
+
+.tool-call-chevron {
+  transition: transform 0.2s var(--ease-out-expo);
+}
+
+.tool-call-body {
+  transition:
+    opacity 0.2s var(--ease-standard),
+    translate 0.3s var(--ease-out-expo);
+}
+
+@starting-style {
+  .tool-call-body {
+    opacity: 0;
+    translate: 0 -4px;
+  }
+}
+
+.follow-btn {
+  animation: feed-enter 0.3s var(--ease-out-expo) both;
+}
+
+/* T3's live-tool-shine: a highlight sweeping across the label of whatever is running. */
+.live-tool-shine {
+  color: transparent;
+  background-image:
+    linear-gradient(to right, transparent, var(--text), transparent),
+    linear-gradient(var(--text-3), var(--text-3));
+  background-repeat: no-repeat;
+  background-size: 4.5rem 100%, 100% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: live-tool-shine 2.2s steps(30, end) infinite;
+}
+
+@keyframes live-tool-shine {
+  0% {
+    background-position: -4.5rem 0, 0 0;
+  }
+  to {
+    background-position: calc(100% + 4.5rem) 0, 0 0;
+  }
+}
+
+.typing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.typing-icon {
+  color: #d97757;
+}
+
+/* T3's status-ping: a stepped ring that grows out of a live dot. */
+.live-dot.working::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: inherit;
+  animation: status-ping 2s infinite;
+}
+
+@keyframes status-ping {
+  0% {
+    opacity: 0.9;
+    scale: 0.75;
+    animation-timing-function: steps(8, end);
+  }
+  40%,
+  to {
+    opacity: 0;
+    scale: 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.sidebar-top .icon-btn {
+  width: 26px;
+}
+
+.project-switch {
+  gap: 7px;
+  padding-right: 4px;
 }
