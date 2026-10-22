@@ -58,6 +58,7 @@ export type Task = {
   projects?: string[];
   projectIds?: string[];
   sessionIds?: string[];
+  boardOrder?: number;
   boards: BoardSummary[];
   docs: string[];
   assets: string[];

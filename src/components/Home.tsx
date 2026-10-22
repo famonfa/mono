@@ -6,6 +6,7 @@ import { href, navigate, type HomeFilter } from "../router";
 import type { Task, TaskStatus } from "../types";
 import { formatDate, Menu, useHotkey } from "../ui";
 import { StatusDot } from "./Agents";
+import { KanbanCanvas } from "./KanbanCanvas";
 import { inProject, ProjectIcon, projectScope } from "./Projects";
 
 type Display = "list" | "board";
@@ -57,7 +58,7 @@ export function Home({ filter }: { filter: HomeFilter }) {
       ) : display === "list" ? (
         <ListView tasks={visible} statuses={statuses} />
       ) : (
-        <KanbanView tasks={visible} statuses={statuses} />
+        <KanbanCanvas tasks={visible} statuses={statuses} />
       )}
     </div>
   );
@@ -178,79 +179,6 @@ function ListView({ tasks, statuses }: { tasks: Task[]; statuses: TaskStatus[] }
         </section>
       ))}
       {!groups.length && <div className="empty">No hay tareas en esta vista.</div>}
-    </div>
-  );
-}
-
-function KanbanView({ tasks, statuses }: { tasks: Task[]; statuses: TaskStatus[] }) {
-  const { updateTask, newTask } = useApp();
-  const [dragging, setDragging] = useState<string | null>(null);
-  const [over, setOver] = useState<TaskStatus | null>(null);
-
-  return (
-    <div className="kanban">
-      {statuses.map((s) => {
-        const items = tasks.filter((t) => t.status === s);
-        return (
-          <div
-            key={s}
-            className={`kanban-col ${over === s ? "over" : ""}`}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setOver(s);
-            }}
-            onDragLeave={() => setOver((o) => (o === s ? null : o))}
-            onDrop={(e) => {
-              e.preventDefault();
-              const id = e.dataTransfer.getData("text/plain");
-              setOver(null);
-              setDragging(null);
-              if (id && tasks.find((t) => t.id === id)?.status !== s) void updateTask(id, { status: s });
-            }}
-          >
-            <div className="kanban-head">
-              <StatusIcon status={s} />
-              <span className="group-label">{STATUS_META[s].label}</span>
-              <span className="group-count">{items.length}</span>
-              <span className="spacer" />
-              <button className="icon-btn" onClick={() => newTask(s)}>
-                <Plus size={14} />
-              </button>
-            </div>
-            <div className="kanban-cards">
-              {items.map((t) => (
-                <div
-                  key={t.id}
-                  className={`kanban-card ${dragging === t.id ? "dragging" : ""}`}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData("text/plain", t.id);
-                    setDragging(t.id);
-                  }}
-                  onDragEnd={() => setDragging(null)}
-                  onClick={() => navigate(href.task(t.id))}
-                >
-                  <div className="kanban-card-top">
-                    <span className="row-id">{t.id}</span>
-                    <span className="spacer" />
-                    <span className="row-date">{formatDate(t.updatedAt)}</span>
-                  </div>
-                  <div className="kanban-card-title">
-                    <span onClick={(e) => e.stopPropagation()}>
-                      <StatusMenu task={t} />
-                    </span>
-                    <span>{t.title}</span>
-                  </div>
-                  <div className="kanban-card-meta">
-                    <RiskIcon risk={t.risk as Risk | undefined} />
-                    <TaskMeta task={t} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }
