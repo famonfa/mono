@@ -27,13 +27,14 @@ import { href, navigate } from "../router";
 import { uploadUrl } from "../chat";
 import { rememberSession, useSessionFeed, type SessionEvent, type SessionStatus, type SessionSummary, type SubagentSummary } from "../sessions";
 import { formatDate, Menu } from "../ui";
+import { markSeen, useMarkSeen, useUnread } from "../unread";
 import { SessionChat } from "./Chat";
 import { SendToGroup } from "./GroupCanvas";
 import { Markdown } from "./Markdown";
 
 const STATUS_LABEL: Record<SessionStatus, string> = { working: "Trabajando", idle: "En pausa", inactive: "Inactiva" };
 
-export function StatusDot({ status, size = 8 }: { status: SessionStatus; size?: number }) {
+export function StatusDot({ status, size = 8 }: { status: SessionStatus | "unread"; size?: number }) {
   return <span className={`live-dot ${status}`} style={{ width: size, height: size }} />;
 }
 
@@ -74,10 +75,11 @@ export function ContextMeter({ session, label = false }: { session: SessionSumma
 
 export function SessionRow({ session, compact = false }: { session: SessionSummary; compact?: boolean }) {
   const { tasks } = useApp();
+  const unread = useUnread()(session);
   const activeSubs = session.subagents.filter((s) => s.status === "working").length;
   return (
-    <a className={`agent-row ${compact ? "compact" : ""}`} href={href.session(session.id)}>
-      <StatusDot status={session.status} />
+    <a className={`agent-row ${compact ? "compact" : ""} ${unread ? "unread" : ""}`} href={href.session(session.id)} title={unread ? "Terminó y todavía no la viste" : undefined}>
+      <StatusDot status={unread ? "unread" : session.status} />
       <span className="agent-title">{session.title}</span>
       {!compact && <span className="agent-project">{session.project}</span>}
       <span className="agent-action">
@@ -114,10 +116,13 @@ export function SessionRow({ session, compact = false }: { session: SessionSumma
 }
 
 export function AgentsPage({ sessions }: { sessions: SessionSummary[] }) {
-  const groups: { status: SessionStatus; label: string }[] = [
-    { status: "working", label: "Trabajando ahora" },
-    { status: "idle", label: "En pausa (últimas 2 h)" },
-    { status: "inactive", label: "Anteriores" },
+  const isUnread = useUnread();
+  const unread = sessions.filter((s) => isUnread(s));
+  const groups: { status: SessionStatus | "unread"; label: string; items: SessionSummary[] }[] = [
+    { status: "unread", label: "Terminaron · sin ver", items: unread },
+    { status: "working", label: "Trabajando ahora", items: sessions.filter((s) => s.status === "working") },
+    { status: "idle", label: "En pausa (últimas 2 h)", items: sessions.filter((s) => s.status === "idle" && !isUnread(s)) },
+    { status: "inactive", label: "Anteriores", items: sessions.filter((s) => s.status === "inactive" && !isUnread(s)) },
   ];
   return (
     <div className="home">
@@ -130,15 +135,19 @@ export function AgentsPage({ sessions }: { sessions: SessionSummary[] }) {
         </a>
       </header>
       <div className="list">
-        {groups.map((g) => {
-          const items = sessions.filter((s) => s.status === g.status);
+        {groups.map(({ status, label, items }) => {
           if (!items.length) return null;
           return (
-            <section key={g.status}>
+            <section key={status}>
               <div className="group-header">
-                <StatusDot status={g.status} />
-                <span className="group-label">{g.label}</span>
+                <StatusDot status={status} />
+                <span className="group-label">{label}</span>
                 <span className="group-count">{items.length}</span>
+                {status === "unread" && (
+                  <button className="link-btn group-header-action" onClick={() => markSeen(items)}>
+                    Marcar como vistas
+                  </button>
+                )}
               </div>
               {items.map((s) => (
                 <SessionRow key={s.id} session={s} />
@@ -405,6 +414,7 @@ export function SessionView({ sessionId, agentId, sessions }: { sessionId: strin
   const agent = summary?.subagents.find((a) => a.id === agentId);
   const status = agentId ? agent?.status ?? "inactive" : summary?.status ?? "inactive";
   useEffect(() => rememberSession(sessionId), [sessionId]);
+  useMarkSeen(summary);
 
   useEffect(() => {
     if (summary) document.title = `${summary.title} · Agentes`;

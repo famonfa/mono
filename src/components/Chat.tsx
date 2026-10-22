@@ -6,6 +6,7 @@ import { href, navigate } from "../router";
 import { rememberSession, useSessionFeed, type SessionSummary } from "../sessions";
 import type { Task } from "../types";
 import { formatDate, Menu } from "../ui";
+import { useMarkSeen, useUnread } from "../unread";
 import { Feed, StatusDot, ToolIcon } from "./Agents";
 import { SendToGroup } from "./GroupCanvas";
 import { ProjectIcon } from "./Projects";
@@ -636,6 +637,8 @@ export function TaskSessions({ task, sessionId }: { task: Task; sessionId?: stri
   useEffect(() => {
     if (sessionId) rememberSession(sessionId, task.id);
   }, [sessionId, task.id]);
+  useMarkSeen(current);
+  const isUnread = useUnread();
 
   return (
     <div className="task-sessions">
@@ -645,8 +648,8 @@ export function TaskSessions({ task, sessionId }: { task: Task; sessionId?: stri
         </a>
         <div className="prop-title session-list-title">Sesiones · {linked.length}</div>
         {linked.map((s) => (
-          <a key={s.id} className={`session-item ${s.id === sessionId ? "active" : ""}`} href={href.taskSession(task.id, s.id)}>
-            <StatusDot status={s.status} size={7} />
+          <a key={s.id} className={`session-item ${s.id === sessionId ? "active" : ""} ${isUnread(s) ? "unread" : ""}`} href={href.taskSession(task.id, s.id)}>
+            <StatusDot status={isUnread(s) ? "unread" : s.status} size={7} />
             <span className="session-item-body">
               <span className="session-item-title">{s.title}</span>
               <span className="session-item-meta">

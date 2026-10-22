@@ -21,6 +21,7 @@ import { StatusIcon } from "../icons";
 import { href, navigate } from "../router";
 import type { SessionSummary } from "../sessions";
 import { formatDate, Menu, useHotkey } from "../ui";
+import { markSeen, useUnread } from "../unread";
 import { StatusDot } from "./Agents";
 import { SessionChat } from "./Chat";
 
@@ -62,12 +63,13 @@ function SessionPane({ id, data, selected }: NodeProps<PaneNode>) {
   const { remove, focus } = useContext(PaneActions);
   const summary = sessions.find((s) => s.id === data.sessionId);
   const status = summary?.status ?? "inactive";
+  const unread = useUnread()(summary);
 
   return (
-    <div className={`group-pane ${status}`}>
+    <div className={`group-pane ${status} ${unread ? "unread" : ""}`} onPointerDownCapture={() => unread && summary && markSeen([summary])}>
       <NodeResizer isVisible={selected} minWidth={340} minHeight={280} lineClassName="group-pane-resize" handleClassName="group-pane-handle" />
       <header className="group-pane-head" onDoubleClick={() => focus(id)} title="Arrastrá para mover · doble click para acercar">
-        <StatusDot status={status} size={7} />
+        <StatusDot status={unread ? "unread" : status} size={7} />
         <span className="group-pane-title">{summary?.title ?? data.title ?? "Sesión"}</span>
         {summary?.taskIds?.map((taskId) => {
           const task = tasks.find((t) => t.id === taskId);
@@ -221,7 +223,9 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
   const live = nodes.map((n) => sessions.find((s) => s.id === n.id)).filter((s): s is SessionSummary => Boolean(s));
   const workingIds = new Set(live.filter((s) => s.status === "working").map((s) => s.id));
   const working = workingIds.size;
-  const idle = live.filter((s) => s.status === "idle").length;
+  const isUnread = useUnread();
+  const unreadIds = new Set(live.filter((s) => isUnread(s)).map((s) => s.id));
+  const idle = live.filter((s) => s.status === "idle" && !unreadIds.has(s.id)).length;
 
   useHotkey("!", fitAll);
 
@@ -241,6 +245,11 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
             {working > 0 && (
               <span className="status-pill-live working">
                 <StatusDot status="working" size={7} /> {working} trabajando
+              </span>
+            )}
+            {unreadIds.size > 0 && (
+              <span className="status-pill-live unread">
+                <StatusDot status="unread" size={7} /> {unreadIds.size} sin ver
               </span>
             )}
             {idle > 0 && (
@@ -293,7 +302,13 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
           >
             <Background variant={BackgroundVariant.Dots} gap={24} size={1} />
             <Controls showInteractive={false} />
-            <MiniMap pannable zoomable nodeBorderRadius={8} nodeColor={(n) => (workingIds.has(n.id) ? "var(--accent)" : "var(--bg-elev-2)")} />
+            <MiniMap
+              pannable
+              zoomable
+              nodeBorderRadius={10}
+              nodeStrokeWidth={6}
+              nodeClassName={(n) => (unreadIds.has(n.id) ? "unread" : (sessions.find((s) => s.id === n.id)?.status ?? "inactive"))}
+            />
           </ReactFlow>
           {!nodes.length && (
             <div className="group-empty">

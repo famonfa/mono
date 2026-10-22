@@ -17,6 +17,7 @@ import { href, navigate, useRoute, type Route } from "./router";
 import { lastSessionId, useSessions } from "./sessions";
 import type { Task, TaskStatus } from "./types";
 import { Dialog, useHotkey, useTheme, type DialogRequest } from "./ui";
+import { useUnread } from "./unread";
 
 export function App() {
   const route = useRoute();
@@ -148,6 +149,10 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
   const activeTaskId = "taskId" in route ? route.taskId : undefined;
   const working = sessions.filter((s) => s.status === "working");
   const workingTasks = new Set(working.flatMap((s) => s.taskIds ?? []));
+  const isUnread = useUnread();
+  const unread = sessions.filter((s) => isUnread(s));
+  const unreadTasks = new Set(unread.flatMap((s) => s.taskIds ?? []));
+  const unreadIds = new Set(allSessions.filter((s) => isUnread(s)).map((s) => s.id));
   const counts = {
     todas: tasks.length,
     activas: tasks.filter((t) => t.status !== "hecho").length,
@@ -203,11 +208,7 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
           <Bot size={15} />
           <span>Agentes</span>
           <span className="nav-count">
-            {working.length > 0 && (
-              <span className="nav-live">
-                <StatusDot status="working" size={6} /> {working.length}
-              </span>
-            )}
+            <LiveCounts working={working.length} unread={unread.length} />
           </span>
         </a>
       </nav>
@@ -221,18 +222,13 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
       <nav className="sidebar-nav">
         {groups.map((g) => {
           const live = g.panes.filter((p) => workingIds.has(p.sessionId)).length;
+          const toSee = g.panes.filter((p) => unreadIds.has(p.sessionId)).length;
           return (
             <a key={g.id} href={href.group(g.id)} className={route.view === "group" && route.groupId === g.id ? "active" : ""} title={`${g.name} · ${g.panes.length} sesiones`}>
               <LayoutGrid size={14} />
               <span className="recent-title">{g.name}</span>
               <span className="nav-count">
-                {live > 0 ? (
-                  <span className="nav-live">
-                    <StatusDot status="working" size={6} /> {live}
-                  </span>
-                ) : (
-                  g.panes.length || ""
-                )}
+                {live || toSee ? <LiveCounts working={live} unread={toSee} /> : g.panes.length || ""}
               </span>
             </a>
           );
@@ -246,7 +242,7 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
           <a key={t.id} href={href.task(t.id)} className={t.id === activeTaskId ? "active" : ""} title={`${t.id} · ${t.title}`}>
             <StatusIcon status={t.status} size={13} />
             <span className="recent-title">{t.title}</span>
-            {workingTasks.has(t.id) && <StatusDot status="working" size={6} />}
+            {workingTasks.has(t.id) ? <StatusDot status="working" size={6} /> : unreadTasks.has(t.id) && <StatusDot status="unread" size={6} />}
           </a>
         ))}
         {!recent.length && <span className="sidebar-empty">Sin tareas todavía</span>}
@@ -266,6 +262,23 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
         </span>
       </div>
     </aside>
+  );
+}
+
+function LiveCounts({ working, unread }: { working: number; unread: number }) {
+  return (
+    <span className="live-counts">
+      {working > 0 && (
+        <span className="nav-live" title="Trabajando">
+          <StatusDot status="working" size={6} /> {working}
+        </span>
+      )}
+      {unread > 0 && (
+        <span className="nav-live unread" title="Terminaron y no las viste">
+          <StatusDot status="unread" size={6} /> {unread}
+        </span>
+      )}
+    </span>
   );
 }
 

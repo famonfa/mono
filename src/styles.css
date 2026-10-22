@@ -16,6 +16,8 @@
   --accent: #5e6ad2;
   --accent-hover: #6c78e0;
   --accent-soft: rgb(94 106 210 / 0.16);
+  --unread: #4ea7fc;
+  --unread-soft: rgb(78 167 252 / 0.22);
   --shadow: 0 12px 40px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.06);
   --canvas-dots: rgb(255 255 255 / 0.09);
   --minimap-mask: rgb(13 13 15 / 0.7);
@@ -44,6 +46,8 @@
   --text-3: #8b8b94;
   --text-4: #c4c4cb;
   --accent-soft: rgb(94 106 210 / 0.1);
+  --unread: #1f7ae0;
+  --unread-soft: rgb(31 122 224 / 0.16);
   --shadow: 0 12px 40px rgb(0 0 0 / 0.12), 0 0 0 1px rgb(0 0 0 / 0.06);
   --canvas-dots: rgb(0 0 0 / 0.1);
   --minimap-mask: rgb(250 250 250 / 0.7);
@@ -4036,4 +4040,65 @@ textarea,
   border-radius: 2px !important;
   background: var(--bg-panel) !important;
   border: 1px solid var(--accent) !important;
+}
+
+/* Sessions that finished and haven't been opened yet */
+.live-dot.unread {
+  background: var(--unread);
+  box-shadow: 0 0 0 3px var(--unread-soft);
+}
+
+.live-counts {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-live.unread {
+  color: var(--unread);
+}
+
+.status-pill-live.unread {
+  color: var(--unread);
+  border-color: var(--unread-soft);
+  background: var(--unread-soft);
+}
+
+.agent-row.unread .agent-title,
+.session-item.unread .session-item-title {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.group-header-action {
+  margin-left: auto;
+}
+
+.group-pane.unread {
+  border-color: var(--unread);
+  box-shadow: 0 0 0 1px var(--unread), 0 0 28px var(--unread-soft);
+}
+
+.group-pane.unread .group-pane-head {
+  background: var(--unread-soft);
+}
+
+.group-canvas .react-flow__minimap-node {
+  fill: var(--text-4);
+  stroke: var(--text-3);
+}
+
+.group-canvas .react-flow__minimap-node.working {
+  fill: #4cb782;
+  stroke: #4cb782;
+}
+
+.group-canvas .react-flow__minimap-node.idle {
+  fill: #d9a23b;
+  stroke: #d9a23b;
+}
+
+.group-canvas .react-flow__minimap-node.unread {
+  fill: var(--unread);
+  stroke: var(--unread);
 }
