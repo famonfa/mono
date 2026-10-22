@@ -5,7 +5,7 @@ import path from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import * as store from "./store.mjs";
 import { sessionCwd } from "./sessions.mjs";
-import { descendantIds, launchRootFor, listProjects } from "./projects.mjs";
+import { allProjects, descendantIds, launchRootFor } from "./projects.mjs";
 
 const HOME = os.homedir();
 export const AVOCADO_ROOT = path.join(HOME, "avocado-all", "avocado");
@@ -143,9 +143,16 @@ function gitWorktrees(root) {
 /** A project's folder and worktrees, followed by those of the projects nested in it (avocado → instamenu, KDS…). */
 export function worktreesForProject(projectId) {
   const ids = descendantIds(projectId);
-  const projects = listProjects();
-  const ordered = [projects.find((p) => p.id === projectId), ...projects.filter((p) => p.id !== projectId && ids.has(p.id))].filter(Boolean);
-  return ordered.flatMap((p) => gitWorktrees(p.root));
+  const projects = allProjects();
+  const top = projects.find((p) => p.id === projectId);
+  if (!top) return [];
+  const roots = [top.root, ...projects.filter((p) => p.id !== projectId && ids.has(p.id)).map((p) => p.root)];
+  for (const entry of fs.readdirSync(top.root, { withFileTypes: true })) {
+    const dir = path.join(top.root, entry.name);
+    if (entry.isDirectory() && !entry.name.startsWith(".") && fs.existsSync(path.join(dir, ".git")) && !roots.includes(dir)) roots.push(dir);
+  }
+  const all = roots.flatMap((root) => gitWorktrees(root));
+  return [...all.filter((w) => w.root), ...all.filter((w) => !w.root)];
 }
 
 export function worktreesForTask(task, projectRoots = []) {

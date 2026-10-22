@@ -57,7 +57,8 @@ function readT3Projects() {
   }
 }
 
-export function listProjects({ fresh = false } = {}) {
+/** Every project T3 knows, including ones nested inside another (internal: folder pickers, launch roots). */
+export function allProjects({ fresh = false } = {}) {
   if (!fresh && Date.now() - cache.at < CACHE_MS) return cache.projects;
   const overrides = readOverrides();
   const seen = new Set();
@@ -98,8 +99,23 @@ function parentOf(project, projects) {
     .sort((a, b) => b.root.length - a.root.length)[0];
 }
 
+/**
+ * Projects shown in the app: only outermost ones. A repo inside avocado (instamenu, KDS…) is a folder of
+ * avocado, not a project of its own — avocado is the single home for that family and holds the skills.
+ */
+export function listProjects(opts) {
+  return allProjects(opts).filter((p) => !p.parentId);
+}
+
+function topProjectId(id) {
+  const projects = allProjects();
+  let current = projects.find((p) => p.id === id);
+  while (current?.parentId) current = projects.find((p) => p.id === current.parentId);
+  return current?.id ?? null;
+}
+
 export function descendantIds(projectId) {
-  const projects = listProjects();
+  const projects = allProjects();
   const ids = new Set([projectId]);
   let grew = true;
   while (grew) {
@@ -116,7 +132,7 @@ export function descendantIds(projectId) {
 export function launchRootFor(dir) {
   const real = realpath(dir);
   const main = mainRepoRoot(real) ?? real;
-  const containing = listProjects().filter((p) => p.root !== HOME_DIR && (isInside(real, p.root) || isInside(main, p.root)));
+  const containing = allProjects().filter((p) => p.root !== HOME_DIR && (isInside(real, p.root) || isInside(main, p.root)));
   return containing.sort((a, b) => a.root.length - b.root.length)[0]?.root ?? real;
 }
 
@@ -127,7 +143,7 @@ export function saveOverride(projectId, patch) {
   overrides[project.root] = { ...overrides[project.root], ...patch };
   fs.mkdirSync(path.dirname(OVERRIDES_FILE), { recursive: true });
   fs.writeFileSync(OVERRIDES_FILE, JSON.stringify(overrides, null, 2));
-  return listProjects({ fresh: true }).find((p) => p.root === project.root);
+  return allProjects({ fresh: true }).find((p) => p.root === project.root);
 }
 
 const repoRootCache = new Map();
@@ -158,18 +174,14 @@ export function projectForPath(dir) {
   return null;
 }
 
-/** Explicit `projects` on the task win; otherwise repos are matched to projects by folder or title. */
+/** Explicit `projects` on the task win; otherwise repos are matched to projects by folder or title. Nested ones roll up to their outermost project. */
 export function projectsForTask(task) {
-  const projects = listProjects();
-  if (Array.isArray(task.projects) && task.projects.length) return task.projects.filter((id) => projects.some((p) => p.id === id));
-  const ids = new Set();
-  for (const repo of task.repos ?? []) {
-    const match = projects.find((p) => path.basename(p.root) === repo.name || p.title === repo.name);
-    if (match) ids.add(match.id);
-  }
-  return [...ids];
+  const projects = allProjects();
+  const explicit = Array.isArray(task.projects) && task.projects.length ? task.projects : null;
+  const ids = explicit ?? (task.repos ?? []).map((repo) => projects.find((p) => path.basename(p.root) === repo.name || p.title === repo.name)?.id);
+  return [...new Set(ids.map((id) => id && topProjectId(id)).filter(Boolean))];
 }
 
 export function projectIcon(projectId) {
-  return listProjects().find((p) => p.id === projectId)?.favicon ?? null;
+  return allProjects().find((p) => p.id === projectId)?.favicon ?? null;
 }
