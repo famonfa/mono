@@ -2,7 +2,7 @@
   "name": "@mono/desktop",
   "productName": "Mono",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "main": "src/main.mjs",
   "scripts": {
@@ -29,7 +29,10 @@
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": "dir",
-      "artifactName": "Mono-${arch}.${ext}"
+      "artifactName": "Mono-${arch}.${ext}",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
     },
     "electronVersion": "45.0.0",
     "extraResources": [
