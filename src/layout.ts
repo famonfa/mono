@@ -169,6 +169,33 @@ function placeMissing(board: Board): WsNode[] {
     return spot;
   };
   const bottomOfAll = () => Math.max(0, ...placed().filter((n) => !n.parentId).map((n) => n.position!.y + estimateSize(n).height));
+  const findLane = (name: string) => nodes.find((n) => n.type === "lane" && (n.data.label === name || n.id === laneId(name)));
+
+  // New nodes for a lane that doesn't exist yet get their own lane, laid out below everything else.
+  const orphanLanes = new Map<string, WsNode[]>();
+  for (const node of nodes) {
+    if (node.position || node.type === "lane" || !node.data.lane || findLane(node.data.lane)) continue;
+    orphanLanes.set(node.data.lane, [...(orphanLanes.get(node.data.lane) ?? []), node]);
+  }
+  for (const [name, members] of orphanLanes) {
+    const positions = dagreLayout(members, board.edges, board.direction ?? "LR");
+    const minX = Math.min(...members.map((n) => positions.get(n.id)!.x));
+    const minY = Math.min(...members.map((n) => positions.get(n.id)!.y));
+    const maxX = Math.max(...members.map((n) => positions.get(n.id)!.x + estimateSize(n).width));
+    const maxY = Math.max(...members.map((n) => positions.get(n.id)!.y + estimateSize(n).height));
+    const width = maxX - minX + LANE_PAD * 2;
+    const height = maxY - minY + LANE_PAD + LANE_HEADER;
+    let id = laneId(name);
+    while (byId.has(id)) id = `${id}-2`;
+    const lane: WsNode = { id, type: "lane", position: { x: 0, y: bottomOfAll() + LANE_GAP }, data: { label: name }, style: { width, height }, width, height, zIndex: -1 };
+    nodes.push(lane);
+    byId.set(id, lane);
+    for (const n of members) {
+      const pos = positions.get(n.id)!;
+      n.parentId = id;
+      n.position = { x: pos.x - minX + LANE_PAD, y: pos.y - minY + LANE_HEADER };
+    }
+  }
 
   for (const node of nodes) {
     if (node.position || node.type === "lane") continue;
@@ -189,7 +216,7 @@ function placeMissing(board: Board): WsNode[] {
       }
     }
 
-    const lane = node.data.lane ? byId.get(laneId(node.data.lane)) : undefined;
+    const lane = node.data.lane ? findLane(node.data.lane) : undefined;
     const source = board.edges.map((e) => (e.target === node.id ? byId.get(e.source) : undefined)).find((n) => n?.position);
     if (source && source.parentId === (lane?.id ?? source.parentId)) {
       node.parentId = source.parentId;
@@ -217,27 +244,71 @@ function placeMissing(board: Board): WsNode[] {
   return nodes;
 }
 
-/** Ensures every node has a position and parents come before children (React Flow requirement). */
 const RESIZABLE_DEFAULT_SIZE: Record<string, { width: number; height: number }> = {
   note: { width: 240, height: 140 },
   image: { width: 300, height: 230 },
 };
 
+/**
+ * Ensures every node has a position and parents come before children (React Flow requirement).
+ * Tolerates bad data from agents: lanes without a position are dropped and their nodes re-placed by
+ * lane name, and nodes pointing at a missing parent are re-placed too, instead of crashing the canvas.
+ */
 export function prepareNodes(board: Board): { nodes: WsNode[]; changed: boolean } {
-  const ids = new Set(board.nodes.map((n) => n.id));
-  let sized = false;
-  const cleaned = board.nodes.map((n) => {
-    const node = n.parentId && !ids.has(n.parentId) ? { ...n, parentId: undefined, position: undefined as never } : n;
+  const unplacedLanes = new Map(board.nodes.filter((n) => n.type === "lane" && !n.position).map((n) => [n.id, String(n.data.label ?? "")]));
+  const ids = new Set(board.nodes.filter((n) => !unplacedLanes.has(n.id)).map((n) => n.id));
+  let sized = unplacedLanes.size > 0;
+  const cleaned = board.nodes.filter((n) => !unplacedLanes.has(n.id)).map((n) => {
+    const orphan = n.parentId && !ids.has(n.parentId);
+    const node = orphan ? { ...n, parentId: undefined, position: undefined as never, data: { ...n.data, lane: n.data.lane ?? unplacedLanes.get(n.parentId!) } } : n;
     const size = RESIZABLE_DEFAULT_SIZE[node.type ?? ""];
     if (!size || (node.width && node.height)) return node;
     sized = true;
     return { ...node, ...size };
   });
+  const wrapped = wrapLooseLaneNodes(cleaned);
+  if (wrapped) {
+    cleaned.splice(0, cleaned.length, ...wrapped);
+    sized = true;
+  }
   const missing = cleaned.filter((n) => !n.position);
   if (!missing.length) return { nodes: sortParentsFirst(cleaned), changed: sized };
   const anyPlaced = cleaned.some((n) => n.position && n.type !== "lane");
   const nodes = anyPlaced ? placeMissing({ ...board, nodes: cleaned }) : autoLayout({ ...board, nodes: cleaned });
   return { nodes: sortParentsFirst(nodes), changed: true };
+}
+
+/**
+ * Positioned nodes that name a lane which doesn't exist (agent writes) get that lane built around them
+ * where they already are. Dragging a node out of a lane clears its lane name, so manual moves never match.
+ */
+function wrapLooseLaneNodes(nodes: WsNode[]): WsNode[] | null {
+  const lanes = nodes.filter((n) => n.type === "lane");
+  const loose = new Map<string, WsNode[]>();
+  for (const n of nodes) {
+    if (n.type === "lane" || n.parentId || !n.position || !n.data.lane) continue;
+    if (lanes.some((l) => l.data.label === n.data.lane || l.id === laneId(n.data.lane!))) continue;
+    loose.set(n.data.lane, [...(loose.get(n.data.lane) ?? []), n]);
+  }
+  if (!loose.size) return null;
+  const out = nodes.map((n) => ({ ...n }));
+  for (const [name, members] of loose) {
+    const minX = Math.min(...members.map((n) => n.position!.x));
+    const minY = Math.min(...members.map((n) => n.position!.y));
+    const maxX = Math.max(...members.map((n) => n.position!.x + estimateSize(n).width));
+    const maxY = Math.max(...members.map((n) => n.position!.y + estimateSize(n).height));
+    const width = maxX - minX + LANE_PAD * 2;
+    const height = maxY - minY + LANE_PAD + LANE_HEADER;
+    let id = laneId(name);
+    while (out.some((n) => n.id === id)) id = `${id}-2`;
+    out.push({ id, type: "lane", position: { x: minX - LANE_PAD, y: minY - LANE_HEADER }, data: { label: name }, style: { width, height }, width, height, zIndex: -1 });
+    for (const m of members) {
+      const node = out.find((n) => n.id === m.id)!;
+      node.parentId = id;
+      node.position = { x: m.position!.x - minX + LANE_PAD, y: m.position!.y - minY + LANE_HEADER };
+    }
+  }
+  return out;
 }
 
 export function sortParentsFirst(nodes: WsNode[]) {

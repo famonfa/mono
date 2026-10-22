@@ -216,6 +216,11 @@ export function createApi(broadcast) {
         }
       }
 
+      if (sub === "boards" && subId && parts[4] === "undo" && method === "POST") {
+        const restored = store.restoreBoard(id, subId);
+        return send(res, 200, { restored, remaining: store.boardHistory(id, subId).length });
+      }
+      if (sub === "boards" && subId && parts[4] === "history" && method === "GET") return send(res, 200, store.boardHistory(id, subId));
       if (sub === "boards" && subId) {
         if (method === "GET") {
           const board = store.getBoard(id, subId);

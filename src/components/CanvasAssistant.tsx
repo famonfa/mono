@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, ExternalLink, Loader2, MousePointer2, RotateCcw, Sparkles, Square } from "lucide-react";
+import { ArrowUp, ExternalLink, Loader2, MousePointer2, RotateCcw, Sparkles, Square, Undo2 } from "lucide-react";
+import { api } from "../api";
 import { chatApi, useChatDefaults, useChatState } from "../chat";
 import { href } from "../router";
 import { useSessionFeed } from "../sessions";
@@ -16,7 +17,7 @@ function canvasPrompt(task: Task, boardId: string, request: string, selected: Se
     `- Leelo con \`ws get ${task.id} ${boardId}\`.`,
     `- Aplicá el pedido escribiendo un JSON con los nodos nuevos o cambiados y cargalo con \`ws board ${task.id} ${boardId} <archivo> --patch\` (reusá ids existentes; el canvas se actualiza solo).`,
     "- Para borrar nodos, mandá el board completo sin --patch (los nodos creados o editados a mano se conservan igual).",
-    "- Usá el formato del skill workspace (labels cortos, status, test, lane, etc.). No toques repos.",
+    "- Usá el formato del skill workspace (labels cortos, status, test, etc.). Para ubicar un nodo en un carril poné su nombre en `lane`; no crees nodos de tipo lane ni pongas parentId o position (el layout lo maneja la app). No toques repos.",
     selected.length ? `- Nodos seleccionados por el usuario: ${selected.map((n) => `\`${n.id}\` ("${n.label}")`).join(", ")}.` : null,
     "- Terminá con una sola línea diciendo qué cambiaste.",
   ]
@@ -63,7 +64,7 @@ export function CanvasAssistant({ task, boardId, selected }: { task: Task; board
 
   return (
     <div className="canvas-assistant" onDoubleClick={(e) => e.stopPropagation()}>
-      {sessionId && <AssistantStatus sessionId={sessionId} onReset={() => setSessionId(null)} />}
+      {sessionId && <AssistantStatus sessionId={sessionId} taskId={task.id} boardId={boardId} onReset={() => setSessionId(null)} />}
       {error && <div className="canvas-assistant-error">{error}</div>}
       <div className="canvas-assistant-bar">
         <Sparkles size={15} className="canvas-assistant-icon" />
@@ -90,7 +91,16 @@ export function CanvasAssistant({ task, boardId, selected }: { task: Task; board
   );
 }
 
-function AssistantStatus({ sessionId, onReset }: { sessionId: string; onReset: () => void }) {
+function AssistantStatus({ sessionId, taskId, boardId, onReset }: { sessionId: string; taskId: string; boardId: string; onReset: () => void }) {
+  const [undoNote, setUndoNote] = useState<string | null>(null);
+  const undo = async () => {
+    try {
+      const { remaining } = await api.undoBoard(taskId, boardId);
+      setUndoNote(remaining ? `Deshecho · quedan ${remaining} versiones` : "Deshecho");
+    } catch (e) {
+      setUndoNote((e as Error).message);
+    }
+  };
   const [chat] = useChatState(sessionId);
   const feed = useSessionFeed(sessionId);
   const running = chat?.live ? chat.state !== "idle" : false;
@@ -100,10 +110,15 @@ function AssistantStatus({ sessionId, onReset }: { sessionId: string; onReset: (
   return (
     <div className="canvas-assistant-status">
       {running ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} className="done" />}
-      <span className="canvas-assistant-msg">{running ? lastTool?.title || "Pensando…" : lastText?.text?.split("\n").filter(Boolean).pop() ?? "Listo"}</span>
+      <span className="canvas-assistant-msg">{undoNote ?? (running ? lastTool?.title || "Pensando…" : lastText?.text?.split("\n").filter(Boolean).pop() ?? "Listo")}</span>
       {running && (
         <button className="icon-btn tiny" onClick={() => void chatApi.interrupt(sessionId)} title="Interrumpir">
           <Square size={10} fill="currentColor" />
+        </button>
+      )}
+      {!running && (
+        <button className="icon-btn tiny" onClick={undo} title="Deshacer el último cambio de la IA en este board">
+          <Undo2 size={12} />
         </button>
       )}
       <a className="icon-btn tiny" href={href.session(sessionId)} title="Ver la sesión completa">

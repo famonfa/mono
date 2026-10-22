@@ -98,6 +98,41 @@ export function saveBoard(id, boardId, board) {
   return getBoard(id, boardId);
 }
 
+const HISTORY_LIMIT = 30;
+const historyDir = (id, boardId) => (assertSafe(boardId), path.join(DATA_DIR, ".history", id, boardId));
+
+/** Copies the board as it is now, before an agent overwrites it, so the change can be undone. */
+export function snapshotBoard(id, boardId) {
+  const file = boardPath(id, boardId);
+  if (!fs.existsSync(file)) return null;
+  const dir = historyDir(id, boardId);
+  fs.mkdirSync(dir, { recursive: true });
+  const name = `${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+  fs.copyFileSync(file, path.join(dir, name));
+  const all = fs.readdirSync(dir).sort();
+  for (const old of all.slice(0, Math.max(0, all.length - HISTORY_LIMIT))) fs.rmSync(path.join(dir, old));
+  return name;
+}
+
+export function boardHistory(id, boardId) {
+  try {
+    return fs.readdirSync(historyDir(id, boardId)).sort().reverse();
+  } catch {
+    return [];
+  }
+}
+
+/** Puts back the most recent snapshot and removes it from the history (one step of undo). */
+export function restoreBoard(id, boardId) {
+  const [latest] = boardHistory(id, boardId);
+  if (!latest) throw new Error("No hay versiones anteriores de este board");
+  const snapshot = path.join(historyDir(id, boardId), latest);
+  writeJson(boardPath(id, boardId), JSON.parse(fs.readFileSync(snapshot, "utf8")));
+  fs.rmSync(snapshot);
+  touchTask(id);
+  return latest;
+}
+
 export function deleteBoard(id, boardId) {
   fs.rmSync(boardPath(id, boardId), { force: true });
   touchTask(id);
@@ -163,7 +198,12 @@ export function normalizeEdge(edge, index) {
  */
 export function mergeBoard(existing, incoming, { relayout = false, patch = false } = {}) {
   const prevNodes = new Map((existing?.nodes ?? []).map((n) => [n.id, n]));
-  const incomingNodes = (incoming.nodes ?? []).map(normalizeNode);
+  // Layout belongs to the app: agent-supplied lanes, parents and positions are ignored (a lane without
+  // a position once blanked a whole board). Lanes come from each node's `lane` name instead.
+  const incomingNodes = (incoming.nodes ?? [])
+    .map(normalizeNode)
+    .filter((n) => n.type !== "lane")
+    .map(({ position, parentId, width, height, ...n }) => n);
   const incomingIds = new Set(incomingNodes.map((n) => n.id));
 
   const nodes = incomingNodes.map((node) => {

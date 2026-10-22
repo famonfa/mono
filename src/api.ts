@@ -24,6 +24,7 @@ export const api = {
   trashTask: (id: string) => request(`/api/tasks/${enc(id)}`, { method: "DELETE" }),
   getBoard: (id: string, boardId: string) => request<Board>(`/api/tasks/${enc(id)}/boards/${enc(boardId)}`),
   saveBoard: (id: string, board: Board) => request<Board>(`/api/tasks/${enc(id)}/boards/${enc(board.id)}`, { method: "PUT", body: JSON.stringify(board) }),
+  undoBoard: (id: string, boardId: string) => request<{ restored: string; remaining: number }>(`/api/tasks/${enc(id)}/boards/${enc(boardId)}/undo`, { method: "POST", body: "{}" }),
   deleteBoard: (id: string, boardId: string) => request(`/api/tasks/${enc(id)}/boards/${enc(boardId)}`, { method: "DELETE" }),
   getDoc: (id: string, name: string) => request<{ content: string }>(`/api/tasks/${enc(id)}/docs/${enc(name)}`),
   saveDoc: (id: string, name: string, content: string) => request(`/api/tasks/${enc(id)}/docs/${enc(name)}`, { method: "PUT", body: JSON.stringify({ content }) }),

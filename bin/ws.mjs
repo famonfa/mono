@@ -14,6 +14,7 @@ const USAGE = `ws — CLI del Avocado Workspace (http://localhost:4600)
   ws board <task> <board> <file.json|-> [--relayout | --patch]
                                            Crea/actualiza un board conservando lo que movió el usuario.
                                            --patch solo agrega/actualiza nodos, nunca borra.
+  ws undo <task> <board>                   Vuelve el board a la versión anterior a la última escritura
   ws doc <task> <name.md> <file.md|->      Escribe un documento
   ws asset <task> <image...>               Copia imágenes a assets/
   ws sessions [task] [--since ISO]         Actividad reciente de los agentes (de una tarea o todos)
@@ -55,7 +56,8 @@ switch (command) {
     if (!board) fail(`No existe el board ${args[0]}/${args[1]}`);
     const compact = {
       ...board,
-      nodes: board.nodes.map(({ id, type, data, parentId }) => ({ id, type, ...data, ...(parentId ? { parentId } : {}) })),
+      // Lanes, parents and positions are the app's layout; agents place nodes with the \`lane\` name.
+      nodes: board.nodes.filter((n) => n.type !== "lane").map(({ id, type, data }) => ({ id, type, ...data })),
     };
     console.log(JSON.stringify(compact, null, 2));
     break;
@@ -74,9 +76,16 @@ switch (command) {
     const incoming = JSON.parse(readInput(source));
     const existing = store.getBoard(id, boardId);
     const merged = store.mergeBoard(existing, incoming, { relayout: args.includes("--relayout"), patch: args.includes("--patch") });
+    store.snapshotBoard(id, boardId);
     store.saveBoard(id, boardId, merged);
     const kept = existing ? merged.nodes.filter((n) => n.position).length : 0;
     console.log(`✓ board ${id}/${boardId}: ${merged.nodes.length} nodos, ${merged.edges.length} conexiones${kept ? ` (${kept} conservaron su posición)` : ""}`);
+    break;
+  }
+  case "undo": {
+    requireArgs(2);
+    const restored = store.restoreBoard(args[0], args[1]);
+    console.log(`✓ board ${args[0]}/${args[1]} restaurado a ${restored.replace(".json", "")}`);
     break;
   }
   case "doc": {

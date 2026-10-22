@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   addEdge,
   Background,
@@ -31,10 +31,56 @@ type Props = { task: Task; boardId: string; embedded?: boolean };
 
 export function BoardView(props: Props) {
   return (
-    <ReactFlowProvider>
-      <BoardCanvas key={`${props.task.id}/${props.boardId}`} {...props} />
-    </ReactFlowProvider>
+    <BoardErrorBoundary key={`${props.task.id}/${props.boardId}`} {...props}>
+      <ReactFlowProvider>
+        <BoardCanvas key={`${props.task.id}/${props.boardId}`} {...props} />
+      </ReactFlowProvider>
+    </BoardErrorBoundary>
   );
+}
+
+/** A board with data the canvas can't draw shows a recovery screen instead of blanking the app. */
+class BoardErrorBoundary extends Component<Props & { children: ReactNode }, { error: string | null; busy: boolean }> {
+  state = { error: null as string | null, busy: false };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error: error.message, busy: false };
+  }
+
+  private async recover(action: () => Promise<unknown>) {
+    this.setState({ busy: true });
+    try {
+      await action();
+      this.setState({ error: null, busy: false });
+    } catch (e) {
+      this.setState({ error: (e as Error).message, busy: false });
+    }
+  }
+
+  private repair = () =>
+    this.recover(async () => {
+      const board = await api.getBoard(this.props.task.id, this.props.boardId);
+      const nodes = board.nodes.filter((n) => n.type !== "lane").map(({ position, parentId, ...n }) => n as WsNode);
+      await api.saveBoard(this.props.task.id, { ...board, nodes });
+    });
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="board-crash">
+        <strong>Este board tiene datos que el canvas no puede dibujar.</strong>
+        <code>{this.state.error}</code>
+        <div className="board-crash-actions">
+          <button className="btn primary" disabled={this.state.busy} onClick={() => this.recover(() => api.undoBoard(this.props.task.id, this.props.boardId))}>
+            Deshacer último cambio de IA
+          </button>
+          <button className="btn ghost" disabled={this.state.busy} onClick={this.repair}>
+            Reparar (re-ordenar todo)
+          </button>
+        </div>
+      </div>
+    );
+  }
 }
 
 function toStored(nodes: WsNode[]): WsNode[] {
