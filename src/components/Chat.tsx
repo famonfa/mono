@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Bot, FolderGit2, Plus, ShieldCheck, Square, Zap } from "lucide-react";
+import { ArrowUp, Bot, Cpu, File as FileIcon, FolderGit2, Gauge, Loader2, Paperclip, Plus, ShieldCheck, Square, X, Zap } from "lucide-react";
 import { useApp } from "../app-context";
-import { chatApi, useChatState, type ChatState, type PendingPermission, type Worktree } from "../chat";
+import { chatApi, useChatDefaults, useChatState, type Attachment, type ChatState, type ModelOption, type PendingPermission, type Worktree } from "../chat";
 import { href, navigate } from "../router";
 import { useSessionFeed, type SessionSummary } from "../sessions";
 import type { Task } from "../types";
@@ -13,6 +13,45 @@ function FullAccessBadge() {
     <span className="full-access" title="Las sesiones lanzadas desde el workspace no piden permisos">
       <Zap size={12} /> Full access
     </span>
+  );
+}
+
+type Draft = { key: string; file: File; preview?: string; uploaded?: Attachment; error?: string };
+
+const shortModel = (name: string) => name.replace(/^Claude /, "");
+
+/** Model + effort pickers; effort options follow the selected model, like T3 Code. */
+function ModelPicker({ models, model, effort, onChange }: { models: ModelOption[]; model?: string; effort?: string; onChange: (c: { model: string; effort: string }) => void }) {
+  const current = models.find((m) => m.id === model) ?? models[0];
+  if (!current) return null;
+  const efforts = current.efforts;
+  const currentEffort = efforts.find((e) => e.id === effort) ?? efforts.find((e) => e.isDefault) ?? efforts[0];
+  return (
+    <>
+      <Menu
+        value={current.id}
+        placeholder="Buscar modelo…"
+        options={models.map((m) => ({ value: m.id, label: shortModel(m.name), icon: <Cpu size={13} /> }))}
+        onChange={(id) => {
+          const next = models.find((m) => m.id === id)!;
+          const keep = next.efforts.find((e) => e.id === currentEffort?.id) ?? next.efforts.find((e) => e.isDefault) ?? next.efforts[0];
+          onChange({ model: id, effort: keep?.id ?? "" });
+        }}
+        className="mode-trigger"
+      >
+        <Cpu size={12} /> {shortModel(current.name)}
+      </Menu>
+      {currentEffort && (
+        <Menu
+          value={currentEffort.id}
+          options={efforts.map((e) => ({ value: e.id, label: e.label, icon: <Gauge size={13} /> }))}
+          onChange={(id) => onChange({ model: current.id, effort: id })}
+          className={`mode-trigger ${currentEffort.id === "ultracode" ? "ultra" : ""}`}
+        >
+          <Gauge size={12} /> {currentEffort.label}
+        </Menu>
+      )}
+    </>
   );
 }
 
@@ -30,15 +69,18 @@ function Composer({
   disabled?: boolean;
   disabledReason?: string;
   running?: boolean;
-  onSend: (text: string) => Promise<void> | void;
+  onSend: (text: string, attachments: Attachment[]) => Promise<void> | void;
   onStop?: () => void;
   footer?: React.ReactNode;
   autoFocus?: boolean;
 }) {
   const [text, setText] = useState("");
+  const [drafts, setDrafts] = useState<Draft[]>([]);
+  const [dragging, setDragging] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const el = ref.current;
@@ -47,14 +89,31 @@ function Composer({
     el.style.height = `${Math.min(el.scrollHeight, 260)}px`;
   }, [text]);
 
+  const addFiles = (files: File[]) => {
+    for (const file of files) {
+      const key = `${file.name}-${file.size}-${Math.random()}`;
+      const preview = file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined;
+      setDrafts((d) => [...d, { key, file, preview }]);
+      chatApi.upload(file).then(
+        (uploaded) => setDrafts((d) => d.map((x) => (x.key === key ? { ...x, uploaded } : x))),
+        (e: Error) => setDrafts((d) => d.map((x) => (x.key === key ? { ...x, error: e.message } : x))),
+      );
+    }
+  };
+
+  const uploading = drafts.some((d) => !d.uploaded && !d.error);
+  const ready = drafts.filter((d) => d.uploaded).map((d) => d.uploaded!);
+
   const submit = async () => {
     const value = text.trim();
-    if (!value || sending || disabled) return;
+    if ((!value && !ready.length) || sending || disabled || uploading) return;
     setSending(true);
     setError(null);
     try {
-      await onSend(value);
+      await onSend(value || "Mirá los archivos adjuntos.", ready);
       setText("");
+      drafts.forEach((d) => d.preview && URL.revokeObjectURL(d.preview));
+      setDrafts([]);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -64,9 +123,36 @@ function Composer({
   };
 
   return (
-    <div className={`composer ${disabled ? "disabled" : ""}`}>
+    <div
+      className={`composer ${disabled ? "disabled" : ""} ${dragging ? "dragging" : ""}`}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        addFiles([...e.dataTransfer.files]);
+      }}
+    >
       {disabledReason && <div className="composer-notice">{disabledReason}</div>}
       {error && <div className="composer-error">{error}</div>}
+      {drafts.length > 0 && (
+        <div className="attachments">
+          {drafts.map((d) => (
+            <span key={d.key} className={`attachment ${d.error ? "error" : ""}`} title={d.error ?? d.file.name}>
+              {d.preview ? <img src={d.preview} alt="" /> : <FileIcon size={14} />}
+              <span className="attachment-name">{d.file.name || "imagen pegada"}</span>
+              {!d.uploaded && !d.error && <Loader2 size={12} className="spin" />}
+              <button onClick={() => setDrafts((all) => all.filter((x) => x.key !== d.key))} title="Quitar">
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
       <textarea
         ref={ref}
         rows={1}
@@ -75,6 +161,13 @@ function Composer({
         value={text}
         disabled={disabled}
         onChange={(e) => setText(e.target.value)}
+        onPaste={(e) => {
+          const files = [...e.clipboardData.files];
+          if (files.length) {
+            e.preventDefault();
+            addFiles(files);
+          }
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
@@ -84,6 +177,10 @@ function Composer({
         }}
       />
       <div className="composer-bar">
+        <input ref={fileInput} type="file" multiple hidden onChange={(e) => (addFiles([...(e.target.files ?? [])]), (e.target.value = ""))} />
+        <button className="icon-btn tiny" onClick={() => fileInput.current?.click()} title="Adjuntar archivos (también podés pegar o arrastrar)" disabled={disabled}>
+          <Paperclip size={14} />
+        </button>
         {footer}
         <span className="spacer" />
         {running && onStop && (
@@ -91,8 +188,8 @@ function Composer({
             <Square size={11} fill="currentColor" />
           </button>
         )}
-        <button className="composer-send" onClick={submit} disabled={!text.trim() || sending || disabled} title="Enviar (Enter)">
-          <ArrowUp size={15} />
+        <button className="composer-send" onClick={submit} disabled={(!text.trim() && !ready.length) || sending || disabled || uploading} title="Enviar (Enter)">
+          {sending ? <Loader2 size={14} className="spin" /> : <ArrowUp size={15} />}
         </button>
       </div>
     </div>
@@ -154,6 +251,17 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
   const feed = useSessionFeed(sessionId);
   const [chat, setChat] = useChatState(sessionId);
   const [pendingText, setPendingText] = useState<string | null>(null);
+  const { models, stored, remember } = useChatDefaults();
+  const [config, setConfig] = useState<{ model?: string; effort?: string }>(stored);
+  useEffect(() => {
+    if (chat?.live && (chat.model || chat.effort)) setConfig({ model: chat.model, effort: chat.effort });
+  }, [chat?.live, chat?.model, chat?.effort]);
+
+  const changeConfig = async (next: { model: string; effort: string }) => {
+    setConfig(next);
+    remember(next);
+    if (chat?.live) setChat(await chatApi.configure(sessionId, next));
+  };
   const promptCount = feed.events.filter((e) => e.kind === "prompt").length;
   const sentAt = useRef(promptCount);
 
@@ -165,11 +273,11 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
   const running = live ? chat!.state !== "idle" : summary?.status === "working";
   const busyElsewhere = !live && summary?.status === "working";
 
-  const send = async (text: string) => {
+  const send = async (text: string, attachments: Attachment[]) => {
     sentAt.current = promptCount;
     setPendingText(text);
     try {
-      setChat(await chatApi.send(sessionId, text));
+      setChat(await chatApi.send(sessionId, text, { ...config, attachments }));
     } catch (e) {
       setPendingText(null);
       throw e;
@@ -194,6 +302,7 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
           onStop={() => void chatApi.interrupt(sessionId).then(setChat)}
           footer={
             <>
+              <ModelPicker models={models} model={config.model} effort={config.effort} onChange={changeConfig} />
               <FullAccessBadge />
               {chat?.cwd && (
                 <span className="composer-cwd" title={chat.cwd}>
@@ -212,6 +321,8 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
 function NewSession({ task }: { task: Task }) {
   const [worktrees, setWorktrees] = useState<Worktree[]>([]);
   const [cwd, setCwd] = useState<string>("");
+  const { models, stored, remember } = useChatDefaults();
+  const [config, setConfig] = useState<{ model?: string; effort?: string }>(stored);
   useEffect(() => {
     chatApi.worktrees(task.id).then((list) => {
       setWorktrees(list);
@@ -232,12 +343,21 @@ function NewSession({ task }: { task: Task }) {
         <Composer
           autoFocus
           placeholder="¿Qué hacemos? Ej: revisá los 3 must-fix del board de testeo y arreglalos…"
-          onSend={async (prompt) => {
-            const state = await chatApi.start({ taskId: task.id, cwd, prompt });
+          onSend={async (prompt, attachments) => {
+            const state = await chatApi.start({ taskId: task.id, cwd, prompt, ...config, attachments });
             navigate(href.taskSession(task.id, state.sessionId));
           }}
           footer={
             <>
+              <ModelPicker
+                models={models}
+                model={config.model}
+                effort={config.effort}
+                onChange={(next) => {
+                  setConfig(next);
+                  remember(next);
+                }}
+              />
               <FullAccessBadge />
               <Menu
                 value={cwd}

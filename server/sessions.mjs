@@ -63,7 +63,10 @@ function textOf(content) {
   return "";
 }
 
+const IMAGE_CACHE_NOTE = /^(\s*\[Image: source: [^\]]+\]\s*)+$/;
+
 function isSystemText(text) {
+  if (IMAGE_CACHE_NOTE.test(text)) return true;
   return /^\s*(<(task-notification|system-reminder|local-command|command-|bash-|user-memory|ide_)|Base directory for this skill:|Caveat: The messages below)/.test(text);
 }
 
@@ -288,16 +291,19 @@ function toEvents(rec, agentsByToolUse) {
         events.push({ kind: "prompt", ts, text: truncate(content, 6000) });
       }
     } else if (Array.isArray(content)) {
+      const texts = [];
+      let images = 0;
       for (const block of content) {
         if (block.type === "tool_result") {
           const text = Array.isArray(block.content) ? block.content.map((c) => (c.type === "text" ? c.text : c.type === "image" ? "[imagen]" : "")).join("\n") : String(block.content ?? "");
           events.push({ kind: "result", ts, toolUseId: block.tool_use_id, isError: Boolean(block.is_error), text: truncate(text, 4000) });
         } else if (block.type === "text" && block.text && !isSystemText(block.text)) {
-          events.push({ kind: "prompt", ts, text: truncate(block.text, 6000) });
+          texts.push(block.text);
         } else if (block.type === "image") {
-          events.push({ kind: "prompt", ts, text: "[imagen adjunta]" });
+          images++;
         }
       }
+      if (texts.length || images) events.push({ kind: "prompt", ts, text: truncate(texts.join("\n\n"), 6000), images });
     }
   } else if (rec.type === "assistant") {
     for (const block of rec.message?.content ?? []) {

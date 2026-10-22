@@ -3208,3 +3208,65 @@ code,
   background: rgb(242 153 74 / 0.1);
   white-space: nowrap;
 }
+
+/* Composer extras */
+.composer.dragging {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px 0;
+}
+
+.attachments.in-feed {
+  padding: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 6px 0 4px;
+  max-width: 220px;
+  border-radius: 7px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel);
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.attachment img {
+  width: 24px;
+  height: 24px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.attachment.error {
+  border-color: rgb(235 87 87 / 0.5);
+  color: #eb5757;
+}
+
+.attachment-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attachment button {
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+}
+
+.mode-trigger.ultra {
+  color: #bb87fc;
+  border-color: rgb(187 135 252 / 0.4);
+}

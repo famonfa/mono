@@ -48,6 +48,7 @@ export type SessionEvent = {
   toolUseId?: string;
   isError?: boolean;
   agentId?: string;
+  images?: number;
 };
 
 type SessionDetail = { session: SessionSummary; events: SessionEvent[]; cursor: number; truncated: boolean };

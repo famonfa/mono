@@ -22,6 +22,7 @@ import {
 import { useApp } from "../app-context";
 import { StatusIcon } from "../icons";
 import { href, navigate } from "../router";
+import { uploadUrl } from "../chat";
 import { useSessionFeed, type SessionEvent, type SessionStatus, type SessionSummary, type SubagentSummary } from "../sessions";
 import { formatDate } from "../ui";
 import { SessionChat } from "./Chat";
@@ -145,6 +146,33 @@ function buildFeed(events: SessionEvent[]): FeedItem[] {
   return items;
 }
 
+const ATTACHMENTS_MARK = "\n\nArchivos adjuntos:\n";
+const IMAGE_FILE = /\.(png|jpe?g|gif|webp)$/i;
+
+function PromptBody({ text, images }: { text: string; images: number }) {
+  const [body, list] = text.includes(ATTACHMENTS_MARK) ? text.split(ATTACHMENTS_MARK) : [text, ""];
+  const files = list
+    .split("\n")
+    .map((l) => l.replace(/^- /, "").trim())
+    .filter(Boolean);
+  return (
+    <div className="msg-body plain">
+      <Collapsible text={body} />
+      {files.length > 0 && (
+        <div className="attachments in-feed">
+          {files.map((f) => (
+            <a key={f} className="attachment" href={uploadUrl(f)} target="_blank" rel="noreferrer" title={f}>
+              {IMAGE_FILE.test(f) ? <img src={uploadUrl(f)} alt="" /> : <FileText size={14} />}
+              <span className="attachment-name">{f.split("/").pop()}</span>
+            </a>
+          ))}
+        </div>
+      )}
+      {!files.length && images > 0 && <div className="attachments in-feed">🖼 {images} imagen{images > 1 ? "es" : ""}</div>}
+    </div>
+  );
+}
+
 function Collapsible({ text, limit = 700 }: { text: string; limit?: number }) {
   const [open, setOpen] = useState(false);
   if (text.length <= limit) return <>{text}</>;
@@ -233,9 +261,7 @@ export function Feed({ events, sessionId, live, isSubagent, pendingText }: { eve
                 <div className="msg-author">
                   <MessageSquare size={12} /> {isSubagent && i === 0 ? "Instrucciones del orquestador" : "Vos"} <span className="msg-time">{formatDate(item.event.ts)}</span>
                 </div>
-                <div className="msg-body plain">
-                  <Collapsible text={item.event.text ?? ""} />
-                </div>
+                <PromptBody text={item.event.text ?? ""} images={item.event.images ?? 0} />
               </div>
             ) : item.event.kind === "text" ? (
               <div key={i} className="msg assistant">
