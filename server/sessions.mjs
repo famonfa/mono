@@ -120,7 +120,11 @@ function applyRecord(meta, rec) {
       const typedByUser = typeof content === "string" || (Array.isArray(content) && !content.some((c) => c.type === "tool_result"));
       const text = textOf(content);
       if (typedByUser || (Array.isArray(content) && content.some((c) => c.type === "tool_result"))) meta.turnOpen = true;
-      if (typedByUser && text && !isSystemText(text)) {
+      if (typedByUser && text.includes("<command-name>")) {
+        const command = commandEvent(text);
+        meta.firstPrompt ??= truncate(`/${command.name} ${command.text}`.trim(), 120);
+        meta.turns++;
+      } else if (typedByUser && text && !isSystemText(text)) {
         meta.firstPrompt ??= truncate(text.trim(), 120);
         meta.lastPrompt = truncate(text.trim(), 280);
         meta.turns++;
@@ -278,6 +282,13 @@ function findSessionFile(id) {
   return null;
 }
 
+/** A slash command the user typed (`/pr-plan foo`), which Claude Code records as tagged text. */
+function commandEvent(text, ts) {
+  const name = text.match(/<command-name>\/?([^<]+)<\/command-name>/)?.[1]?.trim() ?? "comando";
+  const args = text.match(/<command-args>([\s\S]*?)<\/command-args>/)?.[1]?.trim() ?? "";
+  return { kind: "command", ts, name, text: args };
+}
+
 function toEvents(rec, agentsByToolUse) {
   const ts = rec.timestamp;
   const events = [];
@@ -287,6 +298,8 @@ function toEvents(rec, agentsByToolUse) {
       if (content.startsWith("<task-notification")) {
         const summary = content.match(/<summary>([\s\S]*?)<\/summary>/)?.[1];
         events.push({ kind: "notice", ts, text: truncate(summary ?? "Notificación de tarea en background", 300) });
+      } else if (content.includes("<command-name>")) {
+        events.push(commandEvent(content, ts));
       } else if (!isSystemText(content)) {
         events.push({ kind: "prompt", ts, text: truncate(content, 6000) });
       }
@@ -297,6 +310,8 @@ function toEvents(rec, agentsByToolUse) {
         if (block.type === "tool_result") {
           const text = Array.isArray(block.content) ? block.content.map((c) => (c.type === "text" ? c.text : c.type === "image" ? "[imagen]" : "")).join("\n") : String(block.content ?? "");
           events.push({ kind: "result", ts, toolUseId: block.tool_use_id, isError: Boolean(block.is_error), text: truncate(text, 4000) });
+        } else if (block.type === "text" && block.text?.includes("<command-name>")) {
+          events.push(commandEvent(block.text, ts));
         } else if (block.type === "text" && block.text && !isSystemText(block.text)) {
           texts.push(block.text);
         } else if (block.type === "image") {

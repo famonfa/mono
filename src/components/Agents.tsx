@@ -289,6 +289,22 @@ export function Feed({ events, sessionId, live, isSubagent, pendingText }: { eve
                 </div>
                 <PromptBody text={item.event.text ?? ""} images={item.event.images ?? 0} />
               </div>
+            ) : item.event.kind === "command" ? (
+              <div key={i} className={`command-call${enter(i)}`}>
+                <div className="msg-author">
+                  <MessageSquare size={12} /> Vos <span className="msg-time">{formatDate(item.event.ts)}</span>
+                </div>
+                <div className="tool-group-feed">
+                  <div className="tool-call-head static">
+                    <span className="tool-call-icon">
+                      <Sparkles size={13} />
+                    </span>
+                    <span className="tool-call-name">Skill</span>
+                    <span className="command-name">/{item.event.name}</span>
+                    {item.event.text && <span className="tool-call-title">{item.event.text}</span>}
+                  </div>
+                </div>
+              </div>
             ) : item.event.kind === "text" ? (
               <div key={i} className={`msg assistant${enter(i)}`}>
                 <div className="msg-author">

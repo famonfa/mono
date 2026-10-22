@@ -36,10 +36,11 @@ export type SessionSummary = {
   ownedByWorkspace?: boolean;
   projectId?: string | null;
   focusCwd?: string | null;
+  firstCwd?: string | null;
 };
 
 export type SessionEvent = {
-  kind: "prompt" | "text" | "tool" | "result" | "notice";
+  kind: "prompt" | "text" | "tool" | "result" | "notice" | "command";
   ts?: string;
   text?: string;
   id?: string;

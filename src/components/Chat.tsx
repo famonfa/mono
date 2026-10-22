@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUp, Bot, ClipboardList, Cpu, File as FileIcon, FolderGit2, Gauge, Loader2, Paperclip, Plus, ShieldCheck, Square, X, Zap } from "lucide-react";
 import { useApp } from "../app-context";
-import { chatApi, PERMISSION_MODES, useChatDefaults, useChatState, type Attachment, type ChatState, type ModelOption, type PendingPermission, type PermissionMode, type Worktree } from "../chat";
+import { chatApi, PERMISSION_MODES, useChatDefaults, useChatState, type Attachment, type ChatState, type ModelOption, type PendingPermission, type PermissionMode, type SlashCommand, type Worktree } from "../chat";
 import { href, navigate } from "../router";
 import { useSessionFeed, type SessionSummary } from "../sessions";
 import type { Task } from "../types";
@@ -63,6 +63,45 @@ function ModelPicker({ models, model, effort, onChange }: { models: ModelOption[
   );
 }
 
+const commandCache = new Map<string, Promise<SlashCommand[]>>();
+const loadCommands = (cwd?: string) => {
+  const key = cwd ?? "";
+  if (!commandCache.has(key)) commandCache.set(key, chatApi.commands(cwd).catch(() => []));
+  return commandCache.get(key)!;
+};
+
+const SOURCE_LABEL: Record<SlashCommand["source"], string> = { project: "proyecto", user: "personal", plugin: "plugin", builtin: "Claude Code" };
+
+/** Like the CLI: typing `/` at the start opens the commands and skills this session can run. */
+function SlashMenu({ query, commands, active, onPick, onHover }: { query: string; commands: SlashCommand[]; active: number; onPick: (c: SlashCommand) => void; onHover: (i: number) => void }) {
+  const list = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    list.current?.querySelector(".slash-item.active")?.scrollIntoView({ block: "nearest" });
+  }, [active]);
+  return (
+    <div className="slash-menu" ref={list} onMouseDown={(e) => e.preventDefault()}>
+      {commands.length ? (
+        commands.map((c, i) => (
+          <button key={c.name} className={`slash-item ${i === active ? "active" : ""}`} onMouseEnter={() => onHover(i)} onClick={() => onPick(c)}>
+            <span className="slash-name">/{c.name}</span>
+            <span className="slash-desc">{c.description}</span>
+            <span className="slash-source">{SOURCE_LABEL[c.source]}</span>
+          </button>
+        ))
+      ) : (
+        <div className="menu-empty">Ningún comando empieza con “/{query}”</div>
+      )}
+    </div>
+  );
+}
+
+function filterCommands(all: SlashCommand[], query: string) {
+  const q = query.toLowerCase();
+  const starts = all.filter((c) => c.name.toLowerCase().startsWith(q));
+  const contains = all.filter((c) => !c.name.toLowerCase().startsWith(q) && (c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q)));
+  return [...starts, ...contains].slice(0, 60);
+}
+
 function Composer({
   placeholder,
   disabled,
@@ -72,6 +111,7 @@ function Composer({
   onStop,
   footer,
   autoFocus,
+  commandsCwd,
 }: {
   placeholder: string;
   disabled?: boolean;
@@ -81,6 +121,7 @@ function Composer({
   onStop?: () => void;
   footer?: React.ReactNode;
   autoFocus?: boolean;
+  commandsCwd?: string;
 }) {
   const [text, setText] = useState("");
   const [drafts, setDrafts] = useState<Draft[]>([]);
@@ -89,6 +130,25 @@ function Composer({
   const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [allCommands, setAllCommands] = useState<SlashCommand[]>([]);
+  const [slashActive, setSlashActive] = useState(0);
+  const [slashDismissed, setSlashDismissed] = useState(false);
+  const slashQuery = text.match(/^\/(\S*)$/)?.[1];
+  const slashOpen = slashQuery !== undefined && !slashDismissed && !disabled;
+  const slashResults = useMemo(() => (slashQuery !== undefined ? filterCommands(allCommands, slashQuery) : []), [allCommands, slashQuery]);
+
+  useEffect(() => {
+    if (slashQuery !== undefined) void loadCommands(commandsCwd).then(setAllCommands);
+  }, [slashQuery !== undefined, commandsCwd]);
+  useEffect(() => {
+    setSlashActive(0);
+    if (slashQuery === undefined) setSlashDismissed(false);
+  }, [slashQuery]);
+
+  const pickCommand = (c: SlashCommand) => {
+    setText(`/${c.name} `);
+    ref.current?.focus();
+  };
 
   useEffect(() => {
     const el = ref.current;
@@ -147,6 +207,7 @@ function Composer({
     >
       {disabledReason && <div className="composer-notice">{disabledReason}</div>}
       {error && <div className="composer-error">{error}</div>}
+      {slashOpen && <SlashMenu query={slashQuery!} commands={slashResults} active={slashActive} onPick={pickCommand} onHover={setSlashActive} />}
       {drafts.length > 0 && (
         <div className="attachments">
           {drafts.map((d) => (
@@ -177,6 +238,23 @@ function Composer({
           }
         }}
         onKeyDown={(e) => {
+          if (slashOpen && slashResults.length) {
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault();
+              setSlashActive((a) => (a + (e.key === "ArrowDown" ? 1 : -1) + slashResults.length) % slashResults.length);
+              return;
+            }
+            if ((e.key === "Enter" || e.key === "Tab") && !e.shiftKey) {
+              e.preventDefault();
+              pickCommand(slashResults[slashActive]);
+              return;
+            }
+          }
+          if (slashOpen && e.key === "Escape") {
+            e.preventDefault();
+            setSlashDismissed(true);
+            return;
+          }
           if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
             void submit();
@@ -306,6 +384,7 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
           disabled={busyElsewhere}
           disabledReason={busyElsewhere ? "Esta sesión está trabajando en otra app (T3 Code o la terminal). Cuando quede en pausa, podés seguirla desde acá." : undefined}
           running={running && live}
+          commandsCwd={chat?.cwd ?? summary?.focusCwd ?? summary?.firstCwd ?? summary?.cwd ?? undefined}
           onSend={send}
           onStop={() => void chatApi.interrupt(sessionId).then(setChat)}
           footer={
@@ -371,6 +450,7 @@ export function NewSession({ task }: { task?: Task }) {
         </p>
         <Composer
           autoFocus
+          commandsCwd={cwd || undefined}
           placeholder={task ? "¿Qué hacemos? Ej: revisá los 3 must-fix del board de testeo y arreglalos…" : "¿Qué hacemos?"}
           onSend={async (prompt, attachments) => {
             const state = await chatApi.start({ taskId: task?.id, cwd, prompt, ...config, attachments });

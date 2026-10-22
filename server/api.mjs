@@ -4,6 +4,7 @@ import * as store from "./store.mjs";
 import * as sessions from "./sessions.mjs";
 import * as chats from "./chats.mjs";
 import * as projects from "./projects.mjs";
+import { listCommands } from "./commands.mjs";
 import { refreshStatus, startRefresh } from "./refresh.mjs";
 
 const MIME = {
@@ -161,6 +162,7 @@ export function createApi(broadcast) {
 
       if (resource === "chats") return await handleChats(res, method, parts, body);
       if (resource === "models" && method === "GET") return send(res, 200, chats.listModels());
+      if (resource === "commands" && method === "GET") return send(res, 200, listCommands(url.searchParams.get("cwd") || null));
       if (resource === "uploads" && method === "POST") return send(res, 200, chats.saveUpload(body));
       if (resource === "uploads" && method === "GET" && id === "file") {
         const file = path.resolve(url.searchParams.get("path") ?? "");

@@ -3659,3 +3659,81 @@ textarea,
 .react-flow__node-column {
   cursor: default;
 }
+
+/* Slash commands */
+.composer {
+  position: relative;
+}
+
+.slash-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  max-height: 320px;
+  overflow: auto;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--bg-elev);
+  box-shadow: var(--shadow);
+  z-index: 20;
+  animation: pop var(--duration) var(--ease-standard);
+}
+
+.new-session .slash-menu {
+  bottom: auto;
+  top: calc(100% + 6px);
+}
+
+.slash-item {
+  display: grid;
+  grid-template-columns: minmax(140px, auto) 1fr auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  text-align: left;
+}
+
+.slash-item.active {
+  background: var(--bg-active);
+}
+
+.slash-name {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.slash-desc {
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.slash-source {
+  font-size: 11px;
+  color: var(--text-4);
+  white-space: nowrap;
+}
+
+.tool-call-head.static {
+  cursor: default;
+}
+
+.command-name {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent-hover);
+  flex-shrink: 0;
+}
+
+.command-call .tool-call-icon {
+  color: #d97757;
+}
