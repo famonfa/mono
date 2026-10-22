@@ -19,7 +19,7 @@ const taskDir = (id) => (assertSafe(id), path.join(TASKS_DIR, id));
 const boardPath = (id, boardId) => (assertSafe(boardId), path.join(taskDir(id), "boards", `${boardId}.json`));
 const docPath = (id, name) => (assertSafe(name), path.join(taskDir(id), "docs", name));
 
-function readJson(file, fallback) {
+export function readJson(file, fallback) {
   try {
     return JSON.parse(fs.readFileSync(file, "utf8"));
   } catch {
@@ -27,7 +27,7 @@ function readJson(file, fallback) {
   }
 }
 
-function writeJson(file, value) {
+export function writeJson(file, value) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(value, null, 2) + "\n");

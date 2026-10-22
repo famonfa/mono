@@ -3,6 +3,7 @@ import path from "node:path";
 import * as store from "./store.mjs";
 import * as sessions from "./sessions.mjs";
 import * as chats from "./chats.mjs";
+import * as groups from "./groups.mjs";
 import * as projects from "./projects.mjs";
 import { listCommands } from "./commands.mjs";
 import { refreshStatus, startRefresh } from "./refresh.mjs";
@@ -111,7 +112,21 @@ async function handleChats(res, method, parts, body) {
   return send(res, 404, { error: "not found" });
 }
 
-/** Creates the request handler plus file watchers that broadcast `ws:data`, `ws:sessions` and `ws:chat` events. */
+function handleGroups(res, method, parts, body) {
+  const [, id, sub, sessionId] = parts;
+  if (!id && method === "GET") return send(res, 200, groups.listGroups());
+  if (!id && method === "POST") return send(res, 200, groups.createGroup(body));
+  if (id && !sub && method === "PUT") return send(res, 200, groups.updateGroup(id, body));
+  if (id && !sub && method === "DELETE") {
+    groups.deleteGroup(id);
+    return send(res, 200, { ok: true });
+  }
+  if (sub === "sessions" && !sessionId && method === "POST") return send(res, 200, groups.addSession(id, body.sessionId, body.title));
+  if (sub === "sessions" && sessionId && method === "DELETE") return send(res, 200, groups.removeSession(id, sessionId));
+  return send(res, 404, { error: "not found" });
+}
+
+/** Creates the request handler plus file watchers that broadcast `ws:data`, `ws:sessions`, `ws:groups` and `ws:chat` events. */
 export function createApi(broadcast) {
   fs.mkdirSync(store.TASKS_DIR, { recursive: true });
 
@@ -143,6 +158,13 @@ export function createApi(broadcast) {
     });
   }
 
+  let groupsTimer;
+  fs.watch(store.DATA_DIR, (_event, filename) => {
+    if (filename !== path.basename(groups.GROUPS_FILE)) return;
+    clearTimeout(groupsTimer);
+    groupsTimer = setTimeout(() => broadcast("ws:groups", {}), 100);
+  });
+
   chats.onChatChange((sessionId) => broadcast("ws:chat", { sessionId, state: chats.chatState(sessionId) }));
 
   return async function handle(req, res, next) {
@@ -161,6 +183,7 @@ export function createApi(broadcast) {
       const [resource, id, sub, subId] = parts;
 
       if (resource === "chats") return await handleChats(res, method, parts, body);
+      if (resource === "groups") return handleGroups(res, method, parts, body);
       if (resource === "models" && method === "GET") return send(res, 200, chats.listModels());
       if (resource === "commands" && method === "GET") return send(res, 200, listCommands(url.searchParams.get("cwd") ? chats.expandHome(url.searchParams.get("cwd")) : null));
       if (resource === "uploads" && method === "POST") return send(res, 200, chats.saveUpload(body));

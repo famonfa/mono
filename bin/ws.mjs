@@ -4,6 +4,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import * as store from "../server/store.mjs";
 import * as sessions from "../server/sessions.mjs";
+import * as groups from "../server/groups.mjs";
 
 const USAGE = `mono (alias: ws) — CLI de Mono (http://localhost:4600)
 
@@ -18,6 +19,8 @@ const USAGE = `mono (alias: ws) — CLI de Mono (http://localhost:4600)
   ws doc <task> <name.md> <file.md|->      Escribe un documento
   ws asset <task> <image...>               Copia imágenes a assets/
   ws sessions [task] [--since ISO]         Actividad reciente de los agentes (de una tarea o todos)
+  ws groups                                Lista los grupos de sesiones (canvas de chats)
+  ws group <grupo> <session-id...>         Manda sesiones al canvas de un grupo (lo crea si no existe)
   ws open [task]                           Abre la app en el navegador
   ws path [task]                           Imprime la carpeta de datos`;
 
@@ -118,6 +121,19 @@ switch (command) {
     const list = task ? sessions.sessionsForTask(task, all) : all.filter((x) => x.status !== "inactive");
     if (!list.length) console.log("Sin sesiones vinculadas.");
     for (const session of list) printSessionDigest(session, since);
+    break;
+  }
+  case "groups": {
+    for (const g of groups.listGroups()) console.log(`${g.id}\t${g.name}\t${g.panes.length} sesiones\thttp://localhost:4600/#/g/${g.id}`);
+    break;
+  }
+  case "group": {
+    requireArgs(2);
+    const [ref, ...ids] = args;
+    const titles = new Map(sessions.listSessions({ days: 30 }).map((s) => [s.id, s.title]));
+    let group = groups.findGroup(ref) ?? groups.createGroup({ name: ref });
+    for (const id of ids) group = groups.addSession(group.id, id, titles.get(id));
+    console.log(`${group.name}: ${group.panes.length} sesiones · http://localhost:4600/#/g/${group.id}`);
     break;
   }
   case "open": {
