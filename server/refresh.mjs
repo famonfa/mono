@@ -6,6 +6,7 @@ import * as store from "./store.mjs";
 
 const HOME = os.homedir();
 const RUN_DIR = path.join(os.tmpdir(), "ws-refresh");
+const JOBS_DIR = path.join(store.DATA_DIR, ".jobs");
 const PATH = [path.join(HOME, ".local/bin"), path.join(HOME, ".npm-global/bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", process.env.PATH].join(":");
 
 /**
@@ -26,8 +27,6 @@ const ALLOWED_TOOLS = [
   "Skill",
 ];
 
-const jobs = new Map();
-
 function prompt(task, since) {
   return [
     `Actualizá la tarea ${task.id} ("${task.title}") del Avocado Workspace usando el skill workspace en modo actualización.`,
@@ -39,43 +38,86 @@ function prompt(task, since) {
   ].join("\n");
 }
 
+const jobFile = (taskId) => (store.assertSafe(taskId), path.join(JOBS_DIR, `${taskId}.json`));
+
+function readJob(taskId) {
+  try {
+    return JSON.parse(fs.readFileSync(jobFile(taskId), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function writeJob(job) {
+  fs.mkdirSync(JOBS_DIR, { recursive: true });
+  fs.writeFileSync(jobFile(job.taskId), JSON.stringify(job, null, 2));
+}
+
+function isAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const tail = (file) => {
+  try {
+    return fs.readFileSync(file, "utf8").slice(-4000);
+  } catch {
+    return "";
+  }
+};
+
+/**
+ * Job state lives on disk (pid, log, exit-code file) so it survives dev-server restarts,
+ * which happen whenever a server module changes or the launchd service restarts.
+ */
+function resolveJob(job) {
+  if (job.status !== "running") return job;
+  if (fs.existsSync(job.exitFile)) {
+    const code = Number(fs.readFileSync(job.exitFile, "utf8").trim());
+    const finished = { ...job, status: code === 0 ? "done" : "failed", exitCode: code, finishedAt: fs.statSync(job.exitFile).mtime.toISOString() };
+    writeJob(finished);
+    if (code === 0) store.saveTask(job.taskId, { refreshedAt: job.startedAt });
+    return finished;
+  }
+  if (!isAlive(job.pid)) {
+    const lost = { ...job, status: "failed", exitCode: null, finishedAt: new Date().toISOString() };
+    writeJob(lost);
+    return lost;
+  }
+  return job;
+}
+
 export function startRefresh(taskId) {
   const task = store.getTask(taskId);
   if (!task) throw new Error(`No existe la tarea ${taskId}`);
-  const current = jobs.get(taskId);
-  if (current?.status === "running") return current;
+  const current = readJob(taskId);
+  if (current && resolveJob(current).status === "running") return refreshStatus(taskId);
 
   const cwd = path.join(RUN_DIR, `${taskId}-${Date.now()}`);
   fs.mkdirSync(cwd, { recursive: true });
   const logFile = path.join(cwd, "refresh.log");
+  const exitFile = path.join(cwd, "exit-code");
   const log = fs.openSync(logFile, "a");
-  const startedAt = new Date().toISOString();
-  const child = spawn("claude", ["-p", prompt(task, task.refreshedAt), "--permission-mode", "acceptEdits", "--allowedTools", ...ALLOWED_TOOLS], {
+  const args = ["-p", prompt(task, task.refreshedAt), "--permission-mode", "acceptEdits", "--allowedTools", ...ALLOWED_TOOLS];
+  const child = spawn("/bin/sh", ["-c", 'claude "$@"; echo $? > "$0"', exitFile, ...args], {
     cwd,
     env: { ...process.env, PATH },
     stdio: ["ignore", log, log],
     detached: true,
   });
-  const job = { taskId, status: "running", startedAt, pid: child.pid, cwd, logFile };
-  jobs.set(taskId, job);
-  child.on("exit", (code) => {
-    job.status = code === 0 ? "done" : "failed";
-    job.exitCode = code;
-    job.finishedAt = new Date().toISOString();
-    job.output = fs.readFileSync(logFile, "utf8").slice(-4000);
-    if (code === 0) store.saveTask(taskId, { refreshedAt: startedAt });
-  });
-  child.on("error", (error) => {
-    job.status = "failed";
-    job.output = String(error);
-  });
   child.unref();
-  return job;
+  const job = { taskId, status: "running", startedAt: new Date().toISOString(), pid: child.pid, cwd, logFile, exitFile };
+  writeJob(job);
+  return refreshStatus(taskId);
 }
 
 export function refreshStatus(taskId) {
-  const job = jobs.get(taskId);
+  const job = readJob(taskId);
   if (!job) return { status: "never" };
-  const output = job.status === "running" ? fs.readFileSync(job.logFile, "utf8").slice(-4000) : job.output;
-  return { ...job, output };
+  const resolved = resolveJob(job);
+  return { status: resolved.status, startedAt: resolved.startedAt, finishedAt: resolved.finishedAt, exitCode: resolved.exitCode, output: tail(resolved.logFile) };
 }
