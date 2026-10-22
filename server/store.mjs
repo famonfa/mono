@@ -155,11 +155,13 @@ export function normalizeEdge(edge, index) {
 }
 
 /**
- * Merges an AI-generated board into what is on disk without destroying the user's work:
+ * Merges an AI-generated board into what is on disk without destroying the user's work.
+ * With `patch`, incoming nodes and edges are upserted and nothing existing is removed.
+ * Otherwise:
  * positions the user arranged are kept, nodes edited in the UI keep their data,
  * and nodes or edges created in the UI survive regeneration.
  */
-export function mergeBoard(existing, incoming, { relayout = false } = {}) {
+export function mergeBoard(existing, incoming, { relayout = false, patch = false } = {}) {
   const prevNodes = new Map((existing?.nodes ?? []).map((n) => [n.id, n]));
   const incomingNodes = (incoming.nodes ?? []).map(normalizeNode);
   const incomingIds = new Set(incomingNodes.map((n) => n.id));
@@ -178,7 +180,7 @@ export function mergeBoard(existing, incoming, { relayout = false } = {}) {
     return merged;
   });
 
-  const isUserOwned = (n) => n.data?.manual || (n.type === "lane" && !relayout);
+  const isUserOwned = (n) => patch || n.data?.manual || (n.type === "lane" && !relayout);
   for (const prev of prevNodes.values()) {
     if (!incomingIds.has(prev.id) && isUserOwned(prev)) nodes.push(prev);
   }
@@ -186,7 +188,7 @@ export function mergeBoard(existing, incoming, { relayout = false } = {}) {
   const keptIds = new Set(nodes.map((n) => n.id));
   const incomingEdges = (incoming.edges ?? []).map(normalizeEdge);
   const incomingEdgeIds = new Set(incomingEdges.map((e) => e.id));
-  const manualEdges = (existing?.edges ?? []).filter((e) => e.data?.manual && !incomingEdgeIds.has(e.id));
+  const manualEdges = (existing?.edges ?? []).filter((e) => (patch || e.data?.manual) && !incomingEdgeIds.has(e.id));
   const edges = [...incomingEdges, ...manualEdges].filter((e) => keptIds.has(e.source) && keptIds.has(e.target));
 
   if (relayout) {

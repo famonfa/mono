@@ -33,7 +33,7 @@ function prompt(task, since) {
     `1. Corré \`ws show ${task.id}\` y \`ws get ${task.id} <board>\` para ver cada board; reusá los ids de nodos existentes.`,
     `2. La fuente principal es lo que hicieron los agentes: corré \`ws sessions ${task.id}${since ? ` --since ${since}` : ""}\` para ver la actividad reciente de las sesiones y subagentes vinculados.`,
     "3. Actualizá sobre todo el board de testeo con resultados reales que aparezcan ahí (pass/fail solo con evidencia; lo demás queda todo). Si aparecen bugs o hallazgos nuevos, agregalos como notas o tarjetas con status risk. Actualizá estado, TL;DR o resumen solo si cambiaron de verdad.",
-    "4. Escribí los JSON en el directorio actual y cargalos con `ws`. No toques repos, no publiques nada en GitHub ni en ningún otro servicio.",
+    "4. Escribí los JSON en el directorio actual y cargalos SIEMPRE con `ws board <tarea> <board> <archivo> --patch` (agrega/actualiza, nunca borra nodos existentes; mandá solo los nodos nuevos o cambiados). No toques repos, no publiques nada en GitHub ni en ningún otro servicio.",
     "5. Terminá con 2 líneas: qué cambiaste y qué requiere atención.",
   ].join("\n");
 }

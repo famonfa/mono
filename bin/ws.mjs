@@ -11,8 +11,9 @@ const USAGE = `ws — CLI del Avocado Workspace (http://localhost:4600)
   ws show <task>                           Muestra task.json + boards/docs/assets
   ws get <task> <board>                    Imprime un board (nodos y conexiones) para editarlo
   ws task <task> <file.json|->             Crea/actualiza metadatos (merge superficial)
-  ws board <task> <board> <file.json|-> [--relayout]
-                                           Crea/actualiza un board conservando lo que movió el usuario
+  ws board <task> <board> <file.json|-> [--relayout | --patch]
+                                           Crea/actualiza un board conservando lo que movió el usuario.
+                                           --patch solo agrega/actualiza nodos, nunca borra.
   ws doc <task> <name.md> <file.md|->      Escribe un documento
   ws asset <task> <image...>               Copia imágenes a assets/
   ws sessions [task] [--since ISO]         Actividad reciente de los agentes (de una tarea o todos)
@@ -72,7 +73,7 @@ switch (command) {
     const [id, boardId, source] = args.filter((a) => !a.startsWith("--"));
     const incoming = JSON.parse(readInput(source));
     const existing = store.getBoard(id, boardId);
-    const merged = store.mergeBoard(existing, incoming, { relayout: args.includes("--relayout") });
+    const merged = store.mergeBoard(existing, incoming, { relayout: args.includes("--relayout"), patch: args.includes("--patch") });
     store.saveBoard(id, boardId, merged);
     const kept = existing ? merged.nodes.filter((n) => n.position).length : 0;
     console.log(`✓ board ${id}/${boardId}: ${merged.nodes.length} nodos, ${merged.edges.length} conexiones${kept ? ` (${kept} conservaron su posición)` : ""}`);
