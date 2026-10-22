@@ -3581,3 +3581,17 @@ textarea,
   gap: 7px;
   padding-right: 4px;
 }
+
+.sidebar-reopen {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 10;
+  animation: fade var(--duration) var(--ease-standard);
+}
+
+.app.collapsed .topbar,
+.app.collapsed .board-toolbar,
+.app.collapsed .doc-toolbar {
+  padding-left: 44px;
+}

@@ -34,7 +34,8 @@ export function App() {
   }, [projectData, project, setProject]);
   const [dialog, setDialog] = useState<DialogRequest | null>(null);
   const [palette, setPalette] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem("ws-sidebar") === "collapsed");
+  useEffect(() => localStorage.setItem("ws-sidebar", collapsed ? "collapsed" : "open"), [collapsed]);
   const pendingG = useRef(0);
 
   const updateTask = useCallback(
@@ -110,6 +111,11 @@ export function App() {
       <div className={`app ${collapsed ? "collapsed" : ""}`}>
         <Sidebar route={route} onToggle={() => setCollapsed((c) => !c)} />
         <main className="panel">
+          {collapsed && (
+            <button className="icon-btn sidebar-reopen" onClick={() => setCollapsed(false)} title="Mostrar barra lateral ([)">
+              <PanelLeft size={15} />
+            </button>
+          )}
           {route.view === "home" ? (
             <Home filter={route.filter} />
           ) : route.view === "agents" ? (
