@@ -2,7 +2,7 @@
   "name": "@mono/desktop",
   "productName": "Mono",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "main": "src/main.mjs",
   "scripts": {
@@ -44,7 +44,8 @@
     "dmg": {
       "title": "Mono",
       "artifactName": "Mono-${arch}.${ext}"
-    }
+    },
+    "afterPack": "scripts/after-pack.cjs"
   },
   "description": "Mono desktop app",
   "author": "Facundo Monsegur"
