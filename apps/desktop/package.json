@@ -1,0 +1,35 @@
+{
+  "name": "@mono/desktop",
+  "productName": "Mono",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/main.mjs",
+  "scripts": {
+    "start": "electron .",
+    "package": "electron-builder --mac --dir"
+  },
+  "devDependencies": {
+    "electron": "45.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.famonfa.mono",
+    "productName": "Mono",
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": "dir"
+    },
+    "electronVersion": "45.0.0"
+  },
+  "description": "Mono desktop app",
+  "author": "Facundo Monsegur"
+}

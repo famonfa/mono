@@ -1,0 +1,42 @@
+/* Electron shell (apps/desktop): no title bar, so leave room for the traffic lights and give the
+   window something to drag from. `is-desktop` and `.desktop-drag` come from the desktop preload. */
+.desktop-drag {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 236px;
+  height: 40px;
+  z-index: 5;
+  -webkit-app-region: drag;
+}
+
+.is-desktop .sidebar {
+  padding-top: 40px;
+}
+
+.is-desktop .topbar,
+.is-desktop .board-toolbar,
+.is-desktop .doc-toolbar {
+  -webkit-app-region: drag;
+}
+
+.is-desktop .topbar :is(a, button, input, select, textarea, [role="button"]),
+.is-desktop .board-toolbar :is(a, button, input, select, textarea, [role="button"]),
+.is-desktop .doc-toolbar :is(a, button, input, select, textarea, [role="button"]) {
+  -webkit-app-region: no-drag;
+}
+
+.is-desktop:has(.app.collapsed) .desktop-drag {
+  width: 100px;
+}
+
+.is-desktop .sidebar-reopen {
+  top: 10px;
+  left: 84px;
+}
+
+.is-desktop .app.collapsed .topbar,
+.is-desktop .app.collapsed .board-toolbar,
+.is-desktop .app.collapsed .doc-toolbar {
+  padding-left: 124px;
+}

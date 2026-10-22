@@ -1,0 +1,14 @@
+# fly launch --no-deploy --copy-config && fly secrets set SESSION_SECRET=... GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... ALLOWED_EMAILS=... PUBLIC_URL=https://<app>.fly.dev && fly deploy
+app = "mono-relay"
+primary_region = "eze"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Hosts and pairings live in memory: keep exactly one machine running.
+  auto_stop_machines = "off"
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

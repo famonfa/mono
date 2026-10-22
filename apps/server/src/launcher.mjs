@@ -1,0 +1,168 @@
+import { execFileSync, spawn } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { CONFIG_DIR, STATUS_FILE, readRemote, writeRemote } from "./remote.mjs";
+import { ROOT } from "./store.mjs";
+
+const HOME = os.homedir();
+export const PORT = Number(process.env.PORT ?? 4600);
+export const APP_URL = `http://localhost:${PORT}`;
+const SERVER_MAIN = path.join(ROOT, "apps", "server", "src", "main.mjs");
+const CLI = path.join(ROOT, "apps", "server", "bin", "mono.mjs");
+const LOG = path.join(HOME, "Library", "Logs", "mono.log");
+const SERVICE = "com.famonfa.mono";
+const PLIST = path.join(HOME, "Library", "LaunchAgents", `${SERVICE}.plist`);
+const PATH = [path.join(HOME, ".local/bin"), path.join(HOME, ".npm-global/bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"].join(":");
+
+export async function isUp() {
+  try {
+    const res = await fetch(`${APP_URL}/api/health`, { signal: AbortSignal.timeout(800) });
+    return res.ok && (await res.json()).app === "mono";
+  } catch {
+    return false;
+  }
+}
+
+/** Lets the packaged desktop app find this checkout without hardcoding it. */
+function rememberHome() {
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  fs.writeFileSync(path.join(CONFIG_DIR, "config.json"), JSON.stringify({ home: ROOT, node: process.execPath }, null, 2));
+}
+
+/** Starts the server in the background unless it (or the launchd service) is already up. */
+export async function ensureServer() {
+  rememberHome();
+  if (await isUp()) return;
+  fs.mkdirSync(path.dirname(LOG), { recursive: true });
+  const out = fs.openSync(LOG, "a");
+  spawn(process.execPath, [SERVER_MAIN], { cwd: ROOT, detached: true, stdio: ["ignore", out, out], env: { ...process.env, PATH: `${PATH}:${process.env.PATH}` } }).unref();
+  for (let i = 0; i < 40; i++) {
+    await new Promise((r) => setTimeout(r, 250));
+    if (await isUp()) return;
+  }
+  throw new Error(`El server no arrancó; mirá ${LOG}`);
+}
+
+/** Opens Mono like `t3` does: the installed desktop app, the dev Electron shell, or the browser. */
+export function openApp(hash = "") {
+  const installed = ["/Applications/Mono.app", path.join(HOME, "Applications", "Mono.app")].find((p) => fs.existsSync(p));
+  if (installed) return execFileSync("open", ["-a", installed]), "desktop";
+  const electron = path.join(ROOT, "node_modules", ".bin", "electron");
+  if (fs.existsSync(electron)) {
+    // Terminals inside Electron apps (T3 Code, VS Code) export ELECTRON_RUN_AS_NODE, which would start Electron as plain Node.
+    const { ELECTRON_RUN_AS_NODE, ...env } = process.env;
+    spawn(electron, [path.join(ROOT, "apps", "desktop")], { detached: true, stdio: "ignore", env: { ...env, MONO_HASH: hash } }).unref();
+    return "desktop";
+  }
+  execFileSync("open", [`${APP_URL}/${hash}`]);
+  return "browser";
+}
+
+export async function launch(hash) {
+  await ensureServer();
+  const where = openApp(hash);
+  console.log(`🐒 Mono en ${APP_URL} (${where === "desktop" ? "app de escritorio" : "navegador"})`);
+}
+
+/**
+ * Pairs this machine with a relay so the phone/web can reach it: the relay hands out a short code,
+ * you approve it signed in with Google, and the relay returns a host token saved in ~/.mono.
+ */
+export async function connect(relayArg, name = os.hostname().replace(/\.local$/, "")) {
+  const relay = new URL(relayArg ?? readRemote()?.relay ?? process.env.MONO_RELAY ?? "").origin;
+  const post = async (route, body) => {
+    const res = await fetch(new URL(route, relay), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error ?? `${res.status} ${res.statusText}`);
+    return json;
+  };
+  const { code, pollToken, url } = await post("/_mono/pair/start", { name });
+  console.log(`\nAbrí este link y entrá con Google para conectar "${name}":\n\n  ${url}\n\nCódigo: ${code}\n`);
+  try {
+    execFileSync("open", [url]);
+  } catch {}
+  const deadline = Date.now() + 10 * 60_000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const result = await post("/_mono/pair/poll", { pollToken });
+    if (result.status === "approved") {
+      writeRemote({ relay, token: result.token, hostId: result.hostId, email: result.email, name });
+      await ensureServer();
+      console.log(`✓ ${name} conectado a ${relay} como ${result.email}. Abrí ${relay} desde el celular.`);
+      return;
+    }
+    if (result.status !== "pending") throw new Error("El código expiró o fue rechazado");
+  }
+  throw new Error("Se venció el tiempo para aprobar el código");
+}
+
+export function disconnect() {
+  writeRemote(null);
+  console.log("✓ Desconectado del relay");
+}
+
+export async function status() {
+  const remote = readRemote();
+  let live = null;
+  try {
+    live = JSON.parse(fs.readFileSync(STATUS_FILE, "utf8"));
+  } catch {}
+  console.log(`Server:  ${(await isUp()) ? `✓ ${APP_URL}` : "✗ apagado (corré `mono`)"}`);
+  console.log(`Servicio: ${fs.existsSync(PLIST) ? "instalado (arranca solo al iniciar sesión)" : "no instalado (`mono service install`)"}`);
+  if (!remote) return console.log("Remoto:  sin conectar (`mono connect <relay-url>`)");
+  console.log(`Remoto:  ${remote.relay} · ${remote.email} · ${live?.state ?? "?"}${live?.reason ? ` (${live.reason})` : ""}`);
+}
+
+/** Runs the server at login via launchd and puts `mono`/`ws` on PATH. */
+export function installService() {
+  rememberHome();
+  const bin = path.join(HOME, ".local", "bin");
+  fs.mkdirSync(bin, { recursive: true });
+  for (const name of ["mono", "ws"]) {
+    fs.rmSync(path.join(bin, name), { force: true });
+    fs.symlinkSync(CLI, path.join(bin, name));
+  }
+  const plist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>${SERVICE}</string>
+  <key>ProgramArguments</key>
+  <array><string>${process.execPath}</string><string>${SERVER_MAIN}</string></array>
+  <key>WorkingDirectory</key><string>${ROOT}</string>
+  <key>EnvironmentVariables</key>
+  <dict><key>PATH</key><string>${PATH}</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>${LOG}</string>
+  <key>StandardErrorPath</key><string>${LOG}</string>
+</dict>
+</plist>
+`;
+  fs.mkdirSync(path.dirname(PLIST), { recursive: true });
+  fs.writeFileSync(PLIST, plist);
+  const domain = `gui/${process.getuid()}`;
+  try {
+    execFileSync("launchctl", ["bootout", `${domain}/${SERVICE}`], { stdio: "ignore" });
+  } catch {}
+  // bootout finishes asynchronously; bootstrap fails with EIO until the old job is gone.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      execFileSync("launchctl", ["bootstrap", domain, PLIST], { stdio: "pipe" });
+      break;
+    } catch (error) {
+      if (attempt >= 10) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300);
+    }
+  }
+  console.log(`✓ Servicio ${SERVICE} → ${SERVER_MAIN}\n✓ mono y ws → ${CLI}`);
+}
+
+export function uninstallService() {
+  try {
+    execFileSync("launchctl", ["bootout", `gui/${process.getuid()}/${SERVICE}`], { stdio: "ignore" });
+  } catch {}
+  fs.rmSync(PLIST, { force: true });
+  console.log(`✓ Servicio ${SERVICE} desinstalado`);
+}

@@ -1,0 +1,10 @@
+{
+  "appId": "com.famonfa.mono",
+  "appName": "Mono",
+  "webDir": "www",
+  "appendUserAgent": "MonoApp",
+  "backgroundColor": "#0d0d0f",
+  "server": {
+    "allowNavigation": ["*"]
+  }
+}

@@ -1,0 +1,30 @@
+/* Phones (web via the relay or the mobile app): the sidebar becomes a drawer over the panel. */
+@media (max-width: 760px) {
+  .app,
+  .app.collapsed {
+    grid-template-columns: 0 1fr;
+    height: 100dvh;
+  }
+
+  .app:not(.collapsed) .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 50;
+    width: min(84vw, 300px);
+    padding-top: max(8px, env(safe-area-inset-top));
+    background: var(--bg-app);
+    box-shadow: var(--shadow);
+  }
+
+  .panel,
+  .app.collapsed .panel {
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .sidebar-reopen {
+    top: calc(8px + env(safe-area-inset-top));
+  }
+}
