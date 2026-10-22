@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Bot, ClipboardList, Cpu, File as FileIcon, Folder, FolderGit2, Gauge, Loader2, Paperclip, Plus, ShieldCheck, Square, X, Zap } from "lucide-react";
+import { ArrowUp, Bot, Check, CircleHelp, ClipboardList, Cpu, File as FileIcon, Folder, FolderGit2, Gauge, Loader2, Paperclip, Plus, ShieldCheck, Square, X, Zap } from "lucide-react";
 import { useApp } from "../app-context";
 import { chatApi, PERMISSION_MODES, useChatDefaults, useChatState, type Attachment, type ChatState, type ModelOption, type PendingPermission, type PermissionMode, type SlashCommand, type Worktree } from "../chat";
 import { href, navigate } from "../router";
@@ -342,6 +342,124 @@ function PermissionCard({ sessionId, request, onAnswered }: { sessionId: string;
   );
 }
 
+type Question = { question: string; header?: string; multiSelect?: boolean; options: { label: string; description?: string }[] };
+
+const RECOMMENDED = /\s*\((recommended|recomendad[ao])\)\s*$/i;
+
+/** AskUserQuestion as clickable options (one question per step) instead of a raw permission prompt. */
+function QuestionCard({ sessionId, request, onAnswered }: { sessionId: string; request: PendingPermission; onAnswered: (s: ChatState) => void }) {
+  const questions = ((request.input as { questions?: Question[] }).questions ?? []).filter((q) => q?.question && Array.isArray(q.options));
+  const [step, setStep] = useState(0);
+  const [picked, setPicked] = useState<Record<string, string[]>>({});
+  const [other, setOther] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const answerFor = (q: Question) => [...(picked[q.question] ?? []), ...(other[q.question]?.trim() ? [other[q.question].trim()] : [])].join(", ");
+  const done = questions.every((q) => answerFor(q));
+  const q = questions[step];
+
+  const send = async (allow: boolean) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const answers = Object.fromEntries(questions.map((x) => [x.question, answerFor(x)]));
+      onAnswered(await chatApi.answer(sessionId, request.id, allow ? { allow, answers } : { allow, message: "El usuario prefirió no responder estas preguntas" }));
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  };
+
+  const pick = (label: string) => {
+    if (q.multiSelect) {
+      setPicked((p) => {
+        const cur = p[q.question] ?? [];
+        return { ...p, [q.question]: cur.includes(label) ? cur.filter((l) => l !== label) : [...cur, label] };
+      });
+      return;
+    }
+    setPicked((p) => ({ ...p, [q.question]: [label] }));
+    setOther((o) => ({ ...o, [q.question]: "" }));
+    if (step < questions.length - 1) setStep(step + 1);
+  };
+
+  if (!q) return <PermissionCard sessionId={sessionId} request={request} onAnswered={onAnswered} />;
+  const selected = picked[q.question] ?? [];
+  const last = step === questions.length - 1;
+
+  return (
+    <div className="question-card">
+      <div className="question-head">
+        <CircleHelp size={14} />
+        <span>Claude te pregunta</span>
+        {questions.length > 1 && (
+          <span className="question-steps">
+            {questions.map((x, i) => (
+              <button key={x.question} className={`question-step ${i === step ? "active" : ""} ${answerFor(x) ? "done" : ""}`} onClick={() => setStep(i)} title={x.question}>
+                {answerFor(x) && <Check size={11} />}
+                {x.header || `${i + 1}`}
+              </button>
+            ))}
+          </span>
+        )}
+      </div>
+      <div className="question-text">{q.question}</div>
+      {q.multiSelect && <div className="question-hint">Podés elegir varias</div>}
+      <div className="question-options">
+        {q.options.map((o, i) => {
+          const on = selected.includes(o.label);
+          return (
+            <button key={o.label} className={`question-option ${on ? "on" : ""}`} disabled={busy} onClick={() => pick(o.label)}>
+              <span className={`question-mark ${q.multiSelect ? "multi" : ""}`}>{on ? <Check size={11} /> : i + 1}</span>
+              <span className="question-option-body">
+                <span className="question-option-label">
+                  {o.label.replace(RECOMMENDED, "")}
+                  {RECOMMENDED.test(o.label) && <span className="question-badge">Recomendada</span>}
+                </span>
+                {o.description && <span className="question-option-desc">{o.description}</span>}
+              </span>
+            </button>
+          );
+        })}
+        <input
+          className="question-other"
+          placeholder="Otra respuesta…"
+          value={other[q.question] ?? ""}
+          disabled={busy}
+          onChange={(e) => {
+            const value = e.target.value;
+            setOther((o) => ({ ...o, [q.question]: value }));
+            if (!q.multiSelect && value) setPicked((p) => ({ ...p, [q.question]: [] }));
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" || !answerFor(q)) return;
+            if (!last) setStep(step + 1);
+            else if (done) void send(true);
+          }}
+        />
+      </div>
+      {error && <div className="composer-error">{error}</div>}
+      <div className="permission-actions">
+        <button className="btn ghost" disabled={busy} onClick={() => send(false)}>
+          No responder
+        </button>
+        <span className="spacer" />
+        {!last && (
+          <button className="btn ghost" disabled={busy || !answerFor(q)} onClick={() => setStep(step + 1)}>
+            Siguiente
+          </button>
+        )}
+        {(last || done) && (
+          <button className="btn primary" disabled={busy || !done} onClick={() => send(true)}>
+            {busy ? <Loader2 size={13} className="spin" /> : "Responder"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Live feed + permission prompts + composer for one session. Used in the task tab and in Agents. */
 export function SessionChat({ sessionId, summary }: { sessionId: string; summary?: SessionSummary }) {
   const feed = useSessionFeed(sessionId);
@@ -385,9 +503,13 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
       {feed.truncated && <div className="msg-notice top">Mostrando la parte más reciente de la sesión</div>}
       <Feed events={feed.events} sessionId={sessionId} live={running} isSubagent={false} pendingText={pendingText} />
       <div className="chat-dock">
-        {chat?.pending.map((p) => (
-          <PermissionCard key={p.id} sessionId={sessionId} request={p} onAnswered={setChat} />
-        ))}
+        {chat?.pending.map((p) =>
+          p.toolName === "AskUserQuestion" ? (
+            <QuestionCard key={p.id} sessionId={sessionId} request={p} onAnswered={setChat} />
+          ) : (
+            <PermissionCard key={p.id} sessionId={sessionId} request={p} onAnswered={setChat} />
+          ),
+        )}
         {chat?.error && <div className="composer-error">La sesión terminó con un error: {chat.error}</div>}
         <Composer
           draftKey={`session-${sessionId}`}

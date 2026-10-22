@@ -58,7 +58,7 @@ export const chatApi = {
     return call<Attachment>("/api/uploads", { name: file.name || "pegado.png", type: file.type, data });
   },
   interrupt: (sessionId: string) => call<ChatState>(`/api/chats/${enc(sessionId)}/interrupt`, {}),
-  answer: (sessionId: string, requestId: string, decision: { allow: boolean; always?: boolean; message?: string }) =>
+  answer: (sessionId: string, requestId: string, decision: { allow: boolean; always?: boolean; message?: string; answers?: Record<string, string> }) =>
     call<ChatState>(`/api/chats/${enc(sessionId)}/permissions/${enc(requestId)}`, decision),
   state: (sessionId: string) => call<ChatState>(`/api/chats/${enc(sessionId)}`),
   worktrees: (taskId: string) => call<Worktree[]>(`/api/tasks/${enc(taskId)}/worktrees`),

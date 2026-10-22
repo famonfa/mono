@@ -355,14 +355,15 @@ export async function interrupt(sessionId) {
   return publicState(chat);
 }
 
-export function answerPermission(sessionId, requestId, { allow, always, message }) {
+/** `answers` (question text → chosen label(s)) is how AskUserQuestion gets the user's choices back. */
+export function answerPermission(sessionId, requestId, { allow, always, message, answers }) {
   const chat = chats.get(sessionId);
   const req = chat?.pending.get(requestId);
   if (!req) throw new Error("El pedido de permiso ya no está pendiente");
   chat.pending.delete(requestId);
   req.resolve(
     allow
-      ? { behavior: "allow", updatedInput: req.input, ...(always && req.suggestions ? { updatedPermissions: req.suggestions } : {}) }
+      ? { behavior: "allow", updatedInput: answers ? { ...req.input, answers } : req.input, ...(always && req.suggestions ? { updatedPermissions: req.suggestions } : {}) }
       : { behavior: "deny", message: message || "El usuario rechazó este paso" },
   );
   setState(chat, chat.pending.size ? "requires_action" : "running");
