@@ -7,6 +7,7 @@ export type Route =
   | { view: "agents" }
   | { view: "newSession" }
   | { view: "session"; sessionId: string; agentId?: string }
+  | { view: "group"; groupId: string }
   | { view: "task"; taskId: string }
   | { view: "board"; taskId: string; boardId: string }
   | { view: "doc"; taskId: string; doc: string }
@@ -16,6 +17,7 @@ function parse(hash: string): Route {
   const [kind, taskId, sub, name] = hash.replace(/^#\/?/, "").split("/").map(decodeURIComponent);
   if (kind === "activas" || kind === "hechas") return { view: "home", filter: kind };
   if (kind === "nueva-sesion") return { view: "newSession" };
+  if (kind === "g" && taskId) return { view: "group", groupId: taskId };
   if (kind === "agentes") return taskId ? { view: "session", sessionId: taskId, agentId: sub || undefined } : { view: "agents" };
   if (kind !== "t" || !taskId) return { view: "home", filter: "todas" };
   if (sub === "b" && name) return { view: "board", taskId, boardId: name };
@@ -30,6 +32,7 @@ export const href = {
   agents: () => "#/agentes",
   newSession: () => "#/nueva-sesion",
   session: (id: string, agentId?: string) => `#/agentes/${encodeURIComponent(id)}${agentId ? `/${encodeURIComponent(agentId)}` : ""}`,
+  group: (id: string) => `#/g/${encodeURIComponent(id)}`,
   board: (id: string, boardId: string) => `#/t/${encodeURIComponent(id)}/b/${encodeURIComponent(boardId)}`,
   doc: (id: string, doc: string) => `#/t/${encodeURIComponent(id)}/d/${encodeURIComponent(doc)}`,
   taskSession: (id: string, sessionId?: string) => `#/t/${encodeURIComponent(id)}/s${sessionId ? `/${encodeURIComponent(sessionId)}` : ""}`,

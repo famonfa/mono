@@ -28,6 +28,7 @@ import { uploadUrl } from "../chat";
 import { rememberSession, useSessionFeed, type SessionEvent, type SessionStatus, type SessionSummary, type SubagentSummary } from "../sessions";
 import { formatDate, Menu } from "../ui";
 import { SessionChat } from "./Chat";
+import { SendToGroup } from "./GroupCanvas";
 import { Markdown } from "./Markdown";
 
 const STATUS_LABEL: Record<SessionStatus, string> = { working: "Trabajando", idle: "En pausa", inactive: "Inactiva" };
@@ -432,6 +433,7 @@ export function SessionView({ sessionId, agentId, sessions }: { sessionId: strin
           )}
         </nav>
         <span className="spacer" />
+        <SendToGroup sessionId={sessionId} title={summary?.title} />
         <span className={`status-pill-live ${status}`}>
           <StatusDot status={status} size={7} /> {STATUS_LABEL[status]}
         </span>

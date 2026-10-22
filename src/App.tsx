@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bot, CheckCircle2, CircleDot, Layers, MessageSquarePlus, Moon, PanelLeft, Search, SquarePen, Sun } from "lucide-react";
+import { Bot, CheckCircle2, CircleDot, LayoutGrid, Layers, MessageSquarePlus, Moon, PanelLeft, Plus, Search, SquarePen, Sun } from "lucide-react";
 import { api, useLiveData } from "./api";
 import { AppContext, useApp, type AppContextValue } from "./app-context";
 import { AgentsPage, SessionView, StatusDot } from "./components/Agents";
@@ -7,10 +7,12 @@ import { BoardView } from "./components/BoardView";
 import { NewSession, TaskSessions } from "./components/Chat";
 import { CommandPalette } from "./components/CommandPalette";
 import { DocView } from "./components/DocView";
+import { GroupView } from "./components/GroupCanvas";
 import { Home } from "./components/Home";
 import { ALL_PROJECTS, inProject, projectScope, ProjectSwitcher, sessionInProject } from "./components/Projects";
 import { TaskOverview, TaskTopBar } from "./components/TaskView";
 import { StatusIcon, STATUS_META, STATUS_ORDER } from "./icons";
+import { groupsApi, reloadGroups, useGroups } from "./groups";
 import { href, navigate, useRoute, type Route } from "./router";
 import { lastSessionId, useSessions } from "./sessions";
 import type { Task, TaskStatus } from "./types";
@@ -124,6 +126,8 @@ export function App() {
             <NewSession />
           ) : route.view === "session" ? (
             <SessionView key={`${route.sessionId}/${route.agentId ?? ""}`} sessionId={route.sessionId} agentId={route.agentId} sessions={sessions} />
+          ) : route.view === "group" ? (
+            <GroupView groupId={route.groupId} />
           ) : (
             <TaskShell key={route.taskId} route={route} />
           )}
@@ -136,7 +140,8 @@ export function App() {
 }
 
 function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
-  const { tasks: allTasks, sessions: allSessions, project, projects, openPalette, newTask, theme, toggleTheme } = useApp();
+  const { tasks: allTasks, sessions: allSessions, project, projects, openPalette, newTask, openDialog, theme, toggleTheme } = useApp();
+  const groups = useGroups();
   const scope = projectScope(project, projects);
   const tasks = allTasks.filter((t) => inProject(scope, t.projectIds));
   const sessions = allSessions.filter((s) => sessionInProject(scope, s, allTasks));
@@ -152,6 +157,18 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
   const inAgents = ["agents", "session", "newSession"].includes(route.view);
   const last = lastSessionId();
   const agentsHref = !inAgents && last && allSessions.some((s) => s.id === last) ? href.session(last) : href.agents();
+  const workingIds = new Set(allSessions.filter((s) => s.status === "working").map((s) => s.id));
+  const newGroup = () =>
+    openDialog({
+      title: "Nuevo grupo",
+      submitLabel: "Crear grupo",
+      fields: [{ name: "name", label: "Nombre del grupo" }],
+      onSubmit: async ({ name }) => {
+        const group = await groupsApi.create(name);
+        reloadGroups();
+        navigate(href.group(group.id));
+      },
+    });
 
   const nav = [
     { filter: "todas" as const, label: "Todas las tareas", icon: <Layers size={15} /> },
@@ -193,6 +210,34 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
             )}
           </span>
         </a>
+      </nav>
+
+      <div className="sidebar-section sidebar-section-row">
+        Grupos
+        <button className="icon-btn tiny" onClick={newGroup} title="Nuevo grupo de sesiones">
+          <Plus size={13} />
+        </button>
+      </div>
+      <nav className="sidebar-nav">
+        {groups.map((g) => {
+          const live = g.panes.filter((p) => workingIds.has(p.sessionId)).length;
+          return (
+            <a key={g.id} href={href.group(g.id)} className={route.view === "group" && route.groupId === g.id ? "active" : ""} title={`${g.name} · ${g.panes.length} sesiones`}>
+              <LayoutGrid size={14} />
+              <span className="recent-title">{g.name}</span>
+              <span className="nav-count">
+                {live > 0 ? (
+                  <span className="nav-live">
+                    <StatusDot status="working" size={6} /> {live}
+                  </span>
+                ) : (
+                  g.panes.length || ""
+                )}
+              </span>
+            </a>
+          );
+        })}
+        {!groups.length && <span className="sidebar-empty">Juntá sesiones para verlas lado a lado</span>}
       </nav>
 
       <div className="sidebar-section">Recientes</div>

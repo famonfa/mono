@@ -7,6 +7,7 @@ import { rememberSession, useSessionFeed, type SessionSummary } from "../session
 import type { Task } from "../types";
 import { formatDate, Menu } from "../ui";
 import { Feed, StatusDot, ToolIcon } from "./Agents";
+import { SendToGroup } from "./GroupCanvas";
 import { ProjectIcon } from "./Projects";
 
 function PermissionMenu({ value, onChange }: { value: PermissionMode; onChange: (mode: PermissionMode) => void }) {
@@ -664,6 +665,7 @@ export function TaskSessions({ task, sessionId }: { task: Task; sessionId?: stri
               <StatusDot status={current?.status ?? "inactive"} size={7} />
               <span className="session-pane-title">{current?.title ?? "Sesión"}</span>
               <span className="spacer" />
+              <SendToGroup sessionId={sessionId} title={current?.title} className="link-btn" />
               <a className="link-btn" href={href.session(sessionId)}>
                 Ver en Agentes
               </a>
