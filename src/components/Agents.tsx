@@ -25,7 +25,7 @@ import { useApp } from "../app-context";
 import { StatusIcon } from "../icons";
 import { href, navigate } from "../router";
 import { uploadUrl } from "../chat";
-import { useSessionFeed, type SessionEvent, type SessionStatus, type SessionSummary, type SubagentSummary } from "../sessions";
+import { rememberSession, useSessionFeed, type SessionEvent, type SessionStatus, type SessionSummary, type SubagentSummary } from "../sessions";
 import { formatDate, Menu } from "../ui";
 import { SessionChat } from "./Chat";
 import { Markdown } from "./Markdown";
@@ -52,6 +52,25 @@ export function ToolIcon({ name, size = 13 }: { name?: string; size?: number }) 
 
 const shortTool = (name?: string) => (name?.startsWith("mcp__") ? name.split("__").slice(1).join(" · ") : name);
 
+const tokensLabel = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : `${Math.round(n / 1000)}k`);
+
+/** How full the session's context window is (last turn's prompt size vs. the assumed window). */
+export function ContextMeter({ session, label = false }: { session: SessionSummary; label?: boolean }) {
+  const used = session.contextTokens ?? 0;
+  const window = session.contextWindow ?? 200_000;
+  if (!used) return null;
+  const pct = Math.min(100, Math.round((used / window) * 100));
+  const level = pct >= 90 ? "full" : pct >= 70 ? "high" : "ok";
+  return (
+    <span className={`ctx-meter ${level}`} title={`Contexto: ${used.toLocaleString()} de ~${tokensLabel(window)} tokens (${pct}%)${pct >= 90 ? " — casi lleno, conviene /compact" : ""}`}>
+      <span className="ctx-bar">
+        <span style={{ width: `${pct}%` }} />
+      </span>
+      {label ? `${tokensLabel(used)} / ${tokensLabel(window)} · ${pct}%` : `${pct}%`}
+    </span>
+  );
+}
+
 export function SessionRow({ session, compact = false }: { session: SessionSummary; compact?: boolean }) {
   const { tasks } = useApp();
   const activeSubs = session.subagents.filter((s) => s.status === "working").length;
@@ -69,6 +88,7 @@ export function SessionRow({ session, compact = false }: { session: SessionSumma
         )}
       </span>
       <span className="agent-meta">
+        {!compact && <ContextMeter session={session} />}
         {!compact &&
           session.taskIds?.map((id) => {
             const task = tasks.find((t) => t.id === id);
@@ -383,6 +403,7 @@ export function SessionView({ sessionId, agentId, sessions }: { sessionId: strin
   const summary = sessions.find((s) => s.id === sessionId) ?? feed.session;
   const agent = summary?.subagents.find((a) => a.id === agentId);
   const status = agentId ? agent?.status ?? "inactive" : summary?.status ?? "inactive";
+  useEffect(() => rememberSession(sessionId), [sessionId]);
 
   useEffect(() => {
     if (summary) document.title = `${summary.title} · Agentes`;
@@ -431,6 +452,9 @@ export function SessionView({ sessionId, agentId, sessions }: { sessionId: strin
                 <div className="prop-title">Sesión</div>
                 <Prop label="Estado">
                   <StatusDot status={summary.status} size={7} /> {STATUS_LABEL[summary.status]}
+                </Prop>
+                <Prop label="Contexto">
+                  <ContextMeter session={summary} label />
                 </Prop>
                 <Prop label="Proyecto">
                   <Folder size={12} /> {summary.project}

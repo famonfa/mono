@@ -3737,3 +3737,10 @@ textarea,
 .command-call .tool-call-icon {
   color: #d97757;
 }
+
+.ctx-meter { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted, #888); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ctx-bar { width: 34px; height: 4px; border-radius: 2px; background: rgba(128, 128, 128, 0.25); overflow: hidden; }
+.ctx-bar span { display: block; height: 100%; background: #4ade80; }
+.ctx-meter.high .ctx-bar span { background: #facc15; }
+.ctx-meter.full { color: #f87171; }
+.ctx-meter.full .ctx-bar span { background: #f87171; }

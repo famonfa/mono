@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Bot, ClipboardList, Cpu, File as FileIcon, FolderGit2, Gauge, Loader2, Paperclip, Plus, ShieldCheck, Square, X, Zap } from "lucide-react";
+import { ArrowUp, Bot, ClipboardList, Cpu, File as FileIcon, Folder, FolderGit2, Gauge, Loader2, Paperclip, Plus, ShieldCheck, Square, X, Zap } from "lucide-react";
 import { useApp } from "../app-context";
 import { chatApi, PERMISSION_MODES, useChatDefaults, useChatState, type Attachment, type ChatState, type ModelOption, type PendingPermission, type PermissionMode, type SlashCommand, type Worktree } from "../chat";
 import { href, navigate } from "../router";
-import { useSessionFeed, type SessionSummary } from "../sessions";
+import { rememberSession, useSessionFeed, type SessionSummary } from "../sessions";
 import type { Task } from "../types";
 import { formatDate, Menu } from "../ui";
 import { Feed, StatusDot, ToolIcon } from "./Agents";
@@ -112,6 +112,7 @@ function Composer({
   footer,
   autoFocus,
   commandsCwd,
+  draftKey,
 }: {
   placeholder: string;
   disabled?: boolean;
@@ -122,8 +123,15 @@ function Composer({
   footer?: React.ReactNode;
   autoFocus?: boolean;
   commandsCwd?: string;
+  /** When set, the unsent text survives navigation and reloads (localStorage). */
+  draftKey?: string;
 }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(() => (draftKey ? localStorage.getItem(`ws-draft-${draftKey}`) ?? "" : ""));
+  useEffect(() => {
+    if (!draftKey) return;
+    if (text) localStorage.setItem(`ws-draft-${draftKey}`, text);
+    else localStorage.removeItem(`ws-draft-${draftKey}`);
+  }, [draftKey, text]);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [dragging, setDragging] = useState(false);
   const [sending, setSending] = useState(false);
@@ -179,6 +187,8 @@ function Composer({
     setError(null);
     try {
       await onSend(value || "Mirá los archivos adjuntos.", ready);
+      // onSend may navigate away (new session) and unmount before the effect clears the draft.
+      if (draftKey) localStorage.removeItem(`ws-draft-${draftKey}`);
       setText("");
       drafts.forEach((d) => d.preview && URL.revokeObjectURL(d.preview));
       setDrafts([]);
@@ -380,6 +390,7 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
         ))}
         {chat?.error && <div className="composer-error">La sesión terminó con un error: {chat.error}</div>}
         <Composer
+          draftKey={`session-${sessionId}`}
           placeholder={running ? "Mandale otro mensaje (se encola)…" : "Escribile a esta sesión…"}
           disabled={busyElsewhere}
           disabledReason={busyElsewhere ? "Esta sesión está trabajando en otra app (T3 Code o la terminal). Cuando quede en pausa, podés seguirla desde acá." : undefined}
@@ -450,6 +461,7 @@ export function NewSession({ task }: { task?: Task }) {
         </p>
         <Composer
           autoFocus
+          draftKey={`new-${task?.id ?? "free"}`}
           commandsCwd={cwd || undefined}
           placeholder={task ? "¿Qué hacemos? Ej: revisá los 3 must-fix del board de testeo y arreglalos…" : "¿Qué hacemos?"}
           onSend={async (prompt, attachments) => {
@@ -478,12 +490,13 @@ export function NewSession({ task }: { task?: Task }) {
               )}
               <Menu
                 value={cwd}
-                placeholder="Buscar carpeta o rama…"
+                placeholder="Buscar carpeta o rama, o escribí una ruta (/… o ~/…)"
                 options={worktrees.map((w) => ({ value: w.path, label: worktreeLabel(w), icon: <FolderGit2 size={13} /> }))}
+                custom={(q) => (/^[/~]/.test(q) ? { value: q, label: `Usar carpeta ${q}`, icon: <Folder size={13} /> } : null)}
                 onChange={setCwd}
                 className="mode-trigger"
               >
-                <FolderGit2 size={12} /> {selected ? worktreeLabel(selected) : "…"}
+                <FolderGit2 size={12} /> {selected ? worktreeLabel(selected) : cwd ? cwd.split("/").slice(-2).join("/") : "…"}
               </Menu>
             </>
           }
@@ -497,6 +510,9 @@ export function TaskSessions({ task, sessionId }: { task: Task; sessionId?: stri
   const { sessions } = useApp();
   const linked = useMemo(() => sessions.filter((s) => s.taskIds?.includes(task.id)), [sessions, task.id]);
   const current = linked.find((s) => s.id === sessionId) ?? sessions.find((s) => s.id === sessionId);
+  useEffect(() => {
+    if (sessionId) rememberSession(sessionId, task.id);
+  }, [sessionId, task.id]);
 
   return (
     <div className="task-sessions">

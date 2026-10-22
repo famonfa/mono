@@ -79,6 +79,8 @@ function emptyMeta(file) {
     firstCwd: null,
     gitBranch: null,
     model: null,
+    contextTokens: 0,
+    peakContext: 0,
     prLinks: new Set(),
     mentions: new Set(),
     firstTs: null,
@@ -134,6 +136,14 @@ function applyRecord(meta, rec) {
     }
     case "assistant": {
       if (rec.message?.model && !rec.message.model.startsWith("<")) meta.model = rec.message.model;
+      const u = rec.message?.usage;
+      if (u && !rec.isSidechain && rec.message?.model !== "<synthetic>") {
+        const used = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
+        if (used > 0) {
+          meta.contextTokens = used;
+          meta.peakContext = Math.max(meta.peakContext, used);
+        }
+      }
       if (rec.message?.stop_reason) meta.turnOpen = rec.message.stop_reason === "tool_use";
       for (const block of rec.message?.content ?? []) {
         if (block.type === "text" && block.text?.trim()) meta.lastText = truncate(block.text.trim(), 400);
@@ -254,6 +264,9 @@ function summarize({ id, dir, file }, withSubagents = true) {
     firstCwd: meta.firstCwd,
     gitBranch: meta.gitBranch,
     model: meta.model,
+    contextTokens: meta.contextTokens,
+    // The transcript doesn't record the window; assume 200k unless the session already went past it (1M).
+    contextWindow: meta.peakContext > 200_000 ? 1_000_000 : 200_000,
     prLinks: [...meta.prLinks],
     mentions: [...meta.mentions],
     firstTs: meta.firstTs,

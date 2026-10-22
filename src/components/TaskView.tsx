@@ -6,7 +6,7 @@ import { BoardIcon, DocIcon, RISK_META, RiskIcon, STATUS_META, STATUS_MENU_ORDER
 import { href, navigate } from "../router";
 import { BOARD_KIND, type BoardKind, type Task } from "../types";
 import { formatDate, Menu, slugify } from "../ui";
-import { sessionsApi, type RefreshJob } from "../sessions";
+import { lastSessionId, sessionsApi, type RefreshJob } from "../sessions";
 import { SessionRow, StatusDot } from "./Agents";
 import { BoardView } from "./BoardView";
 import { Markdown } from "./Markdown";
@@ -16,6 +16,8 @@ export function TaskTopBar({ task, active }: { task: Task; active: string }) {
   const { sessions } = useApp();
   const working = sessions.filter((s) => s.status === "working" && s.taskIds?.includes(task.id));
   const linkedCount = sessions.filter((s) => s.taskIds?.includes(task.id)).length;
+  const last = lastSessionId(task.id);
+  const resume = active !== "sessions" && last && sessions.some((s) => s.id === last && s.taskIds?.includes(task.id)) ? last : undefined;
   return (
     <header className="topbar task-topbar">
       <nav className="breadcrumb">
@@ -30,7 +32,7 @@ export function TaskTopBar({ task, active }: { task: Task; active: string }) {
         <a className={active === "overview" ? "active" : ""} href={href.task(task.id)}>
           <LayoutDashboard size={13} /> Resumen
         </a>
-        <a className={active === "sessions" ? "active" : ""} href={href.taskSession(task.id)}>
+        <a className={active === "sessions" ? "active" : ""} href={href.taskSession(task.id, resume)}>
           <MessagesSquare size={13} /> Sesiones
           {linkedCount > 0 && <span className="tab-count">{linkedCount}</span>}
           {working.length > 0 && <StatusDot status="working" size={6} />}

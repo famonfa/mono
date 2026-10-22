@@ -45,6 +45,7 @@ export function Menu<T extends string>({
   children,
   placeholder = "Filtrar…",
   className = "",
+  custom,
 }: {
   value?: T;
   options: MenuOption<T>[];
@@ -52,6 +53,8 @@ export function Menu<T extends string>({
   children: ReactNode;
   placeholder?: string;
   className?: string;
+  /** Extra option built from what was typed (e.g. a free folder path), shown after the matches. */
+  custom?: (query: string) => MenuOption<T> | null;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -59,7 +62,8 @@ export function Menu<T extends string>({
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number; visibility?: "hidden" }>({ top: 0, left: 0, visibility: "hidden" });
-  const filtered = options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()));
+  const typed = custom?.(query.trim());
+  const filtered = [...options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase())), ...(typed && !options.some((o) => o.value === typed.value) ? [typed] : [])];
 
   // Opens downward when it fits, otherwise upward (composers sit at the bottom of the screen).
   useLayoutEffect(() => {

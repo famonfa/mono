@@ -12,7 +12,7 @@ import { ALL_PROJECTS, inProject, projectScope, ProjectSwitcher, sessionInProjec
 import { TaskOverview, TaskTopBar } from "./components/TaskView";
 import { StatusIcon, STATUS_META, STATUS_ORDER } from "./icons";
 import { href, navigate, useRoute, type Route } from "./router";
-import { useSessions } from "./sessions";
+import { lastSessionId, useSessions } from "./sessions";
 import type { Task, TaskStatus } from "./types";
 import { Dialog, useHotkey, useTheme, type DialogRequest } from "./ui";
 
@@ -149,6 +149,9 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
     hechas: tasks.filter((t) => t.status === "hecho").length,
   };
   const recent = tasks.slice(0, 12);
+  const inAgents = ["agents", "session", "newSession"].includes(route.view);
+  const last = lastSessionId();
+  const agentsHref = !inAgents && last && allSessions.some((s) => s.id === last) ? href.session(last) : href.agents();
 
   const nav = [
     { filter: "todas" as const, label: "Todas las tareas", icon: <Layers size={15} /> },
@@ -179,7 +182,7 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
             <span className="nav-count">{counts[n.filter] || ""}</span>
           </a>
         ))}
-        <a href={href.agents()} className={["agents", "session", "newSession"].includes(route.view) ? "active" : ""}>
+        <a href={agentsHref} className={inAgents ? "active" : ""}>
           <Bot size={15} />
           <span>Agentes</span>
           <span className="nav-count">

@@ -162,7 +162,7 @@ export function createApi(broadcast) {
 
       if (resource === "chats") return await handleChats(res, method, parts, body);
       if (resource === "models" && method === "GET") return send(res, 200, chats.listModels());
-      if (resource === "commands" && method === "GET") return send(res, 200, listCommands(url.searchParams.get("cwd") || null));
+      if (resource === "commands" && method === "GET") return send(res, 200, listCommands(url.searchParams.get("cwd") ? chats.expandHome(url.searchParams.get("cwd")) : null));
       if (resource === "uploads" && method === "POST") return send(res, 200, chats.saveUpload(body));
       if (resource === "uploads" && method === "GET" && id === "file") {
         const file = path.resolve(url.searchParams.get("path") ?? "");

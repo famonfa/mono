@@ -9,6 +9,9 @@ import { allProjects, descendantIds, launchRootFor } from "./projects.mjs";
 
 const HOME = os.homedir();
 export const AVOCADO_ROOT = path.join(HOME, "avocado-all", "avocado");
+
+/** Folders typed by hand in the picker may start with `~`. */
+export const expandHome = (dir) => (dir === "~" || dir.startsWith("~/") ? path.join(HOME, dir.slice(1)) : dir);
 const REPOS = ["instamenu", "instamenu-api", "KDS", "crm", "pricing", "marketing-website"];
 const IDLE_CLOSE_MS = 20 * 60_000;
 /** Facundo's choice: full access by default (like T3 Code); the other modes stay selectable per session. */
@@ -243,8 +246,8 @@ export function startChat({ taskId, cwd, prompt, resume, model, effort, permissi
   const mode = modeOrDefault(permissionMode);
   if (resume && chats.get(resume) && !chats.get(resume).closed) throw new Error("La sesión ya está abierta en el workspace");
   const task = taskId ? store.getTask(taskId) : null;
-  const focus = cwd || AVOCADO_ROOT;
-  if (!fs.existsSync(focus)) throw new Error(`No existe la carpeta ${focus}`);
+  const focus = cwd ? expandHome(cwd) : AVOCADO_ROOT;
+  if (!path.isAbsolute(focus) || !fs.statSync(focus, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`No existe la carpeta ${focus}`);
   const workdir = resume ? focus : launchRootFor(focus);
   const append = [task && taskContext(task), !resume && focusContext(workdir, focus)].filter(Boolean).join("\n\n");
 

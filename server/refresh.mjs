@@ -33,8 +33,9 @@ function prompt(task, since) {
     `1. Corré \`ws show ${task.id}\` y \`ws get ${task.id} <board>\` para ver cada board; reusá los ids de nodos existentes.`,
     `2. La fuente principal es lo que hicieron los agentes: corré \`ws sessions ${task.id}${since ? ` --since ${since}` : ""}\` para ver la actividad reciente de las sesiones y subagentes vinculados.`,
     "3. Actualizá sobre todo el board de testeo con resultados reales que aparezcan ahí (pass/fail solo con evidencia; lo demás queda todo). Si aparecen bugs o hallazgos nuevos, agregalos como notas o tarjetas con status risk. Actualizá estado, TL;DR o resumen solo si cambiaron de verdad.",
-    "4. Escribí los JSON en el directorio actual y cargalos SIEMPRE con `ws board <tarea> <board> <archivo> --patch` (agrega/actualiza, nunca borra nodos existentes; mandá solo los nodos nuevos o cambiados). No toques repos, no publiques nada en GitHub ni en ningún otro servicio.",
-    "5. Terminá con 2 líneas: qué cambiaste y qué requiere atención.",
+    "4. Board `ui`: corré `gh pr diff` de los PRs de la tarea. Si el diff toca archivos de UI (.tsx, .css, .css.ts, pantallas/componentes) y la tarea NO tiene un board `ui`, crealo (layout lanes, una lane por pantalla o estado). Usá imágenes ya existentes en los assets de la tarea (`ws show`) como nodos image; si no hay capturas, describí cada pantalla/estado con nodos card (new/changed) a partir del diff e indicá que faltan capturas. Si el board `ui` ya existe, solo actualizalo con --patch. Si el diff no toca UI, no lo crees.",
+    "5. Escribí los JSON en el directorio actual. Los boards existentes cargalos SIEMPRE con `ws board <tarea> <board> <archivo> --patch` (agrega/actualiza, nunca borra nodos existentes; mandá solo los nodos nuevos o cambiados); un board nuevo se crea sin --patch. No toques repos, no publiques nada en GitHub ni en ningún otro servicio.",
+    "6. Terminá con 2 líneas: qué cambiaste y qué requiere atención.",
   ].join("\n");
 }
 

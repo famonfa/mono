@@ -133,6 +133,21 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
   );
 
   useEffect(() => void load(true), [load]);
+
+  useEffect(() => {
+    const el = wrapper.current;
+    if (!embedded || !el) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const observer = new ResizeObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => flow.fitView({ padding: 0.15, duration: 0 }), 80);
+    });
+    observer.observe(el);
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [embedded, flow]);
   useEffect(
     () =>
       onDataChange((tasks) => {

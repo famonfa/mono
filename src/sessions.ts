@@ -22,6 +22,8 @@ export type SessionSummary = {
   cwd?: string;
   gitBranch?: string;
   model?: string;
+  contextTokens?: number;
+  contextWindow?: number;
   prLinks: string[];
   mentions: string[];
   firstTs?: string;
@@ -169,3 +171,13 @@ export function useSessionFeed(id: string, agent?: string) {
 
   return state;
 }
+
+/** Last session the user had open, globally and per task, so "Agentes" / "Sesiones" reopen it. */
+const lastKey = (taskId?: string) => (taskId ? `ws-last-session-${taskId}` : "ws-last-session");
+
+export function rememberSession(sessionId: string, taskId?: string) {
+  localStorage.setItem(lastKey(), sessionId);
+  if (taskId) localStorage.setItem(lastKey(taskId), sessionId);
+}
+
+export const lastSessionId = (taskId?: string) => localStorage.getItem(lastKey(taskId));
