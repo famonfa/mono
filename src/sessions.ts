@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { onServerEvent } from "./events";
 
 export type SessionStatus = "working" | "idle" | "inactive";
 
@@ -32,6 +33,7 @@ export type SessionSummary = {
   turns: number;
   subagents: SubagentSummary[];
   taskIds?: string[];
+  ownedByWorkspace?: boolean;
 };
 
 export type SessionEvent = {
@@ -81,11 +83,9 @@ export function onSessionsChange(listener: Listener) {
   return () => void listeners.delete(listener);
 }
 
-if (import.meta.hot) {
-  import.meta.hot.on("ws:sessions", (payload: { ids: string[] }) => {
-    for (const listener of listeners) listener(payload.ids);
-  });
-}
+onServerEvent("ws:sessions", (payload: { ids: string[] }) => {
+  for (const listener of listeners) listener(payload.ids);
+});
 
 /** Session list that refreshes on transcript writes (throttled) and every 30s so statuses age out. */
 export function useSessions(days = 3) {

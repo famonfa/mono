@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, Bot, ChevronRight, Loader2, Sparkles, ExternalLink, GitBranch, GitPullRequest, Image as ImageIcon, LayoutDashboard, Link2, Plus, Target, Wrench, X } from "lucide-react";
+import { AlertTriangle, Bot, ChevronRight, Loader2, Sparkles, ExternalLink, GitBranch, GitPullRequest, Image as ImageIcon, LayoutDashboard, Link2, MessagesSquare, Plus, Target, Wrench, X } from "lucide-react";
 import { api, fileUrl } from "../api";
 import { useApp } from "../app-context";
 import { BoardIcon, DocIcon, RISK_META, RiskIcon, STATUS_META, STATUS_MENU_ORDER, STATUS_ORDER, StatusIcon, type Risk } from "../icons";
@@ -13,6 +13,7 @@ import { Markdown } from "./Markdown";
 export function TaskTopBar({ task, active }: { task: Task; active: string }) {
   const { sessions } = useApp();
   const working = sessions.filter((s) => s.status === "working" && s.taskIds?.includes(task.id));
+  const linkedCount = sessions.filter((s) => s.taskIds?.includes(task.id)).length;
   return (
     <header className="topbar task-topbar">
       <nav className="breadcrumb">
@@ -27,6 +28,11 @@ export function TaskTopBar({ task, active }: { task: Task; active: string }) {
         <a className={active === "overview" ? "active" : ""} href={href.task(task.id)}>
           <LayoutDashboard size={13} /> Resumen
         </a>
+        <a className={active === "sessions" ? "active" : ""} href={href.taskSession(task.id)}>
+          <MessagesSquare size={13} /> Sesiones
+          {linkedCount > 0 && <span className="tab-count">{linkedCount}</span>}
+          {working.length > 0 && <StatusDot status="working" size={6} />}
+        </a>
         {task.boards.map((b) => (
           <a key={b.id} className={active === `b:${b.id}` ? "active" : ""} href={href.board(task.id, b.id)}>
             <BoardIcon kind={b.kind} size={13} /> {b.title}
@@ -40,7 +46,7 @@ export function TaskTopBar({ task, active }: { task: Task; active: string }) {
       </nav>
       <span className="spacer" />
       {working.length > 0 && (
-        <a className="status-pill-live working" href={href.session(working[0].id)} title={working.map((s) => s.title).join("\n")}>
+        <a className="status-pill-live working" href={href.taskSession(task.id, working[0].id)} title={working.map((s) => s.title).join("\n")}>
           <StatusDot status="working" size={7} />
           {working.length === 1 ? "1 agente trabajando" : `${working.length} agentes trabajando`}
         </a>

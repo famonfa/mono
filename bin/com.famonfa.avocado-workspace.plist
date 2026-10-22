@@ -7,10 +7,7 @@
   <key>ProgramArguments</key>
   <array>
     <string>/usr/local/bin/node</string>
-    <string>/Users/facundomonsegur/avocado-workspace/node_modules/vite/bin/vite.js</string>
-    <string>--port</string>
-    <string>4600</string>
-    <string>--strictPort</string>
+    <string>/Users/facundomonsegur/avocado-workspace/server/main.mjs</string>
   </array>
   <key>WorkingDirectory</key>
   <string>/Users/facundomonsegur/avocado-workspace</string>

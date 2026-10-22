@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { onServerEvent } from "./events";
 import type { Board, Task } from "./types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -62,6 +63,4 @@ export function notifyDataChange(tasks: string[]) {
   for (const listener of listeners) listener(tasks);
 }
 
-if (import.meta.hot) {
-  import.meta.hot.on("ws:data", (payload: { tasks: string[] }) => notifyDataChange(payload.tasks));
-}
+onServerEvent("ws:data", (payload: { tasks: string[] }) => notifyDataChange(payload.tasks));

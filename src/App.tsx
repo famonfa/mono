@@ -4,6 +4,7 @@ import { api, useLiveData } from "./api";
 import { AppContext, useApp, type AppContextValue } from "./app-context";
 import { AgentsPage, SessionView, StatusDot } from "./components/Agents";
 import { BoardView } from "./components/BoardView";
+import { TaskSessions } from "./components/Chat";
 import { CommandPalette } from "./components/CommandPalette";
 import { DocView } from "./components/DocView";
 import { Home } from "./components/Home";
@@ -203,7 +204,7 @@ function TaskShell({ route }: { route: TaskRoute }) {
   if (error) return <div className="empty">No existe la tarea {route.taskId}.</div>;
   if (!task) return null;
 
-  const active = route.view === "board" ? `b:${route.boardId}` : route.view === "doc" ? `d:${route.doc}` : "overview";
+  const active = route.view === "board" ? `b:${route.boardId}` : route.view === "doc" ? `d:${route.doc}` : route.view === "sessions" ? "sessions" : "overview";
   const refresh = () => {
     reload();
     reloadTasks();
@@ -215,6 +216,7 @@ function TaskShell({ route }: { route: TaskRoute }) {
         {route.view === "task" && <TaskOverview task={task} onChange={refresh} />}
         {route.view === "board" && <BoardView task={task} boardId={route.boardId} />}
         {route.view === "doc" && <DocView task={task} doc={route.doc} />}
+        {route.view === "sessions" && <TaskSessions task={task} sessionId={route.sessionId} />}
       </div>
     </div>
   );

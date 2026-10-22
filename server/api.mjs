@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import * as store from "./store.mjs";
 import * as sessions from "./sessions.mjs";
+import * as chats from "./chats.mjs";
 import { refreshStatus, startRefresh } from "./refresh.mjs";
 
 const MIME = {
@@ -13,7 +14,13 @@ const MIME = {
   ".svg": "image/svg+xml",
   ".md": "text/markdown; charset=utf-8",
   ".json": "application/json",
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript",
+  ".css": "text/css",
+  ".woff2": "font/woff2",
 };
+
+const ALLOWED_HOSTS = /^(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -30,142 +37,181 @@ function send(res, status, body) {
   res.end(JSON.stringify(body ?? null));
 }
 
-function serveFile(req, res, next) {
-  const rel = decodeURIComponent(req.url.replace(/^\/files\//, "").split("?")[0]);
-  const file = path.resolve(store.TASKS_DIR, rel);
-  if (!file.startsWith(store.TASKS_DIR + path.sep) || !fs.existsSync(file)) return next();
+export function serveStatic(res, root, rel) {
+  const file = path.resolve(root, rel);
+  if (!file.startsWith(root + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return false;
   res.setHeader("Content-Type", MIME[path.extname(file).toLowerCase()] ?? "application/octet-stream");
   fs.createReadStream(file).pipe(res);
-}
-
-function handleSessions(res, url, id) {
-  if (!id) {
-    const days = Number(url.searchParams.get("days") ?? 3);
-    const list = sessions.listSessions({ days });
-    const tasks = store.listTasks();
-    for (const task of tasks) {
-      for (const s of sessions.sessionsForTask(task, list)) (s.taskIds ??= []).push(task.id);
-    }
-    return send(res, 200, list);
-  }
-  const since = url.searchParams.get("since");
-  const detail = sessions.readSessionEvents(id, { since: since === null ? undefined : Number(since), agent: url.searchParams.get("agent") ?? undefined });
-  return detail ? send(res, 200, detail) : send(res, 404, { error: "not found" });
+  return true;
 }
 
 /**
- * Vite plugin exposing the workspace data as a tiny REST API, plus a file watcher
- * that pushes a `ws:data` event so the UI refreshes when the AI writes files.
+ * The API can launch agents, so it only answers same-machine requests: the Host header must be
+ * localhost (blocks DNS rebinding) and mutating requests must come from the app's own origin
+ * with a JSON body (blocks other websites from posting to localhost).
  */
-export function workspaceApi() {
-  return {
-    name: "workspace-api",
-    configureServer(server) {
-      fs.mkdirSync(store.TASKS_DIR, { recursive: true });
+function isTrusted(req) {
+  if (!ALLOWED_HOSTS.test(req.headers.host ?? "")) return false;
+  if (req.method === "GET") return true;
+  const origin = req.headers.origin;
+  if (origin) {
+    try {
+      if (!ALLOWED_HOSTS.test(new URL(origin).host)) return false;
+    } catch {
+      return false;
+    }
+  }
+  return (req.headers["content-type"] ?? "").includes("application/json") || req.method === "DELETE";
+}
 
-      let timer;
-      const pending = new Set();
-      fs.watch(store.TASKS_DIR, { recursive: true }, (_event, filename) => {
-        if (!filename || filename.endsWith(".tmp")) return;
-        const taskId = filename.split(path.sep)[0];
-        pending.add(taskId);
-        clearTimeout(timer);
-        timer = setTimeout(() => {
-          server.ws.send({ type: "custom", event: "ws:data", data: { tasks: [...pending] } });
-          pending.clear();
-        }, 150);
-      });
+function sessionList(days) {
+  const list = sessions.listSessions({ days });
+  const live = new Set(chats.liveChatIds());
+  for (const task of store.listTasks()) {
+    for (const s of sessions.sessionsForTask(task, list)) (s.taskIds ??= []).push(task.id);
+  }
+  for (const s of list) s.ownedByWorkspace = live.has(s.id);
+  return list;
+}
 
-      let sessionTimer;
-      const changedSessions = new Set();
-      if (fs.existsSync(sessions.PROJECTS_DIR)) {
-        fs.watch(sessions.PROJECTS_DIR, { recursive: true }, (_event, filename) => {
-          if (!filename?.endsWith(".jsonl")) return;
-          const id = sessions.sessionIdFromPath(filename);
-          if (!id) return;
-          changedSessions.add(id);
-          clearTimeout(sessionTimer);
-          sessionTimer = setTimeout(() => {
-            server.ws.send({ type: "custom", event: "ws:sessions", data: { ids: [...changedSessions] } });
-            changedSessions.clear();
-          }, 400);
-        });
+function workingElsewhere(sessionId) {
+  const live = new Set(chats.liveChatIds());
+  return sessions
+    .listSessions({ days: 1 })
+    .filter((s) => s.status === "working" && !live.has(s.id))
+    .map((s) => s.id)
+    .filter((id) => id === sessionId);
+}
+
+async function handleChats(res, method, parts, body) {
+  const [, sessionId, action, actionId] = parts;
+  if (!sessionId && method === "POST") {
+    const prompt = String(body.prompt ?? "").trim();
+    if (!prompt) throw new Error("Escribí un mensaje");
+    return send(res, 200, await chats.startChat({ taskId: body.taskId, cwd: body.cwd, prompt, permissionMode: body.permissionMode }));
+  }
+  if (sessionId && !action && method === "GET") return send(res, 200, chats.chatState(sessionId));
+  if (action === "messages" && method === "POST") {
+    const text = String(body.text ?? "").trim();
+    if (!text) throw new Error("Escribí un mensaje");
+    return send(res, 200, await chats.sendMessage(sessionId, text, { permissionMode: body.permissionMode, workingSessions: workingElsewhere(sessionId) }));
+  }
+  if (action === "interrupt" && method === "POST") return send(res, 200, await chats.interrupt(sessionId));
+  if (action === "mode" && method === "POST") return send(res, 200, await chats.setMode(sessionId, body.permissionMode));
+  if (action === "permissions" && actionId && method === "POST") return send(res, 200, chats.answerPermission(sessionId, actionId, body));
+  return send(res, 404, { error: "not found" });
+}
+
+/** Creates the request handler plus file watchers that broadcast `ws:data`, `ws:sessions` and `ws:chat` events. */
+export function createApi(broadcast) {
+  fs.mkdirSync(store.TASKS_DIR, { recursive: true });
+
+  let timer;
+  const pending = new Set();
+  fs.watch(store.TASKS_DIR, { recursive: true }, (_event, filename) => {
+    if (!filename || filename.endsWith(".tmp")) return;
+    pending.add(filename.split(path.sep)[0]);
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      broadcast("ws:data", { tasks: [...pending] });
+      pending.clear();
+    }, 150);
+  });
+
+  let sessionTimer;
+  const changedSessions = new Set();
+  if (fs.existsSync(sessions.PROJECTS_DIR)) {
+    fs.watch(sessions.PROJECTS_DIR, { recursive: true }, (_event, filename) => {
+      if (!filename?.endsWith(".jsonl")) return;
+      const id = sessions.sessionIdFromPath(filename);
+      if (!id) return;
+      changedSessions.add(id);
+      clearTimeout(sessionTimer);
+      sessionTimer = setTimeout(() => {
+        broadcast("ws:sessions", { ids: [...changedSessions] });
+        changedSessions.clear();
+      }, 300);
+    });
+  }
+
+  chats.onChatChange((sessionId) => broadcast("ws:chat", { sessionId, state: chats.chatState(sessionId) }));
+
+  return async function handle(req, res, next) {
+    if (!isTrusted(req)) return send(res, 403, { error: "forbidden" });
+    if (req.url.startsWith("/files/")) {
+      const rel = decodeURIComponent(req.url.replace(/^\/files\//, "").split("?")[0]);
+      return serveStatic(res, store.TASKS_DIR, rel) || next();
+    }
+    if (!req.url.startsWith("/api/")) return next();
+
+    const url = new URL(req.url, "http://localhost");
+    const parts = url.pathname.split("/").filter(Boolean).slice(1).map(decodeURIComponent);
+    const method = req.method;
+    try {
+      const body = ["PUT", "POST"].includes(method) ? JSON.parse((await readBody(req)) || "{}") : undefined;
+      const [resource, id, sub, subId] = parts;
+
+      if (resource === "chats") return await handleChats(res, method, parts, body);
+      if (resource === "sessions") {
+        if (!id) return send(res, 200, sessionList(Number(url.searchParams.get("days") ?? 3)));
+        const since = url.searchParams.get("since");
+        const detail = sessions.readSessionEvents(id, { since: since === null ? undefined : Number(since), agent: url.searchParams.get("agent") ?? undefined });
+        return detail ? send(res, 200, detail) : send(res, 404, { error: "not found" });
+      }
+      if (resource !== "tasks") return send(res, 404, { error: "not found" });
+
+      if (id && sub === "worktrees" && method === "GET") return send(res, 200, chats.worktreesForTask(store.getTask(id)));
+      if (id && sub === "refresh") {
+        if (method === "POST") return send(res, 200, startRefresh(id));
+        if (method === "GET") return send(res, 200, refreshStatus(id));
       }
 
-      server.middlewares.use(async (req, res, next) => {
-        if (req.url.startsWith("/files/")) return serveFile(req, res, next);
-        if (!req.url.startsWith("/api/")) return next();
-
-        const url = new URL(req.url, "http://localhost");
-        const parts = url.pathname.split("/").filter(Boolean).slice(1).map(decodeURIComponent);
-        const method = req.method;
-        try {
-          const body = ["PUT", "POST"].includes(method) ? JSON.parse((await readBody(req)) || "{}") : undefined;
-          const [resource, id, sub, subId] = parts;
-          if (resource === "sessions") return handleSessions(res, url, id);
-          if (resource !== "tasks") return send(res, 404, { error: "not found" });
-
-          if (id && sub === "sessions" && method === "GET") {
-            const task = store.getTask(id);
-            return task ? send(res, 200, sessions.sessionsForTask(task, sessions.listSessions({ days: 7 }))) : send(res, 404, { error: "not found" });
-          }
-          if (id && sub === "refresh") {
-            if (method === "POST") return send(res, 200, startRefresh(id));
-            if (method === "GET") return send(res, 200, refreshStatus(id));
-          }
-
-          if (!id) {
-            if (method === "GET") return send(res, 200, store.listTasks());
-            if (method === "POST") {
-              store.assertSafe(body.id);
-              return send(res, 200, store.saveTask(body.id, body));
-            }
-          }
-
-          if (id && !sub) {
-            if (method === "GET") {
-              const task = store.getTask(id);
-              return task ? send(res, 200, task) : send(res, 404, { error: "not found" });
-            }
-            if (method === "PUT") {
-              return send(res, 200, store.saveTask(id, body));
-            }
-            if (method === "DELETE") {
-              store.trashTask(id);
-              return send(res, 200, { ok: true });
-            }
-          }
-
-          if (sub === "boards" && subId) {
-            if (method === "GET") {
-              const board = store.getBoard(id, subId);
-              return board ? send(res, 200, board) : send(res, 404, { error: "not found" });
-            }
-            if (method === "PUT") {
-              return send(res, 200, store.saveBoard(id, subId, body));
-            }
-            if (method === "DELETE") {
-              store.deleteBoard(id, subId);
-              return send(res, 200, { ok: true });
-            }
-          }
-
-          if (sub === "docs" && subId) {
-            if (method === "GET") {
-              const doc = store.getDoc(id, subId);
-              return doc === null ? send(res, 404, { error: "not found" }) : send(res, 200, { name: subId, content: doc });
-            }
-            if (method === "PUT") {
-              store.saveDoc(id, subId, body.content ?? "");
-              return send(res, 200, { ok: true });
-            }
-          }
-
-          return send(res, 404, { error: "not found" });
-        } catch (error) {
-          return send(res, 400, { error: String(error.message ?? error) });
+      if (!id) {
+        if (method === "GET") return send(res, 200, store.listTasks());
+        if (method === "POST") {
+          store.assertSafe(body.id);
+          return send(res, 200, store.saveTask(body.id, body));
         }
-      });
-    },
+      }
+
+      if (id && !sub) {
+        if (method === "GET") {
+          const task = store.getTask(id);
+          return task ? send(res, 200, task) : send(res, 404, { error: "not found" });
+        }
+        if (method === "PUT") return send(res, 200, store.saveTask(id, body));
+        if (method === "DELETE") {
+          store.trashTask(id);
+          return send(res, 200, { ok: true });
+        }
+      }
+
+      if (sub === "boards" && subId) {
+        if (method === "GET") {
+          const board = store.getBoard(id, subId);
+          return board ? send(res, 200, board) : send(res, 404, { error: "not found" });
+        }
+        if (method === "PUT") return send(res, 200, store.saveBoard(id, subId, body));
+        if (method === "DELETE") {
+          store.deleteBoard(id, subId);
+          return send(res, 200, { ok: true });
+        }
+      }
+
+      if (sub === "docs" && subId) {
+        if (method === "GET") {
+          const doc = store.getDoc(id, subId);
+          return doc === null ? send(res, 404, { error: "not found" }) : send(res, 200, { name: subId, content: doc });
+        }
+        if (method === "PUT") {
+          store.saveDoc(id, subId, body.content ?? "");
+          return send(res, 200, { ok: true });
+        }
+      }
+
+      return send(res, 404, { error: "not found" });
+    } catch (error) {
+      return send(res, 400, { error: String(error.message ?? error) });
+    }
   };
 }

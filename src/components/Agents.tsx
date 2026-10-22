@@ -24,6 +24,7 @@ import { StatusIcon } from "../icons";
 import { href, navigate } from "../router";
 import { useSessionFeed, type SessionEvent, type SessionStatus, type SessionSummary, type SubagentSummary } from "../sessions";
 import { formatDate } from "../ui";
+import { SessionChat } from "./Chat";
 import { Markdown } from "./Markdown";
 
 const STATUS_LABEL: Record<SessionStatus, string> = { working: "Trabajando", idle: "En pausa", inactive: "Inactiva" };
@@ -193,7 +194,7 @@ function ToolCallRow({ call, sessionId, live }: { call: ToolCall; sessionId: str
   );
 }
 
-function Feed({ events, sessionId, live, isSubagent }: { events: SessionEvent[]; sessionId: string; live: boolean; isSubagent: boolean }) {
+export function Feed({ events, sessionId, live, isSubagent, pendingText }: { events: SessionEvent[]; sessionId: string; live: boolean; isSubagent: boolean; pendingText?: string | null }) {
   const items = useMemo(() => buildFeed(events), [events]);
   const scroller = useRef<HTMLDivElement>(null);
   const [pinned, setPinned] = useState(true);
@@ -207,7 +208,7 @@ function Feed({ events, sessionId, live, isSubagent }: { events: SessionEvent[];
     lastCount.current = events.length;
     if (pinned) el.scrollTop = el.scrollHeight;
     else if (added > 0) setUnseen((u) => u + added);
-  }, [events, pinned]);
+  }, [events, pinned, pendingText]);
 
   const onScroll = () => {
     const el = scroller.current!;
@@ -250,6 +251,14 @@ function Feed({ events, sessionId, live, isSubagent }: { events: SessionEvent[];
                 {item.event.text}
               </div>
             ),
+          )}
+          {pendingText && (
+            <div className="msg prompt pending">
+              <div className="msg-author">
+                <MessageSquare size={12} /> Vos <span className="msg-time">enviando…</span>
+              </div>
+              <div className="msg-body plain">{pendingText}</div>
+            </div>
           )}
           {live && (
             <div className="typing">
@@ -343,8 +352,12 @@ export function SessionView({ sessionId, agentId, sessions }: { sessionId: strin
       <div className="task-content">
         <div className="issue">
           <div className="issue-main session-main">
-            {feed.truncated && <div className="msg-notice top">Mostrando la parte más reciente de la sesión</div>}
-            <Feed events={feed.events} sessionId={sessionId} live={status === "working"} isSubagent={Boolean(agentId)} />
+            {agentId && feed.truncated && <div className="msg-notice top">Mostrando la parte más reciente de la sesión</div>}
+            {agentId ? (
+              <Feed events={feed.events} sessionId={sessionId} live={status === "working"} isSubagent />
+            ) : (
+              <SessionChat sessionId={sessionId} summary={summary} />
+            )}
           </div>
           <aside className="properties">
             {summary && (
