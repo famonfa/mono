@@ -3,7 +3,7 @@ import type { Edge, Node } from "@xyflow/react";
 export type ChangeStatus = "new" | "changed" | "same" | "removed" | "risk";
 export type TestStatus = "pass" | "fail" | "todo" | "skip";
 export type TaskStatus = "planificado" | "en-curso" | "en-review" | "hecho" | "bloqueado";
-export type BoardKind = "storymap" | "flow" | "tests" | "tech" | "free";
+export type BoardKind = "storymap" | "flow" | "tests" | "tech" | "ui" | "free";
 export type BoardLayout = "lanes" | "storymap";
 
 export type NodeData = {
@@ -91,6 +91,7 @@ export const BOARD_KIND: Record<BoardKind, { label: string; icon: string }> = {
   flow: { label: "Flujo", icon: "🔀" },
   tests: { label: "Testeo", icon: "🧪" },
   tech: { label: "Mapa técnico", icon: "🧩" },
+  ui: { label: "UI", icon: "🖼️" },
   free: { label: "Libre", icon: "✏️" },
 };
 

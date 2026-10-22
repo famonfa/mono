@@ -1,4 +1,4 @@
-import { Boxes, FileText, FlaskConical, Map as MapIcon, PenLine, Workflow, type LucideProps } from "lucide-react";
+import { Boxes, FileText, FlaskConical, Image as ImageIcon, Map as MapIcon, PenLine, Workflow, type LucideProps } from "lucide-react";
 import type { BoardKind, TaskStatus } from "./types";
 
 export const STATUS_ORDER: TaskStatus[] = ["en-review", "en-curso", "planificado", "bloqueado", "hecho"];
@@ -90,6 +90,7 @@ const BOARD_ICONS: Record<BoardKind, typeof MapIcon> = {
   flow: Workflow,
   tests: FlaskConical,
   tech: Boxes,
+  ui: ImageIcon,
   free: PenLine,
 };
 

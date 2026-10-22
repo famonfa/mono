@@ -3309,3 +3309,104 @@ a.icon-btn {
   background: rgb(242 153 74 / 0.1);
   border-color: rgb(242 153 74 / 0.3);
 }
+
+/* Canvas assistant */
+.canvas-assistant {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  width: min(680px, calc(100% - 140px));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 6;
+}
+
+.canvas-assistant-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 8px 0 14px;
+  border-radius: 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.28);
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.canvas-assistant-bar:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 10px 30px rgb(0 0 0 / 0.28);
+}
+
+.canvas-assistant-bar input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  font-size: 13.5px;
+}
+
+.canvas-assistant-bar input::placeholder {
+  color: var(--text-4);
+}
+
+.canvas-assistant-icon {
+  color: #d97757;
+  flex-shrink: 0;
+}
+
+.canvas-assistant-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.canvas-assistant-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  align-self: center;
+  max-width: 100%;
+  height: 30px;
+  padding: 0 6px 0 12px;
+  border-radius: 999px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  font-size: 12px;
+  color: var(--text-2);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.2);
+  animation: pop 0.14s ease-out;
+}
+
+.canvas-assistant-status .done {
+  color: #4cb782;
+}
+
+.canvas-assistant-msg {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.canvas-assistant-error {
+  align-self: center;
+  font-size: 12px;
+  color: #eb5757;
+  background: var(--bg-elev);
+  border-radius: 8px;
+  padding: 4px 10px;
+}

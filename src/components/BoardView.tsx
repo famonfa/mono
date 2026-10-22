@@ -23,7 +23,8 @@ import { href, navigate } from "../router";
 import { useHotkey } from "../ui";
 import { autoLayout, prepareNodes, sortParentsFirst } from "../layout";
 import { BoardContext, nodeTypes } from "../nodes";
-import { CHANGE_STATUS, TEST_STATUS, type Board, type NodeData, type Task, type WsEdge, type WsNode } from "../types";
+import { CHANGE_STATUS, type Board, type NodeData, type Task, type WsEdge, type WsNode } from "../types";
+import { CanvasAssistant } from "./CanvasAssistant";
 import { Inspector } from "./Inspector";
 
 type Props = { task: Task; boardId: string; embedded?: boolean };
@@ -58,6 +59,7 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
   const { openDialog, theme } = useApp();
   const wrapper = useRef<HTMLDivElement>(null);
   const loaded = useRef(false);
+  const knownIds = useRef<Set<string>>(new Set());
   const lastSaved = useRef("");
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -73,7 +75,10 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
         setEdges(data.edges ?? []);
         loaded.current = true;
         if (changed) await api.saveBoard(task.id, { ...data, nodes: toStored(prepared) });
+        const added = prepared.some((n) => !knownIds.current.has(n.id));
+        knownIds.current = new Set(prepared.map((n) => n.id));
         if (fit) requestAnimationFrame(() => flow.fitView({ padding: 0.15, duration: 0 }));
+        else if (added) requestAnimationFrame(() => flow.fitView({ padding: 0.15, duration: 400 }));
       } catch (e) {
         setError((e as Error).message);
       }
@@ -313,7 +318,9 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
               />}
             </ReactFlow>
           </BoardContext.Provider>
-          {!embedded && <Legend />}
+          {!embedded && (
+            <CanvasAssistant task={task} boardId={boardId} selected={nodes.filter((n) => n.selected && n.type !== "lane").map((n) => ({ id: n.id, label: String(n.data.label ?? n.id) }))} />
+          )}
         </div>
         {(selectedNode || selectedEdge) && (
         <Inspector
@@ -343,22 +350,3 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
   );
 }
 
-function Legend() {
-  return (
-    <div className="legend">
-      <span className="legend-hint">Doble click para crear · arrastrá desde un punto para conectar</span>
-      <span className="legend-sep" />
-      {(["new", "changed", "same", "removed"] as const).map((s) => (
-        <span key={s}>
-          <i style={{ background: CHANGE_STATUS[s].color }} /> {CHANGE_STATUS[s].label}
-        </span>
-      ))}
-      <span className="legend-sep" />
-      {(["pass", "fail", "todo"] as const).map((t) => (
-        <span key={t} style={{ color: TEST_STATUS[t].color }}>
-          {TEST_STATUS[t].icon} {TEST_STATUS[t].label}
-        </span>
-      ))}
-    </div>
-  );
-}
