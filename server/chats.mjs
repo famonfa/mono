@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import * as store from "./store.mjs";
+import { sessionCwd } from "./sessions.mjs";
 
 const HOME = os.homedir();
 export const AVOCADO_ROOT = path.join(HOME, "avocado-all", "avocado");
@@ -61,7 +62,7 @@ function taskContext(task) {
 }
 
 /** Worktrees that belong to a task: matching branch names or `.worktrees/<task>/`, plus the avocado root as fallback. */
-export function worktreesForTask(task) {
+export function worktreesForTask(task, projectRoots = []) {
   const branches = new Set((task?.repos ?? []).map((r) => r.branch).filter(Boolean));
   const found = [];
   for (const repo of REPOS) {
@@ -80,7 +81,10 @@ export function worktreesForTask(task) {
       if ((branch && branches.has(branch)) || (task && wtPath.includes(`/.worktrees/${task.id}/`))) found.push({ path: wtPath, repo, branch });
     }
   }
-  found.push({ path: AVOCADO_ROOT, repo: "avocado", branch: null, root: true });
+  for (const root of projectRoots) {
+    if (!found.some((f) => f.path === root)) found.push({ path: root, repo: path.basename(root), branch: null, root: true });
+  }
+  if (!found.some((f) => f.path === AVOCADO_ROOT)) found.push({ path: AVOCADO_ROOT, repo: "avocado", branch: null, root: true });
   return found;
 }
 
@@ -125,7 +129,7 @@ function linkSessionToTask(taskId, sessionId) {
 export function startChat({ taskId, cwd, prompt, permissionMode = "acceptEdits", resume }) {
   if (resume && chats.get(resume) && !chats.get(resume).closed) throw new Error("La sesión ya está abierta en el workspace");
   const task = taskId ? store.getTask(taskId) : null;
-  const workdir = cwd || (resume ? undefined : AVOCADO_ROOT);
+  const workdir = cwd || AVOCADO_ROOT;
   if (workdir && !fs.existsSync(workdir)) throw new Error(`No existe la carpeta ${workdir}`);
 
   const input = new InputQueue();
@@ -210,7 +214,9 @@ export function sendMessage(sessionId, text, { permissionMode, workingSessions =
   if (workingSessions.includes(sessionId)) {
     throw new Error("Esta sesión está trabajando en otra app (por ejemplo T3 Code). Esperá a que quede en pausa para escribirle desde acá.");
   }
-  return startChat({ resume: sessionId, prompt: text, permissionMode, taskId: chat?.taskId });
+  const cwd = sessionCwd(sessionId);
+  if (!cwd) throw new Error("No encontré la carpeta original de esta sesión");
+  return startChat({ resume: sessionId, cwd, prompt: text, permissionMode, taskId: chat?.taskId });
 }
 
 export function chatState(sessionId) {

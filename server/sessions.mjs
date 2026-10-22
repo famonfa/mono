@@ -73,6 +73,7 @@ function emptyMeta(file) {
     title: null,
     customTitle: null,
     cwd: null,
+    firstCwd: null,
     gitBranch: null,
     model: null,
     prLinks: new Set(),
@@ -107,7 +108,10 @@ function applyRecord(meta, rec) {
       if (rec.prUrl) meta.prLinks.add(rec.prUrl);
       break;
     case "user": {
-      if (rec.cwd) meta.cwd = rec.cwd;
+      if (rec.cwd) {
+        meta.firstCwd ??= rec.cwd;
+        meta.cwd = rec.cwd;
+      }
       if (rec.gitBranch) meta.gitBranch = rec.gitBranch;
       const content = rec.message?.content;
       const typedByUser = typeof content === "string" || (Array.isArray(content) && !content.some((c) => c.type === "tool_result"));
@@ -240,6 +244,7 @@ function summarize({ id, dir, file }, withSubagents = true) {
     title: meta.customTitle ?? meta.title ?? meta.firstPrompt ?? "Sesión sin título",
     project: projectLabel(meta.cwd, dir),
     cwd: meta.cwd,
+    firstCwd: meta.firstCwd,
     gitBranch: meta.gitBranch,
     model: meta.model,
     prLinks: [...meta.prLinks],
@@ -375,4 +380,9 @@ export function sessionIdFromPath(relPath) {
   const parts = relPath.split(path.sep);
   if (parts.length < 2) return null;
   return parts[1].replace(/\.jsonl$/, "");
+}
+
+export function sessionCwd(id) {
+  const session = findSessionFile(id);
+  return session ? readMeta(session.file).firstCwd : null;
 }
