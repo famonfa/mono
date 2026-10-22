@@ -9,6 +9,7 @@ const USAGE = `ws — CLI del Avocado Workspace (http://localhost:4600)
 
   ws list                                  Lista las tareas
   ws show <task>                           Muestra task.json + boards/docs/assets
+  ws get <task> <board>                    Imprime un board (nodos y conexiones) para editarlo
   ws task <task> <file.json|->             Crea/actualiza metadatos (merge superficial)
   ws board <task> <board> <file.json|-> [--relayout]
                                            Crea/actualiza un board conservando lo que movió el usuario
@@ -45,6 +46,17 @@ switch (command) {
     const task = store.getTask(args[0]);
     if (!task) fail(`No existe la tarea ${args[0]}`);
     console.log(JSON.stringify(task, null, 2));
+    break;
+  }
+  case "get": {
+    requireArgs(2);
+    const board = store.getBoard(args[0], args[1]);
+    if (!board) fail(`No existe el board ${args[0]}/${args[1]}`);
+    const compact = {
+      ...board,
+      nodes: board.nodes.map(({ id, type, data, parentId }) => ({ id, type, ...data, ...(parentId ? { parentId } : {}) })),
+    };
+    console.log(JSON.stringify(compact, null, 2));
     break;
   }
   case "task": {
