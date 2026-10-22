@@ -4,7 +4,7 @@ import path from "node:path";
 
 export const PROJECTS_DIR = path.join(os.homedir(), ".claude", "projects");
 
-const WORKING_MS = 90_000;
+const STALE_TURN_MS = 15 * 60_000;
 const RECENT_MS = 2 * 60 * 60_000;
 const TAIL_BYTES = 4 * 1024 * 1024;
 const MENTION = /\b(IME-\d{3,5}|PR-\d{2,5})\b/g;
@@ -83,6 +83,7 @@ function emptyMeta(file) {
     lastPrompt: null,
     lastText: null,
     lastAction: null,
+    turnOpen: false,
     turns: 0,
   };
 }
@@ -111,6 +112,7 @@ function applyRecord(meta, rec) {
       const content = rec.message?.content;
       const typedByUser = typeof content === "string" || (Array.isArray(content) && !content.some((c) => c.type === "tool_result"));
       const text = textOf(content);
+      if (typedByUser || (Array.isArray(content) && content.some((c) => c.type === "tool_result"))) meta.turnOpen = true;
       if (typedByUser && text && !isSystemText(text)) {
         meta.firstPrompt ??= truncate(text.trim(), 120);
         meta.lastPrompt = truncate(text.trim(), 280);
@@ -121,6 +123,7 @@ function applyRecord(meta, rec) {
     }
     case "assistant": {
       if (rec.message?.model && !rec.message.model.startsWith("<")) meta.model = rec.message.model;
+      if (rec.message?.stop_reason) meta.turnOpen = rec.message.stop_reason === "tool_use";
       for (const block of rec.message?.content ?? []) {
         if (block.type === "text" && block.text?.trim()) meta.lastText = truncate(block.text.trim(), 400);
         if (block.type === "tool_use") meta.lastAction = { tool: block.name, title: truncate(toolTitle(block.name, block.input), 160), ts: rec.timestamp };
@@ -149,9 +152,14 @@ function readMeta(file) {
   return { ...entry.meta, mtimeMs: stat.mtimeMs, size: stat.size };
 }
 
-function statusFor(mtimeMs, now = Date.now()) {
-  if (now - mtimeMs < WORKING_MS) return "working";
-  if (now - mtimeMs < RECENT_MS) return "idle";
+/**
+ * A turn is open from a user message or tool result until an assistant message ends with a stop
+ * reason other than tool_use. Turns silent for 15 minutes count as stale (crashed or abandoned).
+ */
+function statusFor(meta, now = Date.now()) {
+  const age = now - meta.mtimeMs;
+  if (meta.turnOpen && age < STALE_TURN_MS) return "working";
+  if (age < RECENT_MS) return "idle";
   return "inactive";
 }
 
@@ -186,7 +194,7 @@ function listSubagents(sessionFile) {
         description: info.description ?? meta.lastPrompt ?? id,
         agentType: info.agentType,
         toolUseId: info.toolUseId,
-        status: statusFor(meta.mtimeMs),
+        status: statusFor(meta),
         lastTs: meta.lastTs,
         lastAction: meta.lastAction,
         lastText: meta.lastText,
@@ -226,7 +234,7 @@ function summarize({ id, dir, file }, withSubagents = true) {
   const meta = readMeta(file);
   const subagents = withSubagents ? listSubagents(file) : [];
   const anySubWorking = subagents.some((s) => s.status === "working");
-  const status = anySubWorking ? "working" : statusFor(meta.mtimeMs);
+  const status = anySubWorking ? "working" : statusFor(meta);
   return {
     id,
     title: meta.customTitle ?? meta.title ?? meta.firstPrompt ?? "Sesión sin título",
@@ -355,6 +363,7 @@ export function sessionsForTask(task, sessions = listSessions()) {
   const branches = new Set((task.repos ?? []).map((r) => r.branch).filter((b) => b && !["main", "develop", "master"].includes(b)));
   return sessions.filter(
     (s) =>
+      (task.sessionIds ?? []).includes(s.id) ||
       s.prLinks.some((url) => prUrls.has(url) || prNumbers.has(url.split("/").pop())) ||
       (s.gitBranch && branches.has(s.gitBranch)) ||
       s.mentions.includes(task.id) ||
