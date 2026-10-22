@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import http from "node:http";
 import { WebSocketServer } from "ws";
-import { loginPage, hostsPage, messagePage, pairPage } from "./pages.mjs";
+import * as access from "./db.mjs";
+import { adminPage, hostsPage, invitePage, loginPage, messagePage, pairPage } from "./pages.mjs";
 
 /**
  * Mono relay: the public door to your Macs. Machines dial out to it (`mono connect`), you sign in
@@ -14,16 +15,15 @@ const PUBLIC_URL = (process.env.PUBLIC_URL ?? `http://localhost:${PORT}`).replac
 const SECRET = process.env.SESSION_SECRET ?? "";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET ?? "";
-const ALLOWED_EMAILS = new Set((process.env.ALLOWED_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean));
-/** Local testing only: signs in as this email without Google. Refused on https. */
-const DEV_LOGIN_EMAIL = PUBLIC_URL.startsWith("https:") ? "" : (process.env.DEV_LOGIN_EMAIL ?? "").toLowerCase();
+/** Local testing only: sign in as any email without Google. Refused on https. */
+const DEV_LOGIN = !PUBLIC_URL.startsWith("https:") && process.env.DEV_LOGIN === "1";
 const SECURE = PUBLIC_URL.startsWith("https:");
 const SESSION_DAYS = 30;
 const REQUEST_TIMEOUT_MS = 120_000;
 
 if (SECRET.length < 32) throw new Error("SESSION_SECRET tiene que tener al menos 32 caracteres (openssl rand -hex 32)");
-if (!ALLOWED_EMAILS.size) throw new Error("Falta ALLOWED_EMAILS (emails de Google que pueden entrar, separados por coma)");
-if (!DEV_LOGIN_EMAIL && !(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET)) throw new Error("Faltan GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET");
+if (!access.hasAdmins()) throw new Error("Falta ADMIN_EMAILS (tu email de Google; desde ahí invitás al resto)");
+if (!DEV_LOGIN && !(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET)) throw new Error("Faltan GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET");
 
 // ---------- signing & cookies ----------
 
@@ -61,7 +61,7 @@ function setCookie(res, name, value, maxAgeSeconds) {
   res.appendHeader("Set-Cookie", parts.join("; "));
 }
 
-const allowed = (email) => ALLOWED_EMAILS.has(String(email ?? "").toLowerCase());
+const allowed = (email) => access.isAllowed(email);
 
 function sessionEmail(req) {
   const session = verify(parseCookies(req).mono_session);
@@ -122,6 +122,12 @@ function sameOrigin(req) {
 const hosts = new Map();
 /** hostId → Set<res>: SSE clients survive host reconnects so EventSource never gives up. */
 const listeners = new Map();
+
+function onlineCounts() {
+  const counts = {};
+  for (const host of hosts.values()) counts[host.email] = (counts[host.email] ?? 0) + 1;
+  return counts;
+}
 
 const hostsFor = (email) => [...hosts.entries()].filter(([, h]) => h.email === email).map(([id, h]) => ({ id, name: h.name, connectedAt: h.connectedAt }));
 
@@ -203,13 +209,28 @@ setInterval(() => {
 
 // ---------- routes ----------
 
+/** Google said who you are; you're in if you're an admin, a user, or have a pending invite. */
+function finishLogin(res, rawEmail, next) {
+  const email = String(rawEmail).trim().toLowerCase();
+  if (!allowed(email) && !access.acceptInvite(email)) {
+    return html(res, messagePage("Sin acceso", `${email || "Ese email"} no tiene invitación. Pedile a quien usa Mono que te invite.`, { href: "/_mono/logout", label: "Probar con otra cuenta" }), 403);
+  }
+  startSession(res, email);
+  return redirect(res, safeNext(next));
+}
+
+/** Machines of a removed user must stop answering right away, not at their next reconnect. */
+function disconnectUser(email) {
+  for (const host of hosts.values()) if (host.email === email) host.ws.close();
+}
+
 async function relayRoute(req, res, url) {
   const route = url.pathname.slice("/_mono".length);
   const email = sessionEmail(req);
 
   if (route === "/health") return send(res, 200, { ok: true, hosts: hosts.size });
 
-  if (route === "/login") return html(res, loginPage({ next: safeNext(url.searchParams.get("next")), dev: Boolean(DEV_LOGIN_EMAIL), app: (req.headers["user-agent"] ?? "").includes("MonoApp"), ios: /iPhone|iPad/.test(req.headers["user-agent"] ?? "") }));
+  if (route === "/login") return html(res, loginPage({ next: safeNext(url.searchParams.get("next")), dev: DEV_LOGIN, app: (req.headers["user-agent"] ?? "").includes("MonoApp"), ios: /iPhone|iPad/.test(req.headers["user-agent"] ?? "") }));
 
   if (route === "/auth/google") {
     const state = randomId();
@@ -232,15 +253,16 @@ async function relayRoute(req, res, url) {
     const claims = tokens.id_token ? JSON.parse(Buffer.from(tokens.id_token.split(".")[1], "base64url").toString()) : {};
     const validIssuer = ["accounts.google.com", "https://accounts.google.com"].includes(claims.iss);
     if (!validIssuer || claims.aud !== GOOGLE_CLIENT_ID || !claims.email_verified) return html(res, messagePage("No se pudo entrar", "Google no confirmó tu email."), 403);
-    if (!allowed(claims.email)) return html(res, messagePage("Sin acceso", `${claims.email} no está autorizado en este relay.`), 403);
-    startSession(res, claims.email.toLowerCase());
     setCookie(res, "mono_oauth", "", 0);
-    return redirect(res, safeNext(pending.next));
+    return finishLogin(res, claims.email, pending.next);
   }
 
-  if (route === "/auth/dev" && DEV_LOGIN_EMAIL) {
-    startSession(res, DEV_LOGIN_EMAIL);
-    return redirect(res, safeNext(url.searchParams.get("next")));
+  if (route === "/auth/dev" && DEV_LOGIN) return finishLogin(res, url.searchParams.get("email") ?? "", url.searchParams.get("next"));
+
+  if (route.startsWith("/invite/")) {
+    const invite = access.getInvite(route.slice("/invite/".length));
+    if (!invite) return html(res, messagePage("Invitación inválida", "Pedile a quien te invitó un link nuevo."), 404);
+    return html(res, invitePage({ invite, dev: DEV_LOGIN }));
   }
 
   if (route === "/logout") {
@@ -303,7 +325,31 @@ async function relayRoute(req, res, url) {
     return html(res, messagePage("Listo ✓", `${pairing.name} quedó conectada a tu cuenta. Volvé a la terminal.`, { href: "/", label: "Abrir Mono" }));
   }
 
-  if (route === "/hosts" && req.method === "GET") return html(res, hostsPage({ email, hosts: hostsFor(email), current: pickedHost(req, email) }));
+  if (route === "/hosts" && req.method === "GET") return html(res, hostsPage({ email, hosts: hostsFor(email), current: pickedHost(req, email), admin: access.isAdmin(email), relay: PUBLIC_URL }));
+
+  if (route.startsWith("/admin")) {
+    if (!access.isAdmin(email)) return html(res, messagePage("Sin permiso", "Solo los admins pueden invitar gente."), 403);
+    if (req.method === "POST") {
+      if (!sameOrigin(req)) return send(res, 403, { error: "forbidden" });
+      const form = await readForm(req);
+      let notice = null;
+      try {
+        if (route === "/admin/invite") {
+          const invite = access.createInvite(form.email, email);
+          notice = { link: `${PUBLIC_URL}/_mono/invite/${invite.token}`, email: invite.email };
+        }
+        if (route === "/admin/revoke") access.revokeInvite(form.token);
+        if (route === "/admin/remove" && !access.isAdmin(form.email)) {
+          access.removeUser(form.email);
+          disconnectUser(String(form.email).toLowerCase());
+        }
+      } catch (error) {
+        notice = { error: error.message };
+      }
+      return html(res, adminPage({ email, ...access.listAccess(), online: onlineCounts(), notice, relay: PUBLIC_URL }));
+    }
+    return html(res, adminPage({ email, ...access.listAccess(), online: onlineCounts(), relay: PUBLIC_URL }));
+  }
 
   if (route === "/hosts/select" && req.method === "POST") {
     if (!sameOrigin(req)) return send(res, 403, { error: "forbidden" });
@@ -386,4 +432,4 @@ server.on("upgrade", (req, socket, head) => {
   wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
 });
 
-server.listen(PORT, () => console.log(`Mono relay en ${PUBLIC_URL} (puerto ${PORT})${DEV_LOGIN_EMAIL ? ` — login de desarrollo como ${DEV_LOGIN_EMAIL}` : ""}`));
+server.listen(PORT, () => console.log(`Mono relay en ${PUBLIC_URL} (puerto ${PORT})${DEV_LOGIN ? " — login de desarrollo activado" : ""}`));

@@ -29,7 +29,7 @@ const ALLOWED_TOOLS = [
 
 function prompt(task, since) {
   return [
-    `Actualizá la tarea ${task.id} ("${task.title}") del Avocado Workspace usando el skill workspace en modo actualización.`,
+    `Actualizá la tarea ${task.id} ("${task.title}") de Mono usando el skill workspace en modo actualización.`,
     `1. Corré \`ws show ${task.id}\` y \`ws get ${task.id} <board>\` para ver cada board; reusá los ids de nodos existentes.`,
     `2. La fuente principal es lo que hicieron los agentes: corré \`ws sessions ${task.id}${since ? ` --since ${since}` : ""}\` para ver la actividad reciente de las sesiones y subagentes vinculados.`,
     "3. Actualizá sobre todo el board de testeo con resultados reales que aparezcan ahí (pass/fail solo con evidencia; lo demás queda todo). Si aparecen bugs o hallazgos nuevos, agregalos como notas o tarjetas con status risk. Actualizá estado, TL;DR o resumen solo si cambiaron de verdad.",

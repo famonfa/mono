@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "start": "node src/main.mjs",
+    "start": "node --no-warnings=ExperimentalWarning src/main.mjs",
     "dev": "node --env-file=.env src/main.mjs"
   },
   "dependencies": {

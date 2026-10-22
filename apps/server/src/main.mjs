@@ -1,12 +1,10 @@
 import http from "node:http";
-import path from "node:path";
 import { createApi, serveStatic } from "./api.mjs";
 import { startRemote } from "./remote.mjs";
-import { ROOT } from "./store.mjs";
+import { WEB_DIST as DIST } from "./paths.mjs";
 
 const PORT = Number(process.env.PORT ?? 4600);
 const HOST = "127.0.0.1";
-const DIST = path.join(ROOT, "apps", "web", "dist");
 
 const clients = new Set();
 const relay = startRemote({ port: PORT });

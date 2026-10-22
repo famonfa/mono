@@ -4,7 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
 
-export const CONFIG_DIR = path.join(os.homedir(), ".mono");
+import { CONFIG_DIR } from "./paths.mjs";
+
+export { CONFIG_DIR };
 export const REMOTE_FILE = path.join(CONFIG_DIR, "remote.json");
 
 export function readRemote() {

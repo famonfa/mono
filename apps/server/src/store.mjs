@@ -1,10 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { DATA_DIR, PKG_DIR, REPO_ROOT } from "./paths.mjs";
 
-/** Repo root (`~/mono`): the data lives there, outside the apps, so moving code never moves it. */
-export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-export const DATA_DIR = process.env.MONO_DATA_DIR ?? path.join(ROOT, "data");
+export { DATA_DIR };
+export const ROOT = REPO_ROOT ?? PKG_DIR;
 export const TASKS_DIR = path.join(DATA_DIR, "tasks");
 
 const SAFE_ID = /^[A-Za-z0-9._-]+$/;

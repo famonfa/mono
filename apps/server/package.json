@@ -1,14 +1,28 @@
 {
-  "name": "@mono/server",
-  "private": true,
+  "name": "@famonfa/mono",
   "version": "0.1.0",
+  "description": "Mono: watch and drive your Claude Code agents from your Mac, the web or your phone",
   "type": "module",
   "bin": {
     "mono": "bin/mono.mjs",
     "ws": "bin/mono.mjs"
   },
+  "files": [
+    "bin",
+    "src",
+    "skills",
+    "web"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "start": "node src/main.mjs"
+    "start": "node src/main.mjs",
+    "prepack": "npm run build -w @mono/web --prefix ../.. && rm -rf web && cp -R ../web/dist web",
+    "postpack": "rm -rf web"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.308",

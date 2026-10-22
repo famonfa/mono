@@ -3,22 +3,21 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { defaultCwd } from "./paths.mjs";
 import * as store from "./store.mjs";
 import { sessionCwd } from "./sessions.mjs";
 import { allProjects, descendantIds, launchRootFor } from "./projects.mjs";
 
 const HOME = os.homedir();
-export const AVOCADO_ROOT = path.join(HOME, "avocado-all", "avocado");
 
 /** Folders typed by hand in the picker may start with `~`. */
 export const expandHome = (dir) => (dir === "~" || dir.startsWith("~/") ? path.join(HOME, dir.slice(1)) : dir);
-const REPOS = ["instamenu", "instamenu-api", "KDS", "crm", "pricing", "marketing-website"];
 const IDLE_CLOSE_MS = 20 * 60_000;
-/** Facundo's choice: full access by default (like T3 Code); the other modes stay selectable per session. */
+/** Full access by default (like T3 Code); the other modes stay selectable per session. */
 const DEFAULT_PERMISSION_MODE = "bypassPermissions";
 const PERMISSION_MODES = new Set(["bypassPermissions", "acceptEdits", "default", "plan"]);
 const modeOrDefault = (mode) => (PERMISSION_MODES.has(mode) ? mode : DEFAULT_PERMISSION_MODE);
-const CLAUDE_BIN = [path.join(HOME, ".npm-global/bin/claude"), "/opt/homebrew/bin/claude", "/usr/local/bin/claude"].find((p) => fs.existsSync(p));
+const CLAUDE_BIN = [path.join(HOME, ".local/bin/claude"), path.join(HOME, ".claude/local/claude"), path.join(HOME, ".npm-global/bin/claude"), "/opt/homebrew/bin/claude", "/usr/local/bin/claude"].find((p) => fs.existsSync(p));
 const PATH = [path.join(HOME, ".local/bin"), path.join(HOME, ".npm-global/bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", process.env.PATH].join(":");
 
 /** Chats this server is driving, keyed by Claude session id. */
@@ -120,7 +119,7 @@ function focusContext(launchCwd, focusCwd) {
 
 function taskContext(task) {
   const lines = [
-    `Estás trabajando en la tarea ${task.id} — "${task.title}" de Mono, el workspace personal de Facundo (http://localhost:4600/#/t/${task.id}).`,
+    `Estás trabajando en la tarea ${task.id} — "${task.title}" de Mono (http://localhost:4600/#/t/${task.id}).`,
     task.tldr?.problema && `Problema: ${task.tldr.problema}`,
     task.tldr?.solucion && `Solución: ${task.tldr.solucion}`,
     task.repos?.length && `Repos/PRs: ${task.repos.map((r) => `${r.name}${r.branch ? ` (${r.branch})` : ""}${r.pr ? ` ${r.pr}` : ""}`).join(", ")}`,
@@ -160,12 +159,24 @@ export function worktreesForProject(projectId) {
   return [...all.filter((w) => w.root), ...all.filter((w) => !w.root)];
 }
 
+/** Git repos a task can touch: its projects, the repos nested in them, and projects named like its repos. */
+function taskRepoDirs(task, projectRoots) {
+  const names = new Set((task?.repos ?? []).map((r) => r.name));
+  const dirs = new Set(projectRoots);
+  for (const root of projectRoots) {
+    for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+      if (entry.isDirectory() && !entry.name.startsWith(".") && fs.existsSync(path.join(root, entry.name, ".git"))) dirs.add(path.join(root, entry.name));
+    }
+  }
+  for (const p of allProjects()) if (names.has(path.basename(p.root))) dirs.add(p.root);
+  return [...dirs].filter((dir) => fs.existsSync(path.join(dir, ".git")));
+}
+
 export function worktreesForTask(task, projectRoots = []) {
   const branches = new Set((task?.repos ?? []).map((r) => r.branch).filter(Boolean));
   const found = [];
-  for (const repo of REPOS) {
-    const dir = path.join(AVOCADO_ROOT, repo);
-    if (!fs.existsSync(dir)) continue;
+  for (const dir of taskRepoDirs(task, projectRoots)) {
+    const repo = path.basename(dir);
     let out = "";
     try {
       out = execFileSync("git", ["-C", dir, "worktree", "list", "--porcelain"], { encoding: "utf8", timeout: 5000 });
@@ -182,7 +193,8 @@ export function worktreesForTask(task, projectRoots = []) {
   for (const root of projectRoots) {
     if (!found.some((f) => f.path === root)) found.push({ path: root, repo: path.basename(root), branch: null, root: true });
   }
-  if (!found.some((f) => f.path === AVOCADO_ROOT)) found.push({ path: AVOCADO_ROOT, repo: "avocado", branch: null, root: true });
+  const fallback = defaultCwd();
+  if (!found.length) found.push({ path: fallback, repo: path.basename(fallback), branch: null, root: true });
   return found;
 }
 
@@ -246,7 +258,7 @@ export function startChat({ taskId, cwd, prompt, resume, model, effort, permissi
   const mode = modeOrDefault(permissionMode);
   if (resume && chats.get(resume) && !chats.get(resume).closed) throw new Error("La sesión ya está abierta en el workspace");
   const task = taskId ? store.getTask(taskId) : null;
-  const focus = cwd ? expandHome(cwd) : AVOCADO_ROOT;
+  const focus = cwd ? expandHome(cwd) : defaultCwd();
   if (!path.isAbsolute(focus) || !fs.statSync(focus, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`No existe la carpeta ${focus}`);
   const workdir = resume ? focus : launchRootFor(focus);
   const append = [task && taskContext(task), !resume && focusContext(workdir, focus)].filter(Boolean).join("\n\n");

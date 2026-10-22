@@ -6,13 +6,13 @@ Mono vive en `~/mono` (`~/avocado-workspace` es un symlink para rutas viejas). A
 
 | App | Qué es |
 | --- | --- |
-| `apps/server` | Server local (API + eventos en vivo + Agent SDK) y el CLI `mono` / `ws`. Corre Claude Code en tu Mac. |
+| `apps/server` | Paquete npm `@famonfa/mono`: server local (API + eventos en vivo + Agent SDK) y el CLI `mono` / `ws`. Corre Claude Code en tu Mac. |
 | `apps/web` | La interfaz (React + Vite). La sirve el server; la usan el escritorio, la web y el celu. |
 | `apps/desktop` | App de macOS (Electron). Usa el server local, y si no está corriendo lo levanta. |
-| `apps/relay` | Puerta pública con login de Google. Las Macs se conectan hacia afuera y el celu o la web entran por acá. |
+| `apps/relay` | Puerta pública multiusuario: login con Google, invitaciones y el túnel hacia la Mac de cada uno. |
 | `apps/mobile` | App de iOS y Android (Capacitor) que abre tu relay, con login de Google desde el navegador del sistema. |
 
-Los datos quedan en `~/mono/data/` (no se versiona; cambialo con `MONO_DATA_DIR`). La conexión remota se guarda en `~/.mono/`.
+En este checkout los datos quedan en `~/mono/data/` (no se versionan; se cambian con `MONO_DATA_DIR`). Instalado con npm, van a `~/.mono/data/`.
 
 ## Escritorio: igual que `t3`
 
@@ -23,16 +23,26 @@ mono service install     # arranca solo al iniciar sesión (launchd) y pone mono
 npm run desktop:package  # genera apps/desktop/release/mac-arm64/Mono.app → copiala a /Applications
 ```
 
-## Celu y web: con Google
+## Celu, web e invitados (como T3)
 
-1. **Deploy del relay** (una sola vez). Ver `apps/relay/.env.example`. Con Fly: `cd apps/relay && fly launch --no-deploy --copy-config`, cargás los secrets y `fly deploy`. También sirve cualquier hosting que soporte WebSockets: Railway, Render o Cloud Run con `--max-instances=1`.
-2. **Google OAuth**: en Google Cloud Console creás un *OAuth client ID* de tipo Web application con el redirect `https://<relay>/_mono/auth/callback`.
-3. **Conectar la Mac**: corrés `mono connect https://<relay>`, se abre el navegador, entrás con Google y aprobás el código. Queda conectada y se reconecta sola.
-4. **Usarlo**: entrás a `https://<relay>` desde cualquier navegador (en iPhone se puede agregar a la pantalla de inicio) o desde la app móvil.
+Cada persona corre Mono en **su** Mac, con su Claude Code. Un único relay en la nube les da login con Google y acceso desde el celu o la web; cada uno ve solo sus máquinas.
 
-La app móvil se abre con `npm run mobile:ios` o `npm run mobile:android` (en Xcode o Android Studio), pegás la URL del relay y entrás con Google.
+**Una vez (admin):**
+1. Deploy del relay en Fly: ver los pasos en `apps/relay/fly.toml` y las variables en `apps/relay/.env.example`. `ADMIN_EMAILS` es tu email.
+2. Google Cloud Console → Credentials → *OAuth client ID* (Web application), con el redirect `https://<relay>/_mono/auth/callback`.
+3. Publicar el paquete: `cd apps/server && npm publish` (publica `@famonfa/mono` con la UI ya compilada).
 
-Seguridad: solo entran los emails de `ALLOWED_EMAILS`, y cada Mac queda atada al email que la aprobó. Si sacás un email de la lista se cortan sus sesiones y sus Macs. Si rotás `SESSION_SECRET`, se desconecta todo.
+**Invitar:** entrás a `https://<relay>/_mono/admin`, ponés el email de Google de la persona y le mandás el link. Para quitarle el acceso, "Quitar": se corta su sesión y se desconectan sus Macs.
+
+**Cada invitado, en su Mac:**
+```bash
+npm i -g @famonfa/mono
+mono service install     # queda corriendo y se reconecta al iniciar sesión
+mono connect             # abre el navegador, entra con Google y aprueba el código
+```
+Después usa `https://<relay>` desde cualquier navegador o la app móvil (`npm run mobile:ios` / `mobile:android`).
+
+Fuera del repo, Mono guarda todo en `~/.mono/` (config, conexión y `data/`) y le instala a Claude Code el skill `/workspace` si no lo tiene. La carpeta por defecto de los chats nuevos es `defaultCwd` en `~/.mono/config.json` (si no está, el home).
 
 ## Desarrollo
 
@@ -44,7 +54,7 @@ npm run desktop   # build + Electron
 launchctl kickstart -k gui/$(id -u)/com.famonfa.mono   # reiniciar el server tras cambiar apps/server
 ```
 
-Para probar el relay en local, sin Google: `PORT=4700 SESSION_SECRET=$(openssl rand -hex 32) ALLOWED_EMAILS=yo@x.com DEV_LOGIN_EMAIL=yo@x.com npm run relay`, y después `mono connect http://localhost:4700`.
+Para probar el relay en local, sin Google: `PORT=4700 SESSION_SECRET=$(openssl rand -hex 32) ADMIN_EMAILS=yo@x.com DEV_LOGIN=1 npm run relay`, y después `mono connect http://localhost:4700`.
 
 ## Partes del server
 

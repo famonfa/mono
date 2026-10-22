@@ -5,6 +5,7 @@ import path from "node:path";
 import { DATA_DIR } from "./store.mjs";
 
 const T3_DB = path.join(os.homedir(), ".t3", "userdata", "state.sqlite");
+const CLAUDE_CONFIG = path.join(os.homedir(), ".claude.json");
 const OVERRIDES_FILE = path.join(DATA_DIR, "projects.json");
 const CACHE_MS = 30_000;
 const FAVICONS = ["favicon.svg", "favicon.png", "favicon.ico", "public/favicon.svg", "public/favicon.png", "public/favicon.ico", "assets/favicon.svg", "assets/favicon.png", "app/favicon.ico", "static/favicon.ico"];
@@ -57,13 +58,24 @@ function readT3Projects() {
   }
 }
 
+/** Without T3 Code: the git repos Claude Code has been used in (keys of `projects` in ~/.claude.json). */
+function readClaudeProjects() {
+  try {
+    const dirs = Object.keys(JSON.parse(fs.readFileSync(CLAUDE_CONFIG, "utf8")).projects ?? {});
+    return dirs.filter((dir) => dir !== os.homedir() && fs.existsSync(path.join(dir, ".git"))).map((root) => ({ title: path.basename(root), root }));
+  } catch {
+    return [];
+  }
+}
+
 /** Every project T3 knows, including ones nested inside another (internal: folder pickers, launch roots). */
 export function allProjects({ fresh = false } = {}) {
   if (!fresh && Date.now() - cache.at < CACHE_MS) return cache.projects;
   const overrides = readOverrides();
   const seen = new Set();
   const projects = [];
-  for (const { title, root } of [...readT3Projects(), ...(overrides.extra ?? [])]) {
+  const t3 = readT3Projects();
+  for (const { title, root } of [...(t3.length ? t3 : readClaudeProjects()), ...(overrides.extra ?? [])]) {
     const real = realpath(root);
     if (seen.has(real) || !fs.existsSync(real)) continue;
     seen.add(real);

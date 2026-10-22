@@ -11,13 +11,14 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const HOME = os.homedir();
 const PATH = [path.join(HOME, ".local/bin"), path.join(HOME, ".npm-global/bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"].join(":");
 
-/** In dev this checkout; packaged, wherever `mono` last ran from (it writes ~/.mono/config.json). */
-function monoConfig() {
+/** In dev the server of this checkout; packaged, the one `mono` last ran from (it writes ~/.mono/config.json). */
+function serverConfig() {
   let saved = {};
   try {
     saved = JSON.parse(fs.readFileSync(path.join(HOME, ".mono", "config.json"), "utf8"));
   } catch {}
-  return { home: app.isPackaged ? (saved.home ?? path.join(HOME, "mono")) : path.resolve(here, "../../.."), node: saved.node };
+  const server = app.isPackaged ? saved.server : path.resolve(here, "../../server/src/main.mjs");
+  return { server, node: saved.node };
 }
 
 async function isUp() {
@@ -34,12 +35,11 @@ let server = null;
 /** Reuses the server if `mono` or the launchd service already runs it; otherwise starts our own. */
 async function ensureServer() {
   if (await isUp()) return;
-  const { home, node } = monoConfig();
-  const main = path.join(home, "apps", "server", "src", "main.mjs");
-  if (!fs.existsSync(main)) throw new Error(`No encontré Mono en ${home}. Corré \`mono\` una vez desde la terminal.`);
+  const { server: main, node } = serverConfig();
+  if (!main || !fs.existsSync(main)) throw new Error("No encontré el server de Mono. Instalalo con `npm i -g @famonfa/mono` y corré `mono` una vez.");
   const useNode = node && fs.existsSync(node);
   server = spawn(useNode ? node : process.execPath, [main], {
-    cwd: home,
+    cwd: HOME,
     stdio: "inherit",
     env: { ...process.env, PATH: `${PATH}:${process.env.PATH ?? ""}`, ...(useNode ? {} : { ELECTRON_RUN_AS_NODE: "1" }) },
   });
