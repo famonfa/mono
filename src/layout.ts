@@ -68,8 +68,17 @@ function layoutLanes(board: Board): WsNode[] {
 
   const result: WsNode[] = [];
   const children: WsNode[] = [];
+  const columns = direction === "LR" && laneOrder.length > 6 ? Math.ceil(laneOrder.length / 6) : 1;
+  const perColumn = Math.ceil(laneOrder.length / columns);
+  let columnX = 0;
+  let columnWidth = 0;
   let offset = 0;
-  for (const lane of laneOrder) {
+  laneOrder.forEach((lane, index) => {
+    if (index > 0 && index % perColumn === 0) {
+      columnX += columnWidth + LANE_GAP * 2;
+      columnWidth = 0;
+      offset = 0;
+    }
     const members = byLane.get(lane)!;
     const positions = dagreLayout(members, board.edges, direction);
     const xs = members.map((n) => positions.get(n.id)!.x);
@@ -84,7 +93,7 @@ function layoutLanes(board: Board): WsNode[] {
     result.push({
       id,
       type: "lane",
-      position: direction === "LR" ? { x: 0, y: offset } : { x: offset, y: 0 },
+      position: direction === "LR" ? { x: columnX, y: offset } : { x: offset, y: 0 },
       data: { label: lane || "Otros" },
       style: { width, height },
       width,
@@ -95,8 +104,9 @@ function layoutLanes(board: Board): WsNode[] {
       const p = positions.get(n.id)!;
       children.push({ ...n, parentId: id, position: { x: p.x - minX + LANE_PAD, y: p.y - minY + LANE_HEADER } });
     }
+    columnWidth = Math.max(columnWidth, width);
     offset += (direction === "LR" ? height : width) + LANE_GAP;
-  }
+  });
   return [...result, ...children];
 }
 
