@@ -126,7 +126,9 @@ export async function status() {
 }
 
 /** Runs the server at login via launchd and puts `mono`/`ws` on PATH. */
-export function installService() {
+export function installService({ ifMissing = false } = {}) {
+  // The desktop app asks with ifMissing so it never replaces a service someone set up from a checkout.
+  if (ifMissing && fs.existsSync(PLIST)) return console.log(`✓ Servicio ${SERVICE} ya instalado`);
   if (EPHEMERAL) throw new Error("Instalalo primero: npm i -g @famonfa/mono && mono service install");
   setup();
   // npm's global install already puts mono/ws on PATH; a checkout links them into ~/.local/bin.
@@ -147,7 +149,7 @@ export function installService() {
   <array><string>${process.execPath}</string><string>${SERVER_MAIN}</string></array>
   <key>WorkingDirectory</key><string>${HOME}</string>
   <key>EnvironmentVariables</key>
-  <dict><key>PATH</key><string>${PATH}</string></dict>
+  <dict><key>PATH</key><string>${PATH}</string>${process.versions.electron ? "<key>ELECTRON_RUN_AS_NODE</key><string>1</string>" : ""}</dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>StandardOutPath</key><string>${LOG}</string>

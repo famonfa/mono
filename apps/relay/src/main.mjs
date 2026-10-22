@@ -25,6 +25,8 @@ const SECURE = PUBLIC_URL.startsWith("https:");
 const SESSION_DAYS = 30;
 const REQUEST_TIMEOUT_MS = 120_000;
 const PUBLIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "public");
+const DOWNLOADS_DIR = process.env.DOWNLOADS_DIR ?? path.resolve("downloads");
+const DOWNLOADS = new Set(["Mono-arm64.dmg", "Mono-x64.dmg"]);
 const STATIC_TYPES = { ".jpg": "image/jpeg", ".png": "image/png", ".svg": "image/svg+xml", ".webp": "image/webp" };
 
 if (SECRET.length < 32) throw new Error("SESSION_SECRET tiene que tener al menos 32 caracteres (openssl rand -hex 32)");
@@ -237,6 +239,16 @@ async function relayRoute(req, res, url) {
 
   if (route === "/health") return send(res, 200, { ok: true, hosts: hosts.size });
   if (route === "/privacidad") return html(res, privacyPage());
+
+  if (route.startsWith("/download/")) {
+    const name = route.slice("/download/".length);
+    const file = path.join(DOWNLOADS_DIR, name);
+    if (!DOWNLOADS.has(name) || !fs.existsSync(file)) return html(res, messagePage("Todavía no está", "La app de escritorio se está publicando. Probá en un rato."), 404);
+    res.setHeader("Content-Type", "application/x-apple-diskimage");
+    res.setHeader("Content-Length", fs.statSync(file).size);
+    res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
+    return fs.createReadStream(file).pipe(res);
+  }
 
   if (route.startsWith("/static/")) {
     const file = path.join(PUBLIC_DIR, path.basename(route));

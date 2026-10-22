@@ -10,7 +10,7 @@ DIR=/srv/mono-relay
 cd "$(dirname "$0")"
 
 ssh "$HOST" "sudo mkdir -p $DIR && sudo chown \$(whoami) $DIR"
-rsync -az --delete --exclude node_modules --exclude data --exclude .env --exclude Dockerfile --exclude deploy.sh ./ "$HOST:$DIR/"
+rsync -az --delete --exclude node_modules --exclude data --exclude downloads --exclude .env --exclude Dockerfile --exclude deploy.sh ./ "$HOST:$DIR/"
 
 ssh "$HOST" DIR="$DIR" DOMAIN="$DOMAIN" ADMINS="$ADMINS" 'sh -s' <<'REMOTE'
 set -eu

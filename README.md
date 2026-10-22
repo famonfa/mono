@@ -34,7 +34,9 @@ Cada persona corre Mono en **su** Mac, con su Claude Code. Un único relay en la
 
 **Invitar:** entrás a `https://<relay>/_mono/admin`, ponés el email de Google de la persona y le mandás el link. Para quitarle el acceso, "Quitar": se corta su sesión y se desconectan sus Macs.
 
-**Cada invitado, en su Mac:**
+**App de escritorio para invitados:** `npm run desktop:publish` arma `Mono-arm64.dmg` y `Mono-x64.dmg` (la app trae el server adentro, sin el binario de Claude) y los sube al relay. Se descargan desde la landing. Adentro, el menú **Mono → Conectar con el celular…** deja el server corriendo en segundo plano y empareja la Mac. Hasta que la app esté firmada (Apple Developer), macOS pide "Abrir igual" la primera vez.
+
+**Cada invitado, por terminal (alternativa):**
 ```bash
 npm i -g @famonfa/mono
 mono service install     # queda corriendo y se reconecta al iniciar sesión

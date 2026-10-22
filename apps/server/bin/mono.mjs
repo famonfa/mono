@@ -67,7 +67,7 @@ switch (command ?? (invokedAs === "ws" ? "help" : "launch")) {
     launcher.disconnect();
     break;
   case "service":
-    if (args[0] === "install") launcher.installService();
+    if (args[0] === "install") launcher.installService({ ifMissing: args.includes("--if-missing") });
     else if (args[0] === "uninstall") launcher.uninstallService();
     else fail(USAGE);
     break;

@@ -1,9 +1,9 @@
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, dialog, Menu, nativeTheme, Notification, shell } from "electron";
 
 const PORT = Number(process.env.PORT ?? 4600);
 const APP_URL = `http://localhost:${PORT}`;
@@ -11,15 +11,13 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const HOME = os.homedir();
 const PATH = [path.join(HOME, ".local/bin"), path.join(HOME, ".npm-global/bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"].join(":");
 
-/** In dev the server of this checkout; packaged, the one `mono` last ran from (it writes ~/.mono/config.json). */
-function serverConfig() {
-  let saved = {};
-  try {
-    saved = JSON.parse(fs.readFileSync(path.join(HOME, ".mono", "config.json"), "utf8"));
-  } catch {}
-  const server = app.isPackaged ? saved.server : path.resolve(here, "../../server/src/main.mjs");
-  return { server, node: saved.node };
-}
+/** The downloaded app carries its own server (Resources/server); in dev it's the monorepo's. */
+const SERVER_DIR = app.isPackaged ? path.join(process.resourcesPath, "server") : path.resolve(here, "../../server");
+const SERVER_MAIN = path.join(SERVER_DIR, "src", "main.mjs");
+const CLI = path.join(SERVER_DIR, "bin", "mono.mjs");
+
+/** Runs the bundled Node code with this app's own binary, so users don't need Node installed. */
+const nodeEnv = () => ({ ...process.env, ELECTRON_RUN_AS_NODE: "1", PORT: String(PORT), PATH: `${PATH}:${process.env.PATH ?? ""}` });
 
 async function isUp() {
   try {
@@ -30,24 +28,95 @@ async function isUp() {
   }
 }
 
+async function waitUntilUp(tries = 60) {
+  for (let i = 0; i < tries; i++) {
+    if (await isUp()) return true;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return false;
+}
+
 let server = null;
 
-/** Reuses the server if `mono` or the launchd service already runs it; otherwise starts our own. */
+/** Reuses a running server (the launchd service or `mono`); otherwise runs ours while the app is open. */
 async function ensureServer() {
   if (await isUp()) return;
-  const { server: main, node } = serverConfig();
-  if (!main || !fs.existsSync(main)) throw new Error("No encontré el server de Mono. Instalalo con `npm i -g @famonfa/mono` y corré `mono` una vez.");
-  const useNode = node && fs.existsSync(node);
-  server = spawn(useNode ? node : process.execPath, [main], {
-    cwd: HOME,
-    stdio: "inherit",
-    env: { ...process.env, PATH: `${PATH}:${process.env.PATH ?? ""}`, ...(useNode ? {} : { ELECTRON_RUN_AS_NODE: "1" }) },
+  server = spawn(process.execPath, [SERVER_MAIN], { cwd: HOME, stdio: "inherit", env: nodeEnv() });
+  if (!(await waitUntilUp())) throw new Error("El server de Mono no arrancó");
+}
+
+function runCli(args) {
+  return new Promise((resolve, reject) => {
+    execFile(process.execPath, [CLI, ...args], { env: nodeEnv(), timeout: 11 * 60_000 }, (error, stdout, stderr) =>
+      error ? reject(new Error((stderr || stdout || error.message).trim().split("\n").pop())) : resolve(stdout),
+    );
   });
-  for (let i = 0; i < 60; i++) {
-    await new Promise((r) => setTimeout(r, 250));
-    if (await isUp()) return;
+}
+
+const notify = (body) => new Notification({ title: "Mono", body }).show();
+
+/**
+ * Using Mono from the phone needs the server up even with the app closed: hand it to launchd first
+ * (stopping the copy this window started), then pair with the relay through Google in the browser.
+ */
+async function connectPhone() {
+  const { response } = await dialog.showMessageBox({
+    type: "info",
+    message: "Conectar con el celular",
+    detail: "Mono va a quedar corriendo en segundo plano (también al iniciar sesión) para que puedas usarlo desde el celu. Se abre el navegador: entrá con Google y aprobá el código.",
+    buttons: ["Conectar", "Cancelar"],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (response !== 0) return;
+  try {
+    if (server) {
+      server.kill();
+      server = null;
+      await new Promise((r) => setTimeout(r, 800));
+    }
+    await runCli(["service", "install", "--if-missing"]);
+    await waitUntilUp();
+    await runCli(["connect"]);
+    notify("Listo: tu Mac quedó conectada. Entrá desde el celu con Google.");
+  } catch (error) {
+    dialog.showErrorBox("No se pudo conectar", error.message);
   }
-  throw new Error("El server de Mono no arrancó");
+}
+
+/** Like VS Code's `code` command: a wrapper in /usr/local/bin that runs the bundled CLI. */
+async function installCommand() {
+  const wrapper = `#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec "${process.execPath}" "${CLI}" "$@"\n`;
+  const tmp = path.join(os.tmpdir(), "mono-cli");
+  fs.writeFileSync(tmp, wrapper, { mode: 0o755 });
+  const script = `do shell script "mkdir -p /usr/local/bin && cp '${tmp}' /usr/local/bin/mono && cp '${tmp}' /usr/local/bin/ws && chmod 755 /usr/local/bin/mono /usr/local/bin/ws" with administrator privileges`;
+  execFile("osascript", ["-e", script], (error) => {
+    if (error) return error.message.includes("-128") ? undefined : dialog.showErrorBox("No se pudo instalar", error.message);
+    notify("Listo: ya podés usar `mono` en la terminal.");
+  });
+}
+
+function buildMenu() {
+  const template = [
+    {
+      label: "Mono",
+      submenu: [
+        { role: "about", label: "Acerca de Mono" },
+        { type: "separator" },
+        { label: "Conectar con el celular…", click: connectPhone },
+        { label: "Instalar el comando “mono” en la terminal…", click: installCommand },
+        { type: "separator" },
+        { role: "hide", label: "Ocultar Mono" },
+        { role: "hideOthers" },
+        { type: "separator" },
+        { role: "quit", label: "Salir de Mono" },
+      ],
+    },
+    { role: "editMenu" },
+    { role: "viewMenu" },
+    { role: "windowMenu" },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 function createWindow() {
@@ -86,10 +155,10 @@ app.on("second-instance", () => {
 });
 
 app.whenReady().then(async () => {
+  buildMenu();
   try {
     await ensureServer();
   } catch (error) {
-    const { dialog } = await import("electron");
     dialog.showErrorBox("Mono", error.message);
     return app.quit();
   }

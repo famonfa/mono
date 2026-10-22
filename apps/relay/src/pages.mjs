@@ -43,6 +43,8 @@ function layout(title, body) {
   details { margin-bottom: 8px; color: var(--muted); }
   summary { cursor: pointer; margin-bottom: 8px; }
   .error { color: #ef4444; }
+  .downloads { display: grid; gap: 8px; margin: 10px 0 6px; }
+  ol.steps small { display: block; font-size: 12.5px; }
   main { max-width: 420px; }
 </style>
 </head>
@@ -87,11 +89,13 @@ export function invitePage({ invite, dev }) {
 
 const installSteps = (relay) => `<ol class="steps">
   <li>Tené <a href="https://docs.claude.com/en/docs/claude-code/setup">Claude Code</a> instalado y logueado en tu Mac.</li>
-  <li>En la terminal de esa Mac:<pre>npm i -g ${escape(PACKAGE)}
+  <li>Bajá Mono y arrastralo a Aplicaciones:<div class="downloads"><a class="btn" href="/_mono/download/Mono-arm64.dmg">Mac con Apple Silicon</a><a class="btn secondary" href="/_mono/download/Mono-x64.dmg">Mac con Intel</a></div>
+  <small>La primera vez macOS avisa que no puede verificarla: Ajustes → Privacidad y seguridad → “Abrir igual”.</small></li>
+  <li>En Mono, menú <b>Mono → Conectar con el celular…</b>, entrá con Google y aprobá el código.</li>
+</ol>
+<details><summary>Prefiero la terminal</summary><pre>npm i -g ${escape(PACKAGE)}
 mono service install
-mono connect ${escape(relay)}</pre></li>
-  <li>Aprobá el código con Google y volvé acá.</li>
-</ol>`;
+mono connect ${escape(relay)}</pre></details>`;
 
 export function hostsPage({ email, hosts, current, admin, relay }) {
   const list = hosts.length

@@ -17,7 +17,18 @@ const IDLE_CLOSE_MS = 20 * 60_000;
 const DEFAULT_PERMISSION_MODE = "bypassPermissions";
 const PERMISSION_MODES = new Set(["bypassPermissions", "acceptEdits", "default", "plan"]);
 const modeOrDefault = (mode) => (PERMISSION_MODES.has(mode) ? mode : DEFAULT_PERMISSION_MODE);
-const CLAUDE_BIN = [path.join(HOME, ".local/bin/claude"), path.join(HOME, ".claude/local/claude"), path.join(HOME, ".npm-global/bin/claude"), "/opt/homebrew/bin/claude", "/usr/local/bin/claude"].find((p) => fs.existsSync(p));
+/** Apps opened from the Dock don't get the shell's PATH, so also ask a login shell (covers nvm and friends). */
+function findClaude() {
+  const known = [path.join(HOME, ".local/bin/claude"), path.join(HOME, ".claude/local/claude"), path.join(HOME, ".npm-global/bin/claude"), "/opt/homebrew/bin/claude", "/usr/local/bin/claude"].find((p) => fs.existsSync(p));
+  if (known) return known;
+  try {
+    const found = execFileSync(process.env.SHELL || "/bin/zsh", ["-lc", "command -v claude"], { encoding: "utf8", timeout: 5000 }).trim();
+    return found && fs.existsSync(found) ? found : undefined;
+  } catch {
+    return undefined;
+  }
+}
+const CLAUDE_BIN = findClaude();
 const PATH = [path.join(HOME, ".local/bin"), path.join(HOME, ".npm-global/bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", process.env.PATH].join(":");
 
 /** Chats this server is driving, keyed by Claude session id. */
