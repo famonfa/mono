@@ -94,15 +94,16 @@ async function handleChats(res, method, parts, body) {
   if (!sessionId && method === "POST") {
     const prompt = String(body.prompt ?? "").trim();
     if (!prompt) throw new Error("Escribí un mensaje");
-    return send(res, 200, await chats.startChat({ taskId: body.taskId, cwd: body.cwd, prompt }));
+    return send(res, 200, await chats.startChat({ taskId: body.taskId, cwd: body.cwd, prompt, model: body.model, effort: body.effort, attachments: body.attachments ?? [] }));
   }
   if (sessionId && !action && method === "GET") return send(res, 200, chats.chatState(sessionId));
   if (action === "messages" && method === "POST") {
     const text = String(body.text ?? "").trim();
     if (!text) throw new Error("Escribí un mensaje");
-    return send(res, 200, await chats.sendMessage(sessionId, text, { workingSessions: workingElsewhere(sessionId) }));
+    return send(res, 200, await chats.sendMessage(sessionId, text, { workingSessions: workingElsewhere(sessionId), model: body.model, effort: body.effort, attachments: body.attachments ?? [] }));
   }
   if (action === "interrupt" && method === "POST") return send(res, 200, await chats.interrupt(sessionId));
+  if (action === "config" && method === "POST") return send(res, 200, await chats.configure(sessionId, body));
   if (action === "permissions" && actionId && method === "POST") return send(res, 200, chats.answerPermission(sessionId, actionId, body));
   return send(res, 404, { error: "not found" });
 }
@@ -157,6 +158,12 @@ export function createApi(broadcast) {
       const [resource, id, sub, subId] = parts;
 
       if (resource === "chats") return await handleChats(res, method, parts, body);
+      if (resource === "models" && method === "GET") return send(res, 200, chats.listModels());
+      if (resource === "uploads" && method === "POST") return send(res, 200, chats.saveUpload(body));
+      if (resource === "uploads" && method === "GET" && id === "file") {
+        const file = path.resolve(url.searchParams.get("path") ?? "");
+        return file.startsWith(chats.UPLOADS_DIR + path.sep) && serveStatic(res, path.dirname(file), path.basename(file)) ? undefined : send(res, 404, { error: "not found" });
+      }
       if (resource === "projects") {
         if (!id && method === "GET") return send(res, 200, projects.listProjects({ fresh: url.searchParams.has("fresh") }).map(({ favicon, ...p }) => ({ ...p, hasIcon: Boolean(favicon) })));
         if (id && sub === "icon" && method === "GET") {

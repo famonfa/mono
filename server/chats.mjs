@@ -49,7 +49,63 @@ class InputQueue {
   }
 }
 
-const userMessage = (text) => ({ type: "user", message: { role: "user", content: text }, parent_tool_use_id: null, origin: { kind: "human" } });
+export const UPLOADS_DIR = path.join(store.DATA_DIR, "uploads");
+const INLINE_IMAGE = /^image\/(png|jpeg|gif|webp)$/;
+const MAX_INLINE_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/** Only files the workspace itself stored can be attached, so a request can't smuggle arbitrary paths. */
+function resolveAttachment(file) {
+  const real = path.resolve(file.path);
+  if (!real.startsWith(UPLOADS_DIR + path.sep) || !fs.existsSync(real)) throw new Error(`Adjunto inválido: ${file.name}`);
+  return { ...file, path: real, size: fs.statSync(real).size };
+}
+
+/**
+ * Images go inline so the model sees them; every attachment is also listed by path so
+ * Claude can open non-image files (PDFs, CSVs, code) with its own tools.
+ */
+function userMessage(text, attachments = []) {
+  if (!attachments.length) return { type: "user", message: { role: "user", content: text }, parent_tool_use_id: null, origin: { kind: "human" } };
+  const files = attachments.map(resolveAttachment);
+  const listing = `${text}\n\nArchivos adjuntos:\n${files.map((f) => `- ${f.path}`).join("\n")}`;
+  const images = files
+    .filter((f) => INLINE_IMAGE.test(f.type) && f.size <= MAX_INLINE_IMAGE_BYTES)
+    .map((f) => ({ type: "image", source: { type: "base64", media_type: f.type, data: fs.readFileSync(f.path).toString("base64") } }));
+  return { type: "user", message: { role: "user", content: [{ type: "text", text: listing }, ...images] }, parent_tool_use_id: null, origin: { kind: "human" } };
+}
+
+export function saveUpload({ name, type, data }) {
+  if (!name || !data) throw new Error("Falta el archivo");
+  const dir = path.join(UPLOADS_DIR, `${new Date().toISOString().slice(0, 10)}-${Math.random().toString(36).slice(2, 8)}`);
+  fs.mkdirSync(dir, { recursive: true });
+  const safe = path.basename(name).replace(/[^\w.-]+/g, "-").slice(0, 120) || "archivo";
+  const file = path.join(dir, safe);
+  fs.writeFileSync(file, Buffer.from(data, "base64"));
+  return { path: file, name, type: type || "application/octet-stream", size: fs.statSync(file).size };
+}
+
+const T3_MODELS = path.join(HOME, ".t3", "caches", "claudeAgent.json");
+const EFFORTS = ["low", "medium", "high", "xhigh", "max", "ultracode"];
+
+/** Same model list T3 Code shows for this account, with each model's effort levels. */
+export function listModels() {
+  try {
+    const cache = JSON.parse(fs.readFileSync(T3_MODELS, "utf8"));
+    return cache.models.map((m) => {
+      const effort = m.capabilities?.optionDescriptors?.find((d) => d.id === "effort");
+      return {
+        id: m.slug,
+        name: m.name,
+        efforts: (effort?.options ?? []).filter((o) => EFFORTS.includes(o.id)).map((o) => ({ id: o.id, label: o.label, isDefault: Boolean(o.isDefault) })),
+      };
+    });
+  } catch {
+    return [{ id: "claude-opus-5-5", name: "Claude Opus 5.5", efforts: ["low", "medium", "high", "xhigh", "max"].map((id) => ({ id, label: id, isDefault: id === "medium" })) }];
+  }
+}
+
+const effortOptions = (effort) =>
+  !effort ? {} : effort === "ultracode" ? { effort: "xhigh", settings: { ultracode: true } } : { effort };
 
 function taskContext(task) {
   const lines = [
@@ -96,6 +152,8 @@ function publicState(chat) {
     live: !chat.closed,
     state: chat.state,
     permissionMode: chat.permissionMode,
+    model: chat.model,
+    effort: chat.effort,
     cwd: chat.cwd,
     taskId: chat.taskId,
     pending: [...chat.pending.values()].map(({ resolve, ...p }) => p),
@@ -128,15 +186,15 @@ function linkSessionToTask(taskId, sessionId) {
  * Starts (or resumes) a Claude Code session driven from the workspace. Resolves with the session id
  * once the CLI reports it, so the UI can navigate to the live feed straight away.
  */
-export function startChat({ taskId, cwd, prompt, resume }) {
+export function startChat({ taskId, cwd, prompt, resume, model, effort, attachments = [] }) {
   if (resume && chats.get(resume) && !chats.get(resume).closed) throw new Error("La sesión ya está abierta en el workspace");
   const task = taskId ? store.getTask(taskId) : null;
   const workdir = cwd || AVOCADO_ROOT;
   if (workdir && !fs.existsSync(workdir)) throw new Error(`No existe la carpeta ${workdir}`);
 
   const input = new InputQueue();
-  input.push(userMessage(prompt));
-  const chat = { sessionId: resume ?? null, taskId, cwd: workdir, permissionMode: PERMISSION_MODE, state: "running", pending: new Map(), input, closed: false, q: null };
+  input.push(userMessage(prompt, attachments));
+  const chat = { sessionId: resume ?? null, taskId, cwd: workdir, model, effort, permissionMode: PERMISSION_MODE, state: "running", pending: new Map(), input, closed: false, q: null };
   let reqCounter = 0;
 
   const q = query({
@@ -146,6 +204,8 @@ export function startChat({ taskId, cwd, prompt, resume }) {
       ...(resume ? { resume } : {}),
       permissionMode: PERMISSION_MODE,
       allowDangerouslySkipPermissions: true,
+      ...(model ? { model } : {}),
+      ...effortOptions(effort),
       settingSources: ["user", "project", "local"],
       systemPrompt: { type: "preset", preset: "claude_code", ...(task ? { append: taskContext(task) } : {}) },
       ...(CLAUDE_BIN ? { pathToClaudeCodeExecutable: CLAUDE_BIN } : {}),
@@ -206,10 +266,10 @@ export function startChat({ taskId, cwd, prompt, resume }) {
   });
 }
 
-export function sendMessage(sessionId, text, { workingSessions = [] } = {}) {
+export function sendMessage(sessionId, text, { workingSessions = [], model, effort, attachments = [] } = {}) {
   const chat = chats.get(sessionId);
   if (chat && !chat.closed) {
-    chat.input.push(userMessage(text));
+    chat.input.push(userMessage(text, attachments));
     setState(chat, "running");
     return Promise.resolve(publicState(chat));
   }
@@ -218,7 +278,7 @@ export function sendMessage(sessionId, text, { workingSessions = [] } = {}) {
   }
   const cwd = sessionCwd(sessionId);
   if (!cwd) throw new Error("No encontré la carpeta original de esta sesión");
-  return startChat({ resume: sessionId, cwd, prompt: text, taskId: chat?.taskId });
+  return startChat({ resume: sessionId, cwd, prompt: text, taskId: chat?.taskId, model, effort, attachments });
 }
 
 export function chatState(sessionId) {
@@ -250,6 +310,21 @@ export function answerPermission(sessionId, requestId, { allow, always, message 
   return publicState(chat);
 }
 
+
+export async function configure(sessionId, { model, effort }) {
+  const chat = chats.get(sessionId);
+  if (!chat || chat.closed) return { sessionId, live: false, state: "idle", pending: [], model, effort };
+  if (model && model !== chat.model) {
+    await chat.q.setModel(model);
+    chat.model = model;
+  }
+  if (effort && effort !== chat.effort) {
+    await chat.q.applyFlagSettings(effort === "ultracode" ? { effortLevel: "xhigh", ultracode: true } : { effortLevel: effort, ultracode: false });
+    chat.effort = effort;
+  }
+  notify(sessionId);
+  return publicState(chat);
+}
 
 export function liveChatIds() {
   return [...chats.values()].filter((c) => !c.closed).map((c) => c.sessionId);

@@ -16,9 +16,11 @@ import {
   type Connection,
 } from "@xyflow/react";
 import { toPng } from "html-to-image";
-import { Download, Maximize, Plus, Rows3, Sparkles, StickyNote, Image as ImageIcon, SquareStack } from "lucide-react";
+import { ArrowLeft, Download, Maximize, Plus, Rows3, Sparkles, StickyNote, Image as ImageIcon, SquareStack } from "lucide-react";
 import { api, onDataChange } from "../api";
 import { useApp } from "../app-context";
+import { href, navigate } from "../router";
+import { useHotkey } from "../ui";
 import { autoLayout, prepareNodes, sortParentsFirst } from "../layout";
 import { BoardContext, nodeTypes } from "../nodes";
 import { CHANGE_STATUS, TEST_STATUS, type Board, type NodeData, type Task, type WsEdge, type WsNode } from "../types";
@@ -214,6 +216,8 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
     });
   };
 
+  useHotkey("Escape", () => navigate(href.task(task.id)), { enabled: !embedded });
+
   const selectedNode = nodes.find((n) => n.selected);
   const selectedEdge = edges.find((e) => e.selected);
   const direction = board?.direction ?? "LR";
@@ -236,6 +240,9 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
   return (
     <div className={`board ${embedded ? "embedded" : ""}`}>
       <div className="board-toolbar">
+        <a className="tool" href={href.task(task.id)} title="Volver al resumen (Esc)">
+          <ArrowLeft size={14} /> Resumen
+        </a>
         <button className="board-title" onClick={renameBoard} title="Renombrar">
           {board?.title ?? "…"}
         </button>
