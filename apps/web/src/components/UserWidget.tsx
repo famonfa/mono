@@ -3,6 +3,9 @@ import { createPortal } from "react-dom";
 import { ArrowLeftRight, Check, ChevronsUpDown, Copy, LogOut, Monitor, Smartphone, UserPlus } from "lucide-react";
 import { useAccount, type Account } from "../account";
 
+/** Set by the desktop app's preload (apps/desktop/src/preload.cjs). */
+const inDesktopApp = typeof window !== "undefined" && "monoDesktop" in window;
+
 const initials = (text: string) =>
   text
     .split(/[\s@._-]+/)
@@ -123,8 +126,16 @@ function MenuContent({ account }: { account: Account }) {
       ) : (
         <div className="user-menu-section">
           <div className="user-menu-caption">Usala desde el celu</div>
-          <p className="user-menu-text">Corré esto en la terminal y entrá con Google:</p>
-          <CopyCommand command={account.connectCommand} />
+          {inDesktopApp ? (
+            <p className="user-menu-text">
+              En el menú <b>Mono → Conectar con el celular…</b> y entrá con Google.
+            </p>
+          ) : (
+            <>
+              <p className="user-menu-text">Corré esto en la terminal y entrá con Google:</p>
+              <CopyCommand command={account.connectCommand} />
+            </>
+          )}
         </div>
       )}
       <div className="user-menu-foot">Mono {account.version}</div>

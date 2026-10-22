@@ -88,10 +88,10 @@ export function invitePage({ invite, dev }) {
 
 const installSteps = (relay) => `<ol class="steps">
   <li>Tené <a href="https://docs.claude.com/en/docs/claude-code/setup">Claude Code</a> instalado y logueado en tu Mac.</li>
-  <li>En la terminal de esa Mac, conectala (queda corriendo en segundo plano):<pre>npx ${escape(PACKAGE)} connect</pre></li>
-  <li>Se abre el navegador: aprobá el código con Google y volvé acá.</li>
+  <li><a href="/">Bajá Mono para macOS</a>, abrilo y elegí <b>Mono → Conectar con el celular…</b> en el menú.</li>
+  <li>Aprobá el código con Google y volvé acá.</li>
 </ol>
-<p><small>Para abrir Mono en la Mac: <code>npx ${escape(PACKAGE)}</code></small></p>`;
+<p><small>Por terminal: <code>npx ${escape(PACKAGE)} connect</code></small></p>`;
 
 export function hostsPage({ email, hosts, current, admin, relay }) {
   const list = hosts.length

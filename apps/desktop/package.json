@@ -2,13 +2,14 @@
   "name": "@mono/desktop",
   "productName": "Mono",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "main": "src/main.mjs",
   "scripts": {
     "start": "electron .",
     "stage": "node scripts/stage-server.mjs",
-    "package": "npm run stage && electron-builder --mac --dir"
+    "package": "npm run stage && electron-builder --mac --dir",
+    "dist": "npm run stage && electron-builder --mac dmg --arm64 --x64"
   },
   "devDependencies": {
     "electron": "45.0.0",
@@ -36,7 +37,11 @@
         "from": "server-bundle",
         "to": "server"
       }
-    ]
+    ],
+    "dmg": {
+      "title": "Mono",
+      "artifactName": "Mono-${arch}.${ext}"
+    }
   },
   "description": "Mono desktop app",
   "author": "Facundo Monsegur"
