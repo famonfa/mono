@@ -35,10 +35,9 @@ async function call<T>(url: string, body?: unknown): Promise<T> {
 const enc = encodeURIComponent;
 
 export const chatApi = {
-  start: (input: { taskId?: string; cwd?: string; prompt: string; permissionMode: PermissionMode }) => call<ChatState>("/api/chats", input),
-  send: (sessionId: string, text: string, permissionMode?: PermissionMode) => call<ChatState>(`/api/chats/${enc(sessionId)}/messages`, { text, permissionMode }),
+  start: (input: { taskId?: string; cwd?: string; prompt: string }) => call<ChatState>("/api/chats", input),
+  send: (sessionId: string, text: string) => call<ChatState>(`/api/chats/${enc(sessionId)}/messages`, { text }),
   interrupt: (sessionId: string) => call<ChatState>(`/api/chats/${enc(sessionId)}/interrupt`, {}),
-  setMode: (sessionId: string, permissionMode: PermissionMode) => call<ChatState>(`/api/chats/${enc(sessionId)}/mode`, { permissionMode }),
   answer: (sessionId: string, requestId: string, decision: { allow: boolean; always?: boolean; message?: string }) =>
     call<ChatState>(`/api/chats/${enc(sessionId)}/permissions/${enc(requestId)}`, decision),
   state: (sessionId: string) => call<ChatState>(`/api/chats/${enc(sessionId)}`),
@@ -61,9 +60,3 @@ export function useChatState(sessionId: string) {
   return [state, setState] as const;
 }
 
-export const MODE_LABEL: Record<PermissionMode, string> = {
-  acceptEdits: "Pedir permiso",
-  bypassPermissions: "Automático",
-  default: "Pedir todo",
-  plan: "Solo planear",
-};

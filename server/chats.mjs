@@ -10,6 +10,8 @@ const HOME = os.homedir();
 export const AVOCADO_ROOT = path.join(HOME, "avocado-all", "avocado");
 const REPOS = ["instamenu", "instamenu-api", "KDS", "crm", "pricing", "marketing-website"];
 const IDLE_CLOSE_MS = 20 * 60_000;
+/** Facundo's choice: agents launched from the workspace always run with full access, like T3 Code's default. */
+const PERMISSION_MODE = "bypassPermissions";
 const CLAUDE_BIN = [path.join(HOME, ".npm-global/bin/claude"), "/opt/homebrew/bin/claude", "/usr/local/bin/claude"].find((p) => fs.existsSync(p));
 const PATH = [path.join(HOME, ".local/bin"), path.join(HOME, ".npm-global/bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", process.env.PATH].join(":");
 
@@ -126,7 +128,7 @@ function linkSessionToTask(taskId, sessionId) {
  * Starts (or resumes) a Claude Code session driven from the workspace. Resolves with the session id
  * once the CLI reports it, so the UI can navigate to the live feed straight away.
  */
-export function startChat({ taskId, cwd, prompt, permissionMode = "acceptEdits", resume }) {
+export function startChat({ taskId, cwd, prompt, resume }) {
   if (resume && chats.get(resume) && !chats.get(resume).closed) throw new Error("La sesión ya está abierta en el workspace");
   const task = taskId ? store.getTask(taskId) : null;
   const workdir = cwd || AVOCADO_ROOT;
@@ -134,7 +136,7 @@ export function startChat({ taskId, cwd, prompt, permissionMode = "acceptEdits",
 
   const input = new InputQueue();
   input.push(userMessage(prompt));
-  const chat = { sessionId: resume ?? null, taskId, cwd: workdir, permissionMode, state: "running", pending: new Map(), input, closed: false, q: null };
+  const chat = { sessionId: resume ?? null, taskId, cwd: workdir, permissionMode: PERMISSION_MODE, state: "running", pending: new Map(), input, closed: false, q: null };
   let reqCounter = 0;
 
   const q = query({
@@ -142,8 +144,8 @@ export function startChat({ taskId, cwd, prompt, permissionMode = "acceptEdits",
     options: {
       ...(workdir ? { cwd: workdir } : {}),
       ...(resume ? { resume } : {}),
-      permissionMode,
-      ...(permissionMode === "bypassPermissions" ? { allowDangerouslySkipPermissions: true } : {}),
+      permissionMode: PERMISSION_MODE,
+      allowDangerouslySkipPermissions: true,
       settingSources: ["user", "project", "local"],
       systemPrompt: { type: "preset", preset: "claude_code", ...(task ? { append: taskContext(task) } : {}) },
       ...(CLAUDE_BIN ? { pathToClaudeCodeExecutable: CLAUDE_BIN } : {}),
@@ -204,7 +206,7 @@ export function startChat({ taskId, cwd, prompt, permissionMode = "acceptEdits",
   });
 }
 
-export function sendMessage(sessionId, text, { permissionMode, workingSessions = [] } = {}) {
+export function sendMessage(sessionId, text, { workingSessions = [] } = {}) {
   const chat = chats.get(sessionId);
   if (chat && !chat.closed) {
     chat.input.push(userMessage(text));
@@ -216,7 +218,7 @@ export function sendMessage(sessionId, text, { permissionMode, workingSessions =
   }
   const cwd = sessionCwd(sessionId);
   if (!cwd) throw new Error("No encontré la carpeta original de esta sesión");
-  return startChat({ resume: sessionId, cwd, prompt: text, permissionMode, taskId: chat?.taskId });
+  return startChat({ resume: sessionId, cwd, prompt: text, taskId: chat?.taskId });
 }
 
 export function chatState(sessionId) {
@@ -248,14 +250,6 @@ export function answerPermission(sessionId, requestId, { allow, always, message 
   return publicState(chat);
 }
 
-export async function setMode(sessionId, permissionMode) {
-  const chat = chats.get(sessionId);
-  if (!chat || chat.closed) throw new Error("La sesión no está abierta en el workspace");
-  await chat.q.setPermissionMode(permissionMode);
-  chat.permissionMode = permissionMode;
-  notify(sessionId);
-  return publicState(chat);
-}
 
 export function liveChatIds() {
   return [...chats.values()].filter((c) => !c.closed).map((c) => c.sessionId);

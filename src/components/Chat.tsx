@@ -1,30 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUp, Bot, FolderGit2, Plus, ShieldCheck, Square, Zap } from "lucide-react";
 import { useApp } from "../app-context";
-import { chatApi, MODE_LABEL, useChatState, type ChatState, type PendingPermission, type PermissionMode, type Worktree } from "../chat";
+import { chatApi, useChatState, type ChatState, type PendingPermission, type Worktree } from "../chat";
 import { href, navigate } from "../router";
 import { useSessionFeed, type SessionSummary } from "../sessions";
 import type { Task } from "../types";
 import { formatDate, Menu } from "../ui";
 import { Feed, StatusDot, ToolIcon } from "./Agents";
 
-const MODES: PermissionMode[] = ["acceptEdits", "bypassPermissions", "plan"];
-
-function ModeMenu({ value, onChange }: { value: PermissionMode; onChange: (mode: PermissionMode) => void }) {
+function FullAccessBadge() {
   return (
-    <Menu
-      value={value}
-      options={MODES.map((m) => ({
-        value: m,
-        label: MODE_LABEL[m],
-        icon: m === "bypassPermissions" ? <Zap size={13} /> : <ShieldCheck size={13} />,
-      }))}
-      onChange={onChange}
-      className={`mode-trigger ${value === "bypassPermissions" ? "danger" : ""}`}
-    >
-      {value === "bypassPermissions" ? <Zap size={12} /> : <ShieldCheck size={12} />}
-      {MODE_LABEL[value]}
-    </Menu>
+    <span className="full-access" title="Las sesiones lanzadas desde el workspace no piden permisos">
+      <Zap size={12} /> Full access
+    </span>
   );
 }
 
@@ -165,14 +153,10 @@ function PermissionCard({ sessionId, request, onAnswered }: { sessionId: string;
 export function SessionChat({ sessionId, summary }: { sessionId: string; summary?: SessionSummary }) {
   const feed = useSessionFeed(sessionId);
   const [chat, setChat] = useChatState(sessionId);
-  const [mode, setMode] = useState<PermissionMode>("acceptEdits");
   const [pendingText, setPendingText] = useState<string | null>(null);
   const promptCount = feed.events.filter((e) => e.kind === "prompt").length;
   const sentAt = useRef(promptCount);
 
-  useEffect(() => {
-    if (chat?.permissionMode) setMode(chat.permissionMode);
-  }, [chat?.permissionMode]);
   useEffect(() => {
     if (pendingText && promptCount > sentAt.current) setPendingText(null);
   }, [promptCount, pendingText]);
@@ -185,16 +169,11 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
     sentAt.current = promptCount;
     setPendingText(text);
     try {
-      setChat(await chatApi.send(sessionId, text, mode));
+      setChat(await chatApi.send(sessionId, text));
     } catch (e) {
       setPendingText(null);
       throw e;
     }
-  };
-
-  const changeMode = async (next: PermissionMode) => {
-    setMode(next);
-    if (live) setChat(await chatApi.setMode(sessionId, next));
   };
 
   return (
@@ -215,7 +194,7 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
           onStop={() => void chatApi.interrupt(sessionId).then(setChat)}
           footer={
             <>
-              <ModeMenu value={mode} onChange={changeMode} />
+              <FullAccessBadge />
               {chat?.cwd && (
                 <span className="composer-cwd" title={chat.cwd}>
                   <FolderGit2 size={12} /> {chat.cwd.split("/").slice(-2).join("/")}
@@ -233,8 +212,6 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
 function NewSession({ task }: { task: Task }) {
   const [worktrees, setWorktrees] = useState<Worktree[]>([]);
   const [cwd, setCwd] = useState<string>("");
-  const [mode, setMode] = useState<PermissionMode>("acceptEdits");
-
   useEffect(() => {
     chatApi.worktrees(task.id).then((list) => {
       setWorktrees(list);
@@ -256,12 +233,12 @@ function NewSession({ task }: { task: Task }) {
           autoFocus
           placeholder="¿Qué hacemos? Ej: revisá los 3 must-fix del board de testeo y arreglalos…"
           onSend={async (prompt) => {
-            const state = await chatApi.start({ taskId: task.id, cwd, prompt, permissionMode: mode });
+            const state = await chatApi.start({ taskId: task.id, cwd, prompt });
             navigate(href.taskSession(task.id, state.sessionId));
           }}
           footer={
             <>
-              <ModeMenu value={mode} onChange={setMode} />
+              <FullAccessBadge />
               <Menu
                 value={cwd}
                 options={worktrees.map((w) => ({ value: w.path, label: w.root ? "avocado (raíz)" : `${w.repo} · ${w.branch}`, icon: <FolderGit2 size={13} /> }))}

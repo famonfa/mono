@@ -94,16 +94,15 @@ async function handleChats(res, method, parts, body) {
   if (!sessionId && method === "POST") {
     const prompt = String(body.prompt ?? "").trim();
     if (!prompt) throw new Error("Escribí un mensaje");
-    return send(res, 200, await chats.startChat({ taskId: body.taskId, cwd: body.cwd, prompt, permissionMode: body.permissionMode }));
+    return send(res, 200, await chats.startChat({ taskId: body.taskId, cwd: body.cwd, prompt }));
   }
   if (sessionId && !action && method === "GET") return send(res, 200, chats.chatState(sessionId));
   if (action === "messages" && method === "POST") {
     const text = String(body.text ?? "").trim();
     if (!text) throw new Error("Escribí un mensaje");
-    return send(res, 200, await chats.sendMessage(sessionId, text, { permissionMode: body.permissionMode, workingSessions: workingElsewhere(sessionId) }));
+    return send(res, 200, await chats.sendMessage(sessionId, text, { workingSessions: workingElsewhere(sessionId) }));
   }
   if (action === "interrupt" && method === "POST") return send(res, 200, await chats.interrupt(sessionId));
-  if (action === "mode" && method === "POST") return send(res, 200, await chats.setMode(sessionId, body.permissionMode));
   if (action === "permissions" && actionId && method === "POST") return send(res, 200, chats.answerPermission(sessionId, actionId, body));
   return send(res, 404, { error: "not found" });
 }
