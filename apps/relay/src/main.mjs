@@ -1,7 +1,11 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
 import http from "node:http";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 import * as access from "./db.mjs";
+import { landingPage } from "./landing.mjs";
 import { adminPage, hostsPage, invitePage, loginPage, messagePage, pairPage } from "./pages.mjs";
 
 /**
@@ -20,6 +24,8 @@ const DEV_LOGIN = !PUBLIC_URL.startsWith("https:") && process.env.DEV_LOGIN === 
 const SECURE = PUBLIC_URL.startsWith("https:");
 const SESSION_DAYS = 30;
 const REQUEST_TIMEOUT_MS = 120_000;
+const PUBLIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "public");
+const STATIC_TYPES = { ".jpg": "image/jpeg", ".png": "image/png", ".svg": "image/svg+xml", ".webp": "image/webp" };
 
 if (SECRET.length < 32) throw new Error("SESSION_SECRET tiene que tener al menos 32 caracteres (openssl rand -hex 32)");
 if (!access.hasAdmins()) throw new Error("Falta ADMIN_EMAILS (tu email de Google; desde ahí invitás al resto)");
@@ -231,6 +237,15 @@ async function relayRoute(req, res, url) {
 
   if (route === "/health") return send(res, 200, { ok: true, hosts: hosts.size });
 
+  if (route.startsWith("/static/")) {
+    const file = path.join(PUBLIC_DIR, path.basename(route));
+    const type = STATIC_TYPES[path.extname(file)];
+    if (!type || !fs.existsSync(file)) return send(res, 404, { error: "not found" });
+    res.setHeader("Content-Type", type);
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    return fs.createReadStream(file).pipe(res);
+  }
+
   if (route === "/login") return html(res, loginPage({ next: safeNext(url.searchParams.get("next")), dev: DEV_LOGIN, app: (req.headers["user-agent"] ?? "").includes("MonoApp"), ios: /iPhone|iPad/.test(req.headers["user-agent"] ?? "") }));
 
   if (route === "/auth/google") {
@@ -368,6 +383,7 @@ async function relayRoute(req, res, url) {
 async function tunnel(req, res, url) {
   const isApi = /^\/(api|files)\//.test(url.pathname);
   const email = sessionEmail(req);
+  if (!email && url.pathname === "/" && req.method === "GET") return html(res, landingPage({ relay: PUBLIC_URL }));
   if (!email) return isApi ? send(res, 401, { error: "Iniciá sesión" }) : redirect(res, `/_mono/login?next=${encodeURIComponent(url.pathname + url.search)}`);
 
   let hostId = pickedHost(req, email);

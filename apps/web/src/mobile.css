@@ -27,4 +27,33 @@
   .sidebar-reopen {
     top: calc(8px + env(safe-area-inset-top));
   }
+
+  /* Task view: properties go under the content instead of beside it. */
+  .issue {
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+  }
+
+  .issue-main {
+    overflow: visible;
+  }
+
+  .issue-content {
+    padding: 20px 16px 32px;
+  }
+
+  .tldr {
+    grid-template-columns: 1fr;
+  }
+
+  .properties {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    overflow: visible;
+  }
+
+  .topbar {
+    overflow-x: auto;
+  }
 }
