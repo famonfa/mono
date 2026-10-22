@@ -267,7 +267,8 @@ function Composer({
             setSlashDismissed(true);
             return;
           }
-          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+          // On phones Enter is a new line (there's no Shift); the send button sends.
+          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !TOUCH) {
             e.preventDefault();
             void submit();
           }
@@ -293,6 +294,8 @@ function Composer({
     </div>
   );
 }
+
+const TOUCH = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
 
 function describePermission(p: PendingPermission) {
   const input = p.input as Record<string, string | undefined>;

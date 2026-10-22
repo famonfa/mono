@@ -118,6 +118,8 @@ export function App() {
     <AppContext.Provider value={ctx}>
       <div className={`app ${collapsed ? "collapsed" : ""}`}>
         <Sidebar route={route} onToggle={() => setCollapsed((c) => !c)} />
+        {/* Only visible on phones (mobile.css), where the sidebar is a drawer over the content. */}
+        {!collapsed && <div className="drawer-backdrop" onClick={() => setCollapsed(true)} />}
         <main className="panel">
           {collapsed && (
             <button className="icon-btn sidebar-reopen" onClick={() => setCollapsed(false)} title="Mostrar barra lateral ([)">

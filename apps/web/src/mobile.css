@@ -1,5 +1,10 @@
-/* Phones (web via the relay or the mobile app): the sidebar becomes a drawer over the panel. */
+/* Phones (web via the relay or the mobile app). Same breakpoint as mobile.ts. */
+.drawer-backdrop {
+  display: none;
+}
+
 @media (max-width: 760px) {
+  /* ---------- Shell: full-bleed panel, sidebar as a drawer ---------- */
   .app,
   .app.collapsed {
     grid-template-columns: 0 1fr;
@@ -12,8 +17,19 @@
     z-index: 50;
     width: min(84vw, 300px);
     padding-top: max(8px, env(safe-area-inset-top));
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
     background: var(--bg-app);
     box-shadow: var(--shadow);
+    animation: drawer-in 0.18s ease-out;
+  }
+
+  .drawer-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 49;
+    background: rgb(0 0 0 / 0.45);
+    animation: fade 0.18s ease-out;
   }
 
   .panel,
@@ -25,10 +41,315 @@
   }
 
   .sidebar-reopen {
-    top: calc(8px + env(safe-area-inset-top));
+    top: calc(6px + env(safe-area-inset-top));
+    left: 6px;
+    width: 34px;
+    height: 34px;
   }
 
-  /* Task view: properties go under the content instead of beside it. */
+  /* Bigger tap targets in the drawer. */
+  .sidebar-nav a {
+    height: 40px;
+  }
+
+  .sidebar-hint {
+    display: none;
+  }
+
+  /* iOS zooms into inputs under 16px; keep the page still while typing. */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  /* ---------- Top bars: one line, nothing pushed off-screen ---------- */
+  .topbar,
+  .app.collapsed .topbar {
+    gap: 8px;
+    height: 48px;
+    padding: 0 10px 0 48px;
+    overflow: hidden;
+  }
+
+  .topbar-sub,
+  .topbar .segmented,
+  .topbar .spacer {
+    display: none;
+  }
+
+  .topbar-title {
+    flex-shrink: 0;
+    font-size: 15px;
+  }
+
+  /* The filter tabs already say where you are. */
+  .topbar:has(.view-tabs) .topbar-title {
+    display: none;
+  }
+
+  .view-tabs {
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .view-tabs a {
+    flex-shrink: 0;
+  }
+
+  .topbar .btn.primary {
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  .topbar .btn.primary .kbd {
+    display: none;
+  }
+
+  /* Breadcrumbs keep the current item and drop the rest. */
+  .breadcrumb {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .breadcrumb > a:first-child,
+  .breadcrumb > svg:first-of-type {
+    display: none;
+  }
+
+  .crumb-title {
+    max-width: none;
+  }
+
+  /* Secondary actions in a session's top bar ("Enviar a grupo", status pill): icon only. */
+  .task-topbar .btn.ghost,
+  .task-topbar .menu-trigger.btn {
+    width: 34px;
+    padding: 0;
+    justify-content: center;
+    font-size: 0;
+    flex-shrink: 0;
+  }
+
+  .task-topbar .btn.ghost svg,
+  .task-topbar .menu-trigger.btn svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  /* ---------- Lists: two-line rows instead of desktop columns ---------- */
+  .group-header {
+    padding: 0 14px;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      "status title date"
+      "status sub   sub";
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 3px;
+    height: auto;
+    min-height: 58px;
+    padding: 9px 14px;
+  }
+
+  .row-risk,
+  .row-tldr,
+  .row-meta {
+    display: none;
+  }
+
+  .row-status {
+    grid-area: status;
+    align-self: start;
+    padding-top: 2px;
+  }
+
+  .row-title {
+    grid-area: title;
+    max-width: none;
+    min-width: 0;
+    font-size: 14.5px;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .row-id {
+    grid-area: sub;
+    width: auto;
+    font-size: 11.5px;
+  }
+
+  .row-live {
+    grid-area: sub;
+    justify-self: end;
+  }
+
+  .row-date {
+    grid-area: date;
+    align-self: start;
+    font-size: 12px;
+  }
+
+  .agent-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      "dot title  date"
+      "dot action action";
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 3px;
+    height: auto;
+    min-height: 58px;
+    padding: 9px 14px;
+  }
+
+  .agent-row > :first-child {
+    grid-area: dot;
+    align-self: start;
+    margin-top: 6px;
+  }
+
+  .agent-title {
+    grid-area: title;
+    max-width: none;
+    min-width: 0;
+    font-size: 14.5px;
+  }
+
+  .agent-project,
+  .agent-meta {
+    display: none;
+  }
+
+  .agent-action {
+    grid-area: action;
+    min-width: 0;
+    font-size: 12px;
+  }
+
+  .agent-row .row-date {
+    grid-area: date;
+  }
+
+  .agent-row.compact {
+    margin: 0;
+    border-radius: 0;
+    border-bottom: 1px solid var(--border);
+    height: auto;
+    padding: 9px 14px;
+  }
+
+  /* ---------- Session chat: full height, composer pinned to the bottom ---------- */
+  .issue:has(> .session-main) {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .issue:has(> .session-main) > .properties {
+    display: none;
+  }
+
+  .session-main {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .feed-inner {
+    padding: 14px 14px 20px;
+  }
+
+  .chat-dock {
+    padding: 0 8px calc(8px + env(safe-area-inset-bottom));
+    gap: 8px;
+  }
+
+  .composer {
+    border-radius: 16px;
+  }
+
+  .composer textarea {
+    padding: 11px 14px 2px;
+    max-height: 30dvh;
+  }
+
+  /* Model / effort / permissions scroll sideways; send stays put at the end. */
+  .composer-bar {
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 6px 6px 6px 8px;
+  }
+
+  .composer-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .composer-bar > * {
+    flex-shrink: 0;
+  }
+
+  .composer-send,
+  .composer-stop {
+    position: sticky;
+    right: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    box-shadow: -10px 0 10px var(--bg-elev);
+  }
+
+  .composer-stop {
+    right: 42px;
+  }
+
+  .mode-trigger {
+    height: 30px;
+  }
+
+  .composer-hint {
+    display: none;
+  }
+
+  /* Tool calls and code don't widen the page; they scroll inside themselves. */
+  .feed pre,
+  .feed .code {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .permission-card,
+  .question-card {
+    margin: 0;
+  }
+
+  .permission-actions {
+    flex-wrap: wrap;
+  }
+
+  /* ---------- New session ---------- */
+  .new-session {
+    grid-template-columns: minmax(0, 1fr);
+    place-items: start stretch;
+    padding: calc(52px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom));
+    overflow: auto;
+  }
+
+  .new-session-inner {
+    max-width: none;
+    min-width: 0;
+  }
+
+  /* ---------- Task view: properties under the content ---------- */
   .issue {
     display: flex;
     flex-direction: column;
@@ -53,7 +374,51 @@
     overflow: visible;
   }
 
-  .topbar {
+  /* ---------- Boards: canvas without the desktop chrome ---------- */
+  .react-flow__minimap {
+    display: none;
+  }
+
+  .react-flow__controls {
+    bottom: calc(76px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .canvas-assistant {
+    left: 8px !important;
+    right: 8px !important;
+    bottom: calc(8px + env(safe-area-inset-bottom)) !important;
+    width: auto !important;
+    max-width: none !important;
+    transform: none !important;
+  }
+
+  .board-toolbar,
+  .doc-toolbar,
+  .app.collapsed .board-toolbar,
+  .app.collapsed .doc-toolbar {
+    padding-left: 48px;
     overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  /* ---------- Menus and dialogs fit the screen ---------- */
+  .menu {
+    max-width: calc(100vw - 16px);
+  }
+
+  .user-menu {
+    max-width: calc(100vw - 16px);
+  }
+
+  /* ---------- Groups as a list (GroupList in GroupCanvas.tsx) ---------- */
+  .group-mobile {
+    height: 100%;
+    overflow: auto;
+  }
+}
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(-100%);
   }
 }

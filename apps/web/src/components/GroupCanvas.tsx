@@ -22,7 +22,8 @@ import { href, navigate } from "../router";
 import type { SessionSummary } from "../sessions";
 import { formatDate, Menu, useHotkey } from "../ui";
 import { markSeen, useUnread } from "../unread";
-import { StatusDot } from "./Agents";
+import { useIsMobile } from "../mobile";
+import { SessionRow, StatusDot } from "./Agents";
 import { SessionChat } from "./Chat";
 
 type PaneData = { sessionId: string; title?: string };
@@ -103,11 +104,33 @@ const nodeTypes = { pane: SessionPane };
 export function GroupView({ groupId }: { groupId: string }) {
   const groups = useGroups();
   const group = groups.find((g) => g.id === groupId);
+  const mobile = useIsMobile();
   if (!group) return <div className="empty">{groups.length ? "No existe este grupo." : null}</div>;
+  if (mobile) return <GroupList group={group} />;
   return (
     <ReactFlowProvider>
       <GroupCanvas key={group.id} group={group} />
     </ReactFlowProvider>
+  );
+}
+
+/** On a phone a canvas of chats can't be used: the group becomes a list of its sessions. */
+function GroupList({ group }: { group: SessionGroup }) {
+  const { sessions } = useApp();
+  const members = group.panes.map((p) => sessions.find((s) => s.id === p.sessionId)).filter((s): s is SessionSummary => Boolean(s));
+  return (
+    <div className="group-mobile">
+      <header className="topbar">
+        <div className="topbar-title">{group.name}</div>
+        <span className="topbar-sub">{members.length} sesiones</span>
+      </header>
+      <div className="list">
+        {members.map((s) => (
+          <SessionRow key={s.id} session={s} compact />
+        ))}
+        {!members.length && <div className="empty">Este grupo está vacío.</div>}
+      </div>
+    </div>
   );
 }
 
