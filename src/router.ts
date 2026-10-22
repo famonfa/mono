@@ -1,0 +1,39 @@
+import { useEffect, useState } from "react";
+
+export type HomeFilter = "todas" | "activas" | "hechas";
+
+export type Route =
+  | { view: "home"; filter: HomeFilter }
+  | { view: "task"; taskId: string }
+  | { view: "board"; taskId: string; boardId: string }
+  | { view: "doc"; taskId: string; doc: string };
+
+function parse(hash: string): Route {
+  const [kind, taskId, sub, name] = hash.replace(/^#\/?/, "").split("/").map(decodeURIComponent);
+  if (kind === "activas" || kind === "hechas") return { view: "home", filter: kind };
+  if (kind !== "t" || !taskId) return { view: "home", filter: "todas" };
+  if (sub === "b" && name) return { view: "board", taskId, boardId: name };
+  if (sub === "d" && name) return { view: "doc", taskId, doc: name };
+  return { view: "task", taskId };
+}
+
+export const href = {
+  home: (filter: HomeFilter = "todas") => (filter === "todas" ? "#/" : `#/${filter}`),
+  task: (id: string) => `#/t/${encodeURIComponent(id)}`,
+  board: (id: string, boardId: string) => `#/t/${encodeURIComponent(id)}/b/${encodeURIComponent(boardId)}`,
+  doc: (id: string, doc: string) => `#/t/${encodeURIComponent(id)}/d/${encodeURIComponent(doc)}`,
+};
+
+export function navigate(to: string) {
+  window.location.hash = to;
+}
+
+export function useRoute() {
+  const [route, setRoute] = useState(() => parse(window.location.hash));
+  useEffect(() => {
+    const onChange = () => setRoute(parse(window.location.hash));
+    window.addEventListener("hashchange", onChange);
+    return () => window.removeEventListener("hashchange", onChange);
+  }, []);
+  return route;
+}
