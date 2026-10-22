@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, CheckCircle2, CircleDot, Layers, Moon, PanelLeft, Search, SquarePen, Sun } from "lucide-react";
 import { api, useLiveData } from "./api";
 import { AppContext, useApp, type AppContextValue } from "./app-context";
@@ -8,6 +8,7 @@ import { TaskSessions } from "./components/Chat";
 import { CommandPalette } from "./components/CommandPalette";
 import { DocView } from "./components/DocView";
 import { Home } from "./components/Home";
+import { ALL_PROJECTS, inProject, ProjectSwitcher, sessionInProject } from "./components/Projects";
 import { TaskOverview, TaskTopBar } from "./components/TaskView";
 import { StatusIcon, STATUS_META, STATUS_ORDER } from "./icons";
 import { href, navigate, useRoute, type Route } from "./router";
@@ -21,6 +22,16 @@ export function App() {
   const tasks = useMemo(() => data ?? [], [data]);
   const { theme, toggleTheme } = useTheme();
   const sessions = useSessions(3);
+  const { data: projectData, reload: reloadProjects } = useLiveData(api.listProjects, []);
+  const projects = useMemo(() => projectData ?? [], [projectData]);
+  const [project, setProjectState] = useState(() => localStorage.getItem("ws-project") ?? ALL_PROJECTS);
+  const setProject = useCallback((id: string) => {
+    localStorage.setItem("ws-project", id);
+    setProjectState(id);
+  }, []);
+  useEffect(() => {
+    if (projectData && project !== ALL_PROJECTS && !projectData.some((p) => p.id === project)) setProject(ALL_PROJECTS);
+  }, [projectData, project, setProject]);
   const [dialog, setDialog] = useState<DialogRequest | null>(null);
   const [palette, setPalette] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -49,17 +60,21 @@ export function App() {
           const taskId = id.trim().toUpperCase().replace(/\s+/g, "-") || `T-${Date.now().toString(36).toUpperCase()}`;
           if (!title.trim()) throw new Error("Poné un título");
           if (tasks.some((t) => t.id === taskId)) throw new Error(`${taskId} ya existe`);
-          await api.createTask({ id: taskId, title: title.trim(), status: chosen as TaskStatus });
+          await api.createTask({ id: taskId, title: title.trim(), status: chosen as TaskStatus, ...(project !== ALL_PROJECTS ? { projects: [project] } : {}) });
           reloadTasks();
           navigate(href.task(taskId));
         },
       }),
-    [tasks, reloadTasks],
+    [tasks, reloadTasks, project],
   );
 
   const ctx: AppContextValue = {
     tasks,
     sessions,
+    projects,
+    project,
+    setProject,
+    reloadProjects,
     reloadTasks,
     updateTask,
     openDialog: setDialog,
@@ -97,7 +112,7 @@ export function App() {
           {route.view === "home" ? (
             <Home filter={route.filter} />
           ) : route.view === "agents" ? (
-            <AgentsPage sessions={sessions} />
+            <AgentsPage sessions={sessions.filter((s) => sessionInProject(project, s, tasks))} />
           ) : route.view === "session" ? (
             <SessionView key={`${route.sessionId}/${route.agentId ?? ""}`} sessionId={route.sessionId} agentId={route.agentId} sessions={sessions} />
           ) : (
@@ -112,7 +127,9 @@ export function App() {
 }
 
 function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
-  const { tasks, sessions, openPalette, newTask, theme, toggleTheme } = useApp();
+  const { tasks: allTasks, sessions: allSessions, project, openPalette, newTask, theme, toggleTheme } = useApp();
+  const tasks = allTasks.filter((t) => inProject(project, t.projectIds));
+  const sessions = allSessions.filter((s) => sessionInProject(project, s, allTasks));
   const activeTaskId = "taskId" in route ? route.taskId : undefined;
   const working = sessions.filter((s) => s.status === "working");
   const workingTasks = new Set(working.flatMap((s) => s.taskIds ?? []));
@@ -132,10 +149,7 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-top">
-        <a className="workspace-switch" href={href.home()}>
-          <span className="workspace-logo">🥑</span>
-          <span className="workspace-name">Avocado</span>
-        </a>
+        <ProjectSwitcher />
         <span className="spacer" />
         <button className="icon-btn" onClick={openPalette} title="Buscar (⌘K)">
           <Search size={15} />

@@ -3,6 +3,7 @@ import path from "node:path";
 import * as store from "./store.mjs";
 import * as sessions from "./sessions.mjs";
 import * as chats from "./chats.mjs";
+import * as projects from "./projects.mjs";
 import { refreshStatus, startRefresh } from "./refresh.mjs";
 
 const MIME = {
@@ -70,9 +71,14 @@ function sessionList(days) {
   for (const task of store.listTasks()) {
     for (const s of sessions.sessionsForTask(task, list)) (s.taskIds ??= []).push(task.id);
   }
-  for (const s of list) s.ownedByWorkspace = live.has(s.id);
+  for (const s of list) {
+    s.ownedByWorkspace = live.has(s.id);
+    s.projectId = projects.projectForPath(s.firstCwd ?? s.cwd);
+  }
   return list;
 }
+
+const withProjects = (task) => ({ ...task, projectIds: projects.projectsForTask(task) });
 
 function workingElsewhere(sessionId) {
   const live = new Set(chats.liveChatIds());
@@ -152,6 +158,15 @@ export function createApi(broadcast) {
       const [resource, id, sub, subId] = parts;
 
       if (resource === "chats") return await handleChats(res, method, parts, body);
+      if (resource === "projects") {
+        if (!id && method === "GET") return send(res, 200, projects.listProjects({ fresh: url.searchParams.has("fresh") }).map(({ favicon, ...p }) => ({ ...p, hasIcon: Boolean(favicon) })));
+        if (id && sub === "icon" && method === "GET") {
+          const icon = projects.projectIcon(id);
+          return icon && serveStatic(res, path.dirname(icon), path.basename(icon)) ? undefined : send(res, 404, { error: "not found" });
+        }
+        if (id && !sub && method === "PUT") return send(res, 200, projects.saveOverride(id, { title: body.title || undefined, color: body.color || undefined }));
+        return send(res, 404, { error: "not found" });
+      }
       if (resource === "sessions") {
         if (!id) return send(res, 200, sessionList(Number(url.searchParams.get("days") ?? 3)));
         const since = url.searchParams.get("since");
@@ -160,14 +175,18 @@ export function createApi(broadcast) {
       }
       if (resource !== "tasks") return send(res, 404, { error: "not found" });
 
-      if (id && sub === "worktrees" && method === "GET") return send(res, 200, chats.worktreesForTask(store.getTask(id)));
+      if (id && sub === "worktrees" && method === "GET") {
+        const task = store.getTask(id);
+        const roots = projects.listProjects().filter((p) => projects.projectsForTask(task ?? {}).includes(p.id)).map((p) => p.root);
+        return send(res, 200, chats.worktreesForTask(task, roots));
+      }
       if (id && sub === "refresh") {
         if (method === "POST") return send(res, 200, startRefresh(id));
         if (method === "GET") return send(res, 200, refreshStatus(id));
       }
 
       if (!id) {
-        if (method === "GET") return send(res, 200, store.listTasks());
+        if (method === "GET") return send(res, 200, store.listTasks().map(withProjects));
         if (method === "POST") {
           store.assertSafe(body.id);
           return send(res, 200, store.saveTask(body.id, body));
@@ -177,9 +196,9 @@ export function createApi(broadcast) {
       if (id && !sub) {
         if (method === "GET") {
           const task = store.getTask(id);
-          return task ? send(res, 200, task) : send(res, 404, { error: "not found" });
+          return task ? send(res, 200, withProjects(task)) : send(res, 404, { error: "not found" });
         }
-        if (method === "PUT") return send(res, 200, store.saveTask(id, body));
+        if (method === "PUT") return send(res, 200, withProjects(store.saveTask(id, body)));
         if (method === "DELETE") {
           store.trashTask(id);
           return send(res, 200, { ok: true });

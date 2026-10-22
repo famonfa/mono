@@ -9,6 +9,7 @@ import { formatDate, Menu, slugify } from "../ui";
 import { sessionsApi, type RefreshJob } from "../sessions";
 import { SessionRow, StatusDot } from "./Agents";
 import { Markdown } from "./Markdown";
+import { ProjectIcon } from "./Projects";
 
 export function TaskTopBar({ task, active }: { task: Task; active: string }) {
   const { sessions } = useApp();
@@ -159,7 +160,7 @@ function RefreshButton({ task, onDone }: { task: Task; onDone: () => void }) {
 }
 
 export function TaskOverview({ task, onChange }: { task: Task; onChange: () => void }) {
-  const { updateTask, openDialog, sessions } = useApp();
+  const { updateTask, openDialog, sessions, projects } = useApp();
   const linkedSessions = sessions.filter((s) => s.taskIds?.includes(task.id));
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [editingSummary, setEditingSummary] = useState(false);
@@ -336,6 +337,29 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
             >
               <RiskIcon risk={task.risk as Risk | undefined} /> {task.risk ? RISK_META[task.risk as Risk].label : "Sin definir"}
             </Menu>
+          </Prop>
+          <Prop label="Proyectos">
+            <div className="prop-tags">
+              {(task.projectIds ?? []).map((id) => {
+                const project = projects.find((p) => p.id === id);
+                return (
+                  <span key={id} className="project-chip" title={project?.root}>
+                    <ProjectIcon project={project} size={14} /> {project?.title ?? id}
+                  </span>
+                );
+              })}
+              <Menu
+                options={projects.map((p) => ({ value: p.id, label: p.title, icon: <ProjectIcon project={p} size={14} /> }))}
+                placeholder="Agregar o quitar proyecto…"
+                onChange={(id) => {
+                  const current = task.projectIds ?? [];
+                  save({ projects: current.includes(id) ? current.filter((x) => x !== id) : [...current, id] });
+                }}
+                className="icon-btn tiny"
+              >
+                <Plus size={13} />
+              </Menu>
+            </div>
           </Prop>
           <Prop label="Etiquetas">
             <div className="prop-tags">

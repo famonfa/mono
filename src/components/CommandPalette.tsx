@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Bot, CornerDownLeft, Home, Moon, Plus, Search, Sun, Trash2 } from "lucide-react";
 import { api } from "../api";
+import { ALL_PROJECTS, ProjectIcon } from "./Projects";
 import { useApp } from "../app-context";
 import { BoardIcon, DocIcon, STATUS_META, STATUS_ORDER, StatusIcon } from "../icons";
 import { href, navigate, type Route } from "../router";
@@ -9,7 +10,7 @@ import { href, navigate, type Route } from "../router";
 type Command = { id: string; group: string; label: string; sublabel?: string; icon: ReactNode; shortcut?: string; run: () => void };
 
 export function CommandPalette({ route, onClose }: { route: Route; onClose: () => void }) {
-  const { tasks, sessions, newTask, updateTask, theme, toggleTheme, openDialog, reloadTasks } = useApp();
+  const { tasks, sessions, projects, project, setProject, newTask, updateTask, theme, toggleTheme, openDialog, reloadTasks } = useApp();
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const currentTask = "taskId" in route ? tasks.find((t) => t.id === route.taskId) : undefined;
@@ -47,6 +48,10 @@ export function CommandPalette({ route, onClose }: { route: Route; onClose: () =
     }
     list.push({ id: "new", group: "Acciones", label: "Nueva tarea", icon: <Plus size={14} />, shortcut: "C", run: () => newTask() });
     list.push({ id: "home", group: "Acciones", label: "Ir a todas las tareas", icon: <Home size={14} />, shortcut: "G H", run: () => navigate(href.home()) });
+    for (const p of [null, ...projects]) {
+      if ((p?.id ?? ALL_PROJECTS) === project) continue;
+      list.push({ id: `project:${p?.id ?? ALL_PROJECTS}`, group: "Proyectos", label: `Cambiar a ${p?.title ?? "All projects"}`, icon: <ProjectIcon project={p ?? undefined} size={16} />, run: () => setProject(p?.id ?? ALL_PROJECTS) });
+    }
     list.push({ id: "agents", group: "Acciones", label: "Ver agentes", icon: <Bot size={14} />, shortcut: "G A", run: () => navigate(href.agents()) });
     for (const s of sessions.filter((x) => x.status !== "inactive")) {
       list.push({ id: `session:${s.id}`, group: "Agentes", label: s.title, sublabel: s.project, icon: <Bot size={14} />, run: () => navigate(href.session(s.id)) });
@@ -56,7 +61,7 @@ export function CommandPalette({ route, onClose }: { route: Route; onClose: () =
       list.push({ id: `t:${t.id}`, group: "Tareas", label: t.title, sublabel: t.id, icon: <StatusIcon status={t.status} />, run: () => navigate(href.task(t.id)) });
     }
     return list;
-  }, [tasks, sessions, currentTask, newTask, updateTask, theme, toggleTheme, openDialog, reloadTasks]);
+  }, [tasks, sessions, projects, project, setProject, currentTask, newTask, updateTask, theme, toggleTheme, openDialog, reloadTasks]);
 
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   const filtered = commands.filter((c) => words.every((w) => `${c.label} ${c.sublabel ?? ""} ${c.group}`.toLowerCase().includes(w)));

@@ -1,18 +1,21 @@
 import { useEffect, useState } from "react";
-import { GitPullRequest, Kanban, List, Plus } from "lucide-react";
+import { ChevronRight, GitPullRequest, Kanban, List, Plus } from "lucide-react";
 import { useApp } from "../app-context";
 import { BoardIcon, RiskIcon, STATUS_META, STATUS_MENU_ORDER, STATUS_ORDER, StatusIcon, type Risk } from "../icons";
 import { href, navigate, type HomeFilter } from "../router";
 import type { Task, TaskStatus } from "../types";
 import { formatDate, Menu, useHotkey } from "../ui";
 import { StatusDot } from "./Agents";
+import { inProject, ProjectIcon } from "./Projects";
 
 type Display = "list" | "board";
 
 const TITLES: Record<HomeFilter, string> = { todas: "Todas las tareas", activas: "Activas", hechas: "Hechas" };
 
 export function Home({ filter }: { filter: HomeFilter }) {
-  const { tasks, newTask } = useApp();
+  const { tasks: allTasks, newTask, project, projects } = useApp();
+  const currentProject = projects.find((p) => p.id === project);
+  const tasks = allTasks.filter((t) => inProject(project, t.projectIds));
   const [display, setDisplay] = useState<Display>(() => (localStorage.getItem("ws-display") as Display) ?? "list");
   useEffect(() => localStorage.setItem("ws-display", display), [display]);
 
@@ -22,7 +25,15 @@ export function Home({ filter }: { filter: HomeFilter }) {
   return (
     <div className="home">
       <header className="topbar">
-        <div className="topbar-title">{TITLES[filter]}</div>
+        <div className="topbar-title">
+          {currentProject && (
+            <span className="topbar-project">
+              <ProjectIcon project={currentProject} size={16} /> {currentProject.title}
+              <ChevronRight size={13} />
+            </span>
+          )}
+          {TITLES[filter]}
+        </div>
         <div className="view-tabs">
           {(["todas", "activas", "hechas"] as const).map((f) => (
             <a key={f} href={href.home(f)} className={f === filter ? "active" : ""}>

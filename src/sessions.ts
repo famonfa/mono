@@ -34,6 +34,7 @@ export type SessionSummary = {
   subagents: SubagentSummary[];
   taskIds?: string[];
   ownedByWorkspace?: boolean;
+  projectId?: string | null;
 };
 
 export type SessionEvent = {

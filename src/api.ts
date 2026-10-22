@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { onServerEvent } from "./events";
-import type { Board, Task } from "./types";
+import type { Board, Project, Task } from "./types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -16,6 +16,8 @@ const enc = encodeURIComponent;
 
 export const api = {
   listTasks: () => request<Task[]>("/api/tasks"),
+  listProjects: () => request<Project[]>("/api/projects"),
+  saveProject: (id: string, patch: { title?: string; color?: string }) => request<Project>(`/api/projects/${enc(id)}`, { method: "PUT", body: JSON.stringify(patch) }),
   getTask: (id: string) => request<Task>(`/api/tasks/${enc(id)}`),
   createTask: (task: Partial<Task> & { id: string }) => request<Task>("/api/tasks", { method: "POST", body: JSON.stringify(task) }),
   saveTask: (id: string, patch: Partial<Task>) => request<Task>(`/api/tasks/${enc(id)}`, { method: "PUT", body: JSON.stringify(patch) }),
