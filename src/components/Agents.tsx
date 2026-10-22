@@ -5,6 +5,7 @@ import {
   Check,
   ChevronRight,
   FilePen,
+  FolderGit2,
   FileText,
   Folder,
   GitBranch,
@@ -13,6 +14,7 @@ import {
   ListTodo,
   Loader2,
   MessageSquare,
+  Plus,
   Search,
   Sparkles,
   Terminal,
@@ -24,7 +26,7 @@ import { StatusIcon } from "../icons";
 import { href, navigate } from "../router";
 import { uploadUrl } from "../chat";
 import { useSessionFeed, type SessionEvent, type SessionStatus, type SessionSummary, type SubagentSummary } from "../sessions";
-import { formatDate } from "../ui";
+import { formatDate, Menu } from "../ui";
 import { SessionChat } from "./Chat";
 import { Markdown } from "./Markdown";
 
@@ -101,6 +103,10 @@ export function AgentsPage({ sessions }: { sessions: SessionSummary[] }) {
       <header className="topbar">
         <div className="topbar-title">Agentes</div>
         <span className="topbar-sub">Sesiones de Claude Code de los últimos 3 días · en vivo</span>
+        <span className="spacer" />
+        <a className="btn primary" href={href.newSession()}>
+          <Plus size={14} /> Nueva sesión <kbd className="kbd on-primary">S</kbd>
+        </a>
       </header>
       <div className="list">
         {groups.map((g) => {
@@ -338,7 +344,7 @@ function SubagentItem({ sessionId, agent, active }: { sessionId: string; agent: 
 }
 
 export function SessionView({ sessionId, agentId, sessions }: { sessionId: string; agentId?: string; sessions: SessionSummary[] }) {
-  const { tasks } = useApp();
+  const { tasks, updateTask } = useApp();
   const feed = useSessionFeed(sessionId, agentId);
   const summary = sessions.find((s) => s.id === sessionId) ?? feed.session;
   const agent = summary?.subagents.find((a) => a.id === agentId);
@@ -395,6 +401,11 @@ export function SessionView({ sessionId, agentId, sessions }: { sessionId: strin
                 <Prop label="Proyecto">
                   <Folder size={12} /> {summary.project}
                 </Prop>
+                {summary.focusCwd && (
+                  <Prop label="Trabaja en">
+                    <FolderGit2 size={12} /> <span className="mono" title={summary.focusCwd}>{summary.focusCwd.split("/").slice(-2).join("/")}</span>
+                  </Prop>
+                )}
                 {summary.gitBranch && (
                   <Prop label="Rama">
                     <GitBranch size={12} /> <span className="mono">{summary.gitBranch}</span>
@@ -405,10 +416,24 @@ export function SessionView({ sessionId, agentId, sessions }: { sessionId: strin
                 <Prop label="Última">{formatDate(summary.lastTs)}</Prop>
               </div>
             )}
-            {!!summary?.taskIds?.length && (
+            {summary && (
               <div className="prop-group">
-                <div className="prop-title">Tareas</div>
-                {summary.taskIds.map((id) => {
+                <div className="prop-title prop-title-row">
+                  Tareas
+                  <Menu
+                    placeholder="Vincular a una tarea…"
+                    options={tasks.map((t) => ({ value: t.id, label: `${t.id} · ${t.title}`, icon: <StatusIcon status={t.status} /> }))}
+                    onChange={(taskId) => {
+                      const task = tasks.find((t) => t.id === taskId);
+                      if (task) void updateTask(taskId, { sessionIds: [...new Set([...(task.sessionIds ?? []), sessionId])] });
+                    }}
+                    className="icon-btn tiny"
+                  >
+                    <Plus size={13} />
+                  </Menu>
+                </div>
+                {!summary.taskIds?.length && <span className="hint">Sin tarea. Vinculala con +.</span>}
+                {summary.taskIds?.map((id) => {
                   const task = tasks.find((t) => t.id === id);
                   return (
                     <a key={id} className="pr-row" href={href.task(id)}>

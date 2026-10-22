@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bot, CheckCircle2, CircleDot, Layers, Moon, PanelLeft, Search, SquarePen, Sun } from "lucide-react";
+import { Bot, CheckCircle2, CircleDot, Layers, MessageSquarePlus, Moon, PanelLeft, Search, SquarePen, Sun } from "lucide-react";
 import { api, useLiveData } from "./api";
 import { AppContext, useApp, type AppContextValue } from "./app-context";
 import { AgentsPage, SessionView, StatusDot } from "./components/Agents";
 import { BoardView } from "./components/BoardView";
-import { TaskSessions } from "./components/Chat";
+import { NewSession, TaskSessions } from "./components/Chat";
 import { CommandPalette } from "./components/CommandPalette";
 import { DocView } from "./components/DocView";
 import { Home } from "./components/Home";
-import { ALL_PROJECTS, inProject, ProjectSwitcher, sessionInProject } from "./components/Projects";
+import { ALL_PROJECTS, inProject, projectScope, ProjectSwitcher, sessionInProject } from "./components/Projects";
 import { TaskOverview, TaskTopBar } from "./components/TaskView";
 import { StatusIcon, STATUS_META, STATUS_ORDER } from "./icons";
 import { href, navigate, useRoute, type Route } from "./router";
@@ -88,6 +88,7 @@ export function App() {
   useHotkey("k", () => setPalette((p) => !p), { meta: true });
   useHotkey("c", () => newTask(), { enabled: !overlayOpen });
   useHotkey("[", () => setCollapsed((c) => !c), { enabled: !overlayOpen });
+  useHotkey("s", () => navigate(href.newSession()), { enabled: !overlayOpen });
   useHotkey("g", () => (pendingG.current = Date.now()), { enabled: !overlayOpen });
   useHotkey(
     "h",
@@ -112,7 +113,9 @@ export function App() {
           {route.view === "home" ? (
             <Home filter={route.filter} />
           ) : route.view === "agents" ? (
-            <AgentsPage sessions={sessions.filter((s) => sessionInProject(project, s, tasks))} />
+            <AgentsPage sessions={sessions.filter((s) => sessionInProject(projectScope(project, projects), s, tasks))} />
+          ) : route.view === "newSession" ? (
+            <NewSession />
           ) : route.view === "session" ? (
             <SessionView key={`${route.sessionId}/${route.agentId ?? ""}`} sessionId={route.sessionId} agentId={route.agentId} sessions={sessions} />
           ) : (
@@ -127,9 +130,10 @@ export function App() {
 }
 
 function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
-  const { tasks: allTasks, sessions: allSessions, project, openPalette, newTask, theme, toggleTheme } = useApp();
-  const tasks = allTasks.filter((t) => inProject(project, t.projectIds));
-  const sessions = allSessions.filter((s) => sessionInProject(project, s, allTasks));
+  const { tasks: allTasks, sessions: allSessions, project, projects, openPalette, newTask, theme, toggleTheme } = useApp();
+  const scope = projectScope(project, projects);
+  const tasks = allTasks.filter((t) => inProject(scope, t.projectIds));
+  const sessions = allSessions.filter((s) => sessionInProject(scope, s, allTasks));
   const activeTaskId = "taskId" in route ? route.taskId : undefined;
   const working = sessions.filter((s) => s.status === "working");
   const workingTasks = new Set(working.flatMap((s) => s.taskIds ?? []));
@@ -150,10 +154,12 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
     <aside className="sidebar">
       <div className="sidebar-top">
         <ProjectSwitcher />
-        <span className="spacer" />
         <button className="icon-btn" onClick={openPalette} title="Buscar (⌘K)">
           <Search size={15} />
         </button>
+        <a className="icon-btn" href={href.newSession()} title="Nueva sesión sin tarea (S)">
+          <MessageSquarePlus size={15} />
+        </a>
         <button className="icon-btn new-btn" onClick={() => newTask()} title="Nueva tarea (C)">
           <SquarePen size={15} />
         </button>
@@ -167,7 +173,7 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
             <span className="nav-count">{counts[n.filter] || ""}</span>
           </a>
         ))}
-        <a href={href.agents()} className={route.view === "agents" || route.view === "session" ? "active" : ""}>
+        <a href={href.agents()} className={["agents", "session", "newSession"].includes(route.view) ? "active" : ""}>
           <Bot size={15} />
           <span>Agentes</span>
           <span className="nav-count">

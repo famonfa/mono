@@ -59,6 +59,7 @@ export const chatApi = {
     call<ChatState>(`/api/chats/${enc(sessionId)}/permissions/${enc(requestId)}`, decision),
   state: (sessionId: string) => call<ChatState>(`/api/chats/${enc(sessionId)}`),
   worktrees: (taskId: string) => call<Worktree[]>(`/api/tasks/${enc(taskId)}/worktrees`),
+  projectWorktrees: (projectId: string) => call<Worktree[]>(`/api/projects/${enc(projectId)}/worktrees`),
 };
 
 export function useChatState(sessionId: string) {

@@ -57,6 +57,7 @@ export type Task = {
   relatedPrs?: (number | string)[];
   projects?: string[];
   projectIds?: string[];
+  sessionIds?: string[];
   boards: BoardSummary[];
   docs: string[];
   assets: string[];
@@ -93,4 +94,4 @@ export const BOARD_KIND: Record<BoardKind, { label: string; icon: string }> = {
   free: { label: "Libre", icon: "✏️" },
 };
 
-export type Project = { id: string; title: string; root: string; initials: string; color: string; hasIcon: boolean };
+export type Project = { id: string; title: string; root: string; initials: string; color: string; hasIcon: boolean; parentId: string | null };

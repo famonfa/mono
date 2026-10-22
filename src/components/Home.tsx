@@ -6,7 +6,7 @@ import { href, navigate, type HomeFilter } from "../router";
 import type { Task, TaskStatus } from "../types";
 import { formatDate, Menu, useHotkey } from "../ui";
 import { StatusDot } from "./Agents";
-import { inProject, ProjectIcon } from "./Projects";
+import { inProject, ProjectIcon, projectScope } from "./Projects";
 
 type Display = "list" | "board";
 
@@ -15,7 +15,7 @@ const TITLES: Record<HomeFilter, string> = { todas: "Todas las tareas", activas:
 export function Home({ filter }: { filter: HomeFilter }) {
   const { tasks: allTasks, newTask, project, projects } = useApp();
   const currentProject = projects.find((p) => p.id === project);
-  const tasks = allTasks.filter((t) => inProject(project, t.projectIds));
+  const tasks = allTasks.filter((t) => inProject(projectScope(project, projects), t.projectIds));
   const [display, setDisplay] = useState<Display>(() => (localStorage.getItem("ws-display") as Display) ?? "list");
   useEffect(() => localStorage.setItem("ws-display", display), [display]);
 

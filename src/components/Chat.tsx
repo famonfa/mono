@@ -7,6 +7,7 @@ import { useSessionFeed, type SessionSummary } from "../sessions";
 import type { Task } from "../types";
 import { formatDate, Menu } from "../ui";
 import { Feed, StatusDot, ToolIcon } from "./Agents";
+import { ProjectIcon } from "./Projects";
 
 function FullAccessBadge() {
   return (
@@ -318,19 +319,32 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
   );
 }
 
-function NewSession({ task }: { task: Task }) {
+const worktreeLabel = (w: Worktree) => (w.root ? `${w.repo} (raíz)` : `${w.repo} · ${w.branch}`);
+
+/** Starts a session for a task (with its context) or a standalone one in any project folder. */
+export function NewSession({ task }: { task?: Task }) {
+  const { projects, project } = useApp();
+  const [projectId, setProjectId] = useState<string>("");
   const [worktrees, setWorktrees] = useState<Worktree[]>([]);
   const [cwd, setCwd] = useState<string>("");
   const { models, stored, remember } = useChatDefaults();
   const [config, setConfig] = useState<{ model?: string; effort?: string }>(stored);
+
   useEffect(() => {
-    chatApi.worktrees(task.id).then((list) => {
+    if (task || projectId || !projects.length) return;
+    setProjectId(projects.some((p) => p.id === project) ? project : projects[0].id);
+  }, [task, projectId, projects, project]);
+
+  useEffect(() => {
+    const load = task ? chatApi.worktrees(task.id) : projectId ? chatApi.projectWorktrees(projectId) : null;
+    load?.then((list) => {
       setWorktrees(list);
       setCwd(list[0]?.path ?? "");
     });
-  }, [task.id]);
+  }, [task, projectId]);
 
   const selected = worktrees.find((w) => w.path === cwd);
+  const selectedProject = projects.find((p) => p.id === projectId);
 
   return (
     <div className="new-session">
@@ -338,14 +352,18 @@ function NewSession({ task }: { task: Task }) {
         <div className="new-session-icon">
           <Bot size={22} />
         </div>
-        <h2>Nueva sesión en {task.id}</h2>
-        <p>Claude arranca con el contexto de la tarea (resumen, PRs y boards) y trabaja en la carpeta que elijas. Va a aparecer en vivo en esta pestaña y en Agentes.</p>
+        <h2>{task ? `Nueva sesión en ${task.id}` : "Nueva sesión"}</h2>
+        <p>
+          {task
+            ? "Claude arranca con el contexto de la tarea (resumen, PRs y boards) y trabaja en la carpeta que elijas. Va a aparecer en vivo en esta pestaña y en Agentes."
+            : "Una sesión suelta, sin tarea. Elegí el proyecto y la carpeta; si después querés, la vinculás a una tarea desde la propia sesión."}
+        </p>
         <Composer
           autoFocus
-          placeholder="¿Qué hacemos? Ej: revisá los 3 must-fix del board de testeo y arreglalos…"
+          placeholder={task ? "¿Qué hacemos? Ej: revisá los 3 must-fix del board de testeo y arreglalos…" : "¿Qué hacemos?"}
           onSend={async (prompt, attachments) => {
-            const state = await chatApi.start({ taskId: task.id, cwd, prompt, ...config, attachments });
-            navigate(href.taskSession(task.id, state.sessionId));
+            const state = await chatApi.start({ taskId: task?.id, cwd, prompt, ...config, attachments });
+            navigate(task ? href.taskSession(task.id, state.sessionId) : href.session(state.sessionId));
           }}
           footer={
             <>
@@ -359,13 +377,25 @@ function NewSession({ task }: { task: Task }) {
                 }}
               />
               <FullAccessBadge />
+              {!task && (
+                <Menu
+                  value={projectId}
+                  placeholder="Buscar proyecto…"
+                  options={projects.map((p) => ({ value: p.id, label: p.title, icon: <ProjectIcon project={p} size={14} /> }))}
+                  onChange={setProjectId}
+                  className="mode-trigger"
+                >
+                  <ProjectIcon project={selectedProject} size={14} /> {selectedProject?.title ?? "…"}
+                </Menu>
+              )}
               <Menu
                 value={cwd}
-                options={worktrees.map((w) => ({ value: w.path, label: w.root ? "avocado (raíz)" : `${w.repo} · ${w.branch}`, icon: <FolderGit2 size={13} /> }))}
+                placeholder="Buscar carpeta o rama…"
+                options={worktrees.map((w) => ({ value: w.path, label: worktreeLabel(w), icon: <FolderGit2 size={13} /> }))}
                 onChange={setCwd}
                 className="mode-trigger"
               >
-                <FolderGit2 size={12} /> {selected ? (selected.root ? "avocado (raíz)" : `${selected.repo} · ${selected.branch}`) : "…"}
+                <FolderGit2 size={12} /> {selected ? worktreeLabel(selected) : "…"}
               </Menu>
             </>
           }

@@ -27,16 +27,40 @@ export function ProjectIcon({ project, size = 18 }: { project?: Project; size?: 
   );
 }
 
-/** Belongs to the given project, or anything when "All projects" is selected. */
-export function inProject(project: string, ids?: (string | null | undefined)[] | null) {
-  return project === ALL_PROJECTS || Boolean(ids?.includes(project));
+/** The selected project plus every project nested in it (avocado → instamenu, KDS…); null means all. */
+export function projectScope(project: string, projects: Project[]): Set<string> | null {
+  if (project === ALL_PROJECTS) return null;
+  const scope = new Set([project]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const p of projects) if (p.parentId && scope.has(p.parentId) && !scope.has(p.id)) (scope.add(p.id), (grew = true));
+  }
+  return scope;
+}
+
+export function inProject(scope: Set<string> | null, ids?: (string | null | undefined)[] | null) {
+  return !scope || Boolean(ids?.some((id) => id && scope.has(id)));
+}
+
+/** Parents first, each followed by its nested projects, with their depth for indentation. */
+export function projectTree(projects: Project[]) {
+  const out: { project: Project; depth: number }[] = [];
+  const walk = (parentId: string | null, depth: number) => {
+    for (const p of projects.filter((x) => (x.parentId ?? null) === parentId)) {
+      out.push({ project: p, depth });
+      walk(p.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+  return out;
 }
 
 /** A session shows up in the project it was opened in and in the projects of the tasks it works on. */
-export function sessionInProject(project: string, session: SessionSummary, tasks: Task[]) {
-  if (project === ALL_PROJECTS) return true;
-  if (session.projectId === project) return true;
-  return (session.taskIds ?? []).some((id) => tasks.find((t) => t.id === id)?.projectIds?.includes(project));
+export function sessionInProject(scope: Set<string> | null, session: SessionSummary, tasks: Task[]) {
+  if (!scope) return true;
+  if (session.projectId && scope.has(session.projectId)) return true;
+  return (session.taskIds ?? []).some((id) => inProject(scope, tasks.find((t) => t.id === id)?.projectIds));
 }
 
 export function ProjectSwitcher() {
@@ -48,7 +72,9 @@ export function ProjectSwitcher() {
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const current = projects.find((p) => p.id === project);
 
-  const options: (Project | null)[] = [null, ...projects].filter((p) => !query || (p?.title ?? "All projects").toLowerCase().includes(query.toLowerCase()));
+  const tree = projectTree(projects);
+  const depthOf = (p: Project | null) => (p ? tree.find((t) => t.project.id === p.id)?.depth ?? 0 : 0);
+  const options: (Project | null)[] = [null, ...tree.map((t) => t.project)].filter((p) => !query || (p?.title ?? "All projects").toLowerCase().includes(query.toLowerCase()));
 
   useLayoutEffect(() => {
     if (!open || !trigger.current) return;
@@ -85,7 +111,7 @@ export function ProjectSwitcher() {
         className="project-switch"
         onClick={() => {
           setOpen((o) => !o);
-          setActive(Math.max(0, [null, ...projects].findIndex((p) => (p?.id ?? ALL_PROJECTS) === project)));
+          setActive(Math.max(0, [null, ...projectTree(projects).map((t) => t.project)].findIndex((p) => (p?.id ?? ALL_PROJECTS) === project)));
         }}
         title="Cambiar de proyecto"
       >
@@ -125,7 +151,8 @@ export function ProjectSwitcher() {
                 {options.map((p, i) => (
                   <div
                     key={p?.id ?? ALL_PROJECTS}
-                    className={`project-item ${i === active ? "active" : ""} ${(p?.id ?? ALL_PROJECTS) === project ? "current" : ""}`}
+                    className={`project-item ${i === active ? "active" : ""} ${(p?.id ?? ALL_PROJECTS) === project ? "current" : ""} ${!query && depthOf(p) ? "nested" : ""}`}
+                    style={!query && depthOf(p) ? { paddingLeft: 10 + depthOf(p) * 22 } : undefined}
                     onMouseEnter={() => setActive(i)}
                     onClick={() => choose(p)}
                     title={p?.root}

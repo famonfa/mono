@@ -80,8 +80,44 @@ export function listProjects({ fresh = false } = {}) {
       favicon: custom.color ? undefined : favicon,
     });
   }
+  for (const project of projects) project.parentId = parentOf(project, projects)?.id ?? null;
   cache = { at: Date.now(), projects };
   return projects;
+}
+
+const HOME_DIR = realpath(os.homedir());
+const isInside = (dir, root) => dir === root || dir.startsWith(root + path.sep);
+
+/**
+ * The nearest project that contains this one (avocado contains instamenu, KDS…). The home folder is a
+ * catch-all project, so it never acts as a parent.
+ */
+function parentOf(project, projects) {
+  return projects
+    .filter((p) => p !== project && p.root !== HOME_DIR && isInside(project.root, p.root))
+    .sort((a, b) => b.root.length - a.root.length)[0];
+}
+
+export function descendantIds(projectId) {
+  const projects = listProjects();
+  const ids = new Set([projectId]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const p of projects) if (p.parentId && ids.has(p.parentId) && !ids.has(p.id)) (ids.add(p.id), (grew = true));
+  }
+  return ids;
+}
+
+/**
+ * Where a session must start so it loads the shared skills and CLAUDE.md: the outermost project that
+ * contains the folder (avocado for anything under it). Claude Code doesn't load skills from parent folders.
+ */
+export function launchRootFor(dir) {
+  const real = realpath(dir);
+  const main = mainRepoRoot(real) ?? real;
+  const containing = listProjects().filter((p) => p.root !== HOME_DIR && (isInside(real, p.root) || isInside(main, p.root)));
+  return containing.sort((a, b) => a.root.length - b.root.length)[0]?.root ?? real;
 }
 
 export function saveOverride(projectId, patch) {

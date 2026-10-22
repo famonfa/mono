@@ -5,6 +5,7 @@ import path from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import * as store from "./store.mjs";
 import { sessionCwd } from "./sessions.mjs";
+import { descendantIds, launchRootFor, listProjects } from "./projects.mjs";
 
 const HOME = os.homedir();
 export const AVOCADO_ROOT = path.join(HOME, "avocado-all", "avocado");
@@ -107,6 +108,11 @@ export function listModels() {
 const effortOptions = (effort) =>
   !effort ? {} : effort === "ultracode" ? { effort: "xhigh", settings: { ultracode: true } } : { effort };
 
+function focusContext(launchCwd, focusCwd) {
+  if (!focusCwd || focusCwd === launchCwd) return null;
+  return `Carpeta de trabajo de esta sesión: ${focusCwd}\nLa sesión arranca en ${launchCwd} para cargar sus skills y su CLAUDE.md, pero hacé los cambios, builds y tests en la carpeta de trabajo (usá rutas absolutas o \`cd\` a ella en cada comando).`;
+}
+
 function taskContext(task) {
   const lines = [
     `Estás trabajando en la tarea ${task.id} — "${task.title}" del Avocado Workspace personal de Facundo (http://localhost:4600/#/t/${task.id}).`,
@@ -120,6 +126,28 @@ function taskContext(task) {
 }
 
 /** Worktrees that belong to a task: matching branch names or `.worktrees/<task>/`, plus the avocado root as fallback. */
+/** The project's own folder plus every git worktree of it, for sessions started without a task. */
+function gitWorktrees(root) {
+  const found = [{ path: root, repo: path.basename(root), branch: null, root: true }];
+  try {
+    const out = execFileSync("git", ["-C", root, "worktree", "list", "--porcelain"], { encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "ignore"] });
+    for (const block of out.split("\n\n")) {
+      const wtPath = block.match(/^worktree (.+)$/m)?.[1];
+      const branch = block.match(/^branch refs\/heads\/(.+)$/m)?.[1];
+      if (wtPath && fs.realpathSync(wtPath) !== root) found.push({ path: wtPath, repo: path.basename(root), branch: branch ?? null });
+    }
+  } catch {}
+  return found;
+}
+
+/** A project's folder and worktrees, followed by those of the projects nested in it (avocado → instamenu, KDS…). */
+export function worktreesForProject(projectId) {
+  const ids = descendantIds(projectId);
+  const projects = listProjects();
+  const ordered = [projects.find((p) => p.id === projectId), ...projects.filter((p) => p.id !== projectId && ids.has(p.id))].filter(Boolean);
+  return ordered.flatMap((p) => gitWorktrees(p.root));
+}
+
 export function worktreesForTask(task, projectRoots = []) {
   const branches = new Set((task?.repos ?? []).map((r) => r.branch).filter(Boolean));
   const found = [];
@@ -173,6 +201,22 @@ function setState(chat, state) {
   notify(chat.sessionId);
 }
 
+const FOCUS_FILE = path.join(store.DATA_DIR, "session-focus.json");
+
+export function readSessionFocus() {
+  try {
+    return JSON.parse(fs.readFileSync(FOCUS_FILE, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function saveSessionFocus(sessionId, focus) {
+  const all = readSessionFocus();
+  all[sessionId] = focus;
+  fs.writeFileSync(FOCUS_FILE, JSON.stringify(all, null, 2));
+}
+
 function linkSessionToTask(taskId, sessionId) {
   if (!taskId) return;
   const task = store.getTask(taskId);
@@ -189,12 +233,14 @@ function linkSessionToTask(taskId, sessionId) {
 export function startChat({ taskId, cwd, prompt, resume, model, effort, attachments = [] }) {
   if (resume && chats.get(resume) && !chats.get(resume).closed) throw new Error("La sesión ya está abierta en el workspace");
   const task = taskId ? store.getTask(taskId) : null;
-  const workdir = cwd || AVOCADO_ROOT;
-  if (workdir && !fs.existsSync(workdir)) throw new Error(`No existe la carpeta ${workdir}`);
+  const focus = cwd || AVOCADO_ROOT;
+  if (!fs.existsSync(focus)) throw new Error(`No existe la carpeta ${focus}`);
+  const workdir = resume ? focus : launchRootFor(focus);
+  const append = [task && taskContext(task), !resume && focusContext(workdir, focus)].filter(Boolean).join("\n\n");
 
   const input = new InputQueue();
   input.push(userMessage(prompt, attachments));
-  const chat = { sessionId: resume ?? null, taskId, cwd: workdir, model, effort, permissionMode: PERMISSION_MODE, state: "running", pending: new Map(), input, closed: false, q: null };
+  const chat = { sessionId: resume ?? null, taskId, cwd: focus, launchCwd: workdir, model, effort, permissionMode: PERMISSION_MODE, state: "running", pending: new Map(), input, closed: false, q: null };
   let reqCounter = 0;
 
   const q = query({
@@ -207,7 +253,7 @@ export function startChat({ taskId, cwd, prompt, resume, model, effort, attachme
       ...(model ? { model } : {}),
       ...effortOptions(effort),
       settingSources: ["user", "project", "local"],
-      systemPrompt: { type: "preset", preset: "claude_code", ...(task ? { append: taskContext(task) } : {}) },
+      systemPrompt: { type: "preset", preset: "claude_code", ...(append ? { append } : {}) },
       ...(CLAUDE_BIN ? { pathToClaudeCodeExecutable: CLAUDE_BIN } : {}),
       env: { ...process.env, PATH },
       canUseTool: (toolName, toolInput, { signal, suggestions, decisionReason, blockedPath }) =>
@@ -236,8 +282,8 @@ export function startChat({ taskId, cwd, prompt, resume, model, effort, attachme
         for await (const msg of q) {
           if (msg.session_id && !chat.sessionId) chat.sessionId = msg.session_id;
           if (msg.type === "system" && msg.subtype === "init") {
-            chat.cwd = msg.cwd ?? chat.cwd;
             chats.set(chat.sessionId, chat);
+            if (!resume) saveSessionFocus(chat.sessionId, focus);
             linkSessionToTask(taskId, chat.sessionId);
             if (!started) {
               started = true;

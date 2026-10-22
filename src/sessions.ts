@@ -35,6 +35,7 @@ export type SessionSummary = {
   taskIds?: string[];
   ownedByWorkspace?: boolean;
   projectId?: string | null;
+  focusCwd?: string | null;
 };
 
 export type SessionEvent = {

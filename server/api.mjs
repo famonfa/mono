@@ -68,12 +68,14 @@ function isTrusted(req) {
 function sessionList(days) {
   const list = sessions.listSessions({ days });
   const live = new Set(chats.liveChatIds());
+  const focus = chats.readSessionFocus();
   for (const task of store.listTasks()) {
     for (const s of sessions.sessionsForTask(task, list)) (s.taskIds ??= []).push(task.id);
   }
   for (const s of list) {
     s.ownedByWorkspace = live.has(s.id);
-    s.projectId = projects.projectForPath(s.firstCwd ?? s.cwd);
+    s.focusCwd = focus[s.id] ?? null;
+    s.projectId = projects.projectForPath(focus[s.id] ?? s.firstCwd ?? s.cwd);
   }
   return list;
 }
@@ -171,6 +173,9 @@ export function createApi(broadcast) {
           return icon && serveStatic(res, path.dirname(icon), path.basename(icon)) ? undefined : send(res, 404, { error: "not found" });
         }
         if (id && !sub && method === "PUT") return send(res, 200, projects.saveOverride(id, { title: body.title || undefined, color: body.color || undefined }));
+        if (id && sub === "worktrees" && method === "GET") {
+          return projects.listProjects().some((p) => p.id === id) ? send(res, 200, chats.worktreesForProject(id)) : send(res, 404, { error: "not found" });
+        }
         return send(res, 404, { error: "not found" });
       }
       if (resource === "sessions") {

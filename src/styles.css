@@ -3270,3 +3270,34 @@ code,
   color: #bb87fc;
   border-color: rgb(187 135 252 / 0.4);
 }
+
+.prop-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+a.icon-btn {
+  display: inline-grid;
+}
+
+.project-item.nested {
+  position: relative;
+}
+
+.project-item.nested::before {
+  content: "";
+  position: absolute;
+  left: 20px;
+  top: 0;
+  bottom: 50%;
+  width: 10px;
+  border-left: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+  border-bottom-left-radius: 5px;
+}
+
+.project-switch {
+  flex: 1;
+  max-width: none;
+}
