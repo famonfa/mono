@@ -143,6 +143,17 @@ export function pairPage({ code, name, email }) {
   );
 }
 
+export function privacyPage() {
+  return layout(
+    "Privacidad",
+    `<h1>Privacidad</h1>
+    <p>Mono usa tu cuenta de Google solo para saber quién sos: guarda tu email para darte acceso y vincular tus máquinas. No pide ni guarda ningún otro dato de Google.</p>
+    <p>Tus agentes, tu código y tus tareas viven en tu propia Mac. El relay solo pasa mensajes entre tu Mac y tu navegador mientras los usás, y no los guarda.</p>
+    <p>Si querés que borremos tu cuenta, pedíselo a quien te invitó o escribí a monsegurfacundo@gmail.com.</p>
+    <a class="btn secondary" href="/">Volver</a>`,
+  );
+}
+
 export function messagePage(title, text, action) {
   return layout(title, `<h1>${escape(title)}</h1><p>${escape(text)}</p>${action ? `<a class="btn secondary" href="${escape(action.href)}">${escape(action.label)}</a>` : ""}`);
 }

@@ -136,7 +136,7 @@ mono service install</pre></div>
   </div>
 </div></section>
 
-<footer><div class="wrap">Mono 🐒 · tus agentes corren en tu máquina</div></footer>
+<footer><div class="wrap">Mono 🐒 · tus agentes corren en tu máquina · <a href="/_mono/privacidad">Privacidad</a></div></footer>
 </body>
 </html>`;
 }

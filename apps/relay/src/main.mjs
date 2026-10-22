@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 import * as access from "./db.mjs";
 import { landingPage } from "./landing.mjs";
-import { adminPage, hostsPage, invitePage, loginPage, messagePage, pairPage } from "./pages.mjs";
+import { adminPage, hostsPage, invitePage, loginPage, messagePage, pairPage, privacyPage } from "./pages.mjs";
 
 /**
  * Mono relay: the public door to your Macs. Machines dial out to it (`mono connect`), you sign in
@@ -236,6 +236,7 @@ async function relayRoute(req, res, url) {
   const email = sessionEmail(req);
 
   if (route === "/health") return send(res, 200, { ok: true, hosts: hosts.size });
+  if (route === "/privacidad") return html(res, privacyPage());
 
   if (route.startsWith("/static/")) {
     const file = path.join(PUBLIC_DIR, path.basename(route));
