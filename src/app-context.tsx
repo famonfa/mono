@@ -1,9 +1,11 @@
 import { createContext, useContext } from "react";
 import type { TaskStatus, Task } from "./types";
 import type { DialogRequest } from "./ui";
+import type { SessionSummary } from "./sessions";
 
 export type AppContextValue = {
   tasks: Task[];
+  sessions: SessionSummary[];
   reloadTasks: () => void;
   updateTask: (id: string, patch: Partial<Task>) => Promise<void>;
   openDialog: (request: DialogRequest) => void;

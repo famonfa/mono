@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import * as store from "./store.mjs";
+import * as sessions from "./sessions.mjs";
+import { refreshStatus, startRefresh } from "./refresh.mjs";
 
 const MIME = {
   ".png": "image/png",
@@ -36,6 +38,21 @@ function serveFile(req, res, next) {
   fs.createReadStream(file).pipe(res);
 }
 
+function handleSessions(res, url, id) {
+  if (!id) {
+    const days = Number(url.searchParams.get("days") ?? 3);
+    const list = sessions.listSessions({ days });
+    const tasks = store.listTasks();
+    for (const task of tasks) {
+      for (const s of sessions.sessionsForTask(task, list)) (s.taskIds ??= []).push(task.id);
+    }
+    return send(res, 200, list);
+  }
+  const since = url.searchParams.get("since");
+  const detail = sessions.readSessionEvents(id, { since: since === null ? undefined : Number(since), agent: url.searchParams.get("agent") ?? undefined });
+  return detail ? send(res, 200, detail) : send(res, 404, { error: "not found" });
+}
+
 /**
  * Vite plugin exposing the workspace data as a tiny REST API, plus a file watcher
  * that pushes a `ws:data` event so the UI refreshes when the AI writes files.
@@ -59,6 +76,22 @@ export function workspaceApi() {
         }, 150);
       });
 
+      let sessionTimer;
+      const changedSessions = new Set();
+      if (fs.existsSync(sessions.PROJECTS_DIR)) {
+        fs.watch(sessions.PROJECTS_DIR, { recursive: true }, (_event, filename) => {
+          if (!filename?.endsWith(".jsonl")) return;
+          const id = sessions.sessionIdFromPath(filename);
+          if (!id) return;
+          changedSessions.add(id);
+          clearTimeout(sessionTimer);
+          sessionTimer = setTimeout(() => {
+            server.ws.send({ type: "custom", event: "ws:sessions", data: { ids: [...changedSessions] } });
+            changedSessions.clear();
+          }, 400);
+        });
+      }
+
       server.middlewares.use(async (req, res, next) => {
         if (req.url.startsWith("/files/")) return serveFile(req, res, next);
         if (!req.url.startsWith("/api/")) return next();
@@ -69,7 +102,17 @@ export function workspaceApi() {
         try {
           const body = ["PUT", "POST"].includes(method) ? JSON.parse((await readBody(req)) || "{}") : undefined;
           const [resource, id, sub, subId] = parts;
+          if (resource === "sessions") return handleSessions(res, url, id);
           if (resource !== "tasks") return send(res, 404, { error: "not found" });
+
+          if (id && sub === "sessions" && method === "GET") {
+            const task = store.getTask(id);
+            return task ? send(res, 200, sessions.sessionsForTask(task, sessions.listSessions({ days: 7 }))) : send(res, 404, { error: "not found" });
+          }
+          if (id && sub === "refresh") {
+            if (method === "POST") return send(res, 200, startRefresh(id));
+            if (method === "GET") return send(res, 200, refreshStatus(id));
+          }
 
           if (!id) {
             if (method === "GET") return send(res, 200, store.listTasks());

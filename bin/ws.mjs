@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import * as store from "../server/store.mjs";
+import * as sessions from "../server/sessions.mjs";
 
 const USAGE = `ws — CLI del Avocado Workspace (http://localhost:4600)
 
@@ -13,6 +14,7 @@ const USAGE = `ws — CLI del Avocado Workspace (http://localhost:4600)
                                            Crea/actualiza un board conservando lo que movió el usuario
   ws doc <task> <name.md> <file.md|->      Escribe un documento
   ws asset <task> <image...>               Copia imágenes a assets/
+  ws sessions [task] [--since ISO]         Actividad reciente de los agentes (de una tarea o todos)
   ws open [task]                           Abre la app en el navegador
   ws path [task]                           Imprime la carpeta de datos`;
 
@@ -84,6 +86,18 @@ switch (command) {
     }
     break;
   }
+  case "sessions": {
+    const [id] = args.filter((a) => !a.startsWith("--"));
+    const sinceArg = args.indexOf("--since");
+    const since = sinceArg >= 0 ? args[sinceArg + 1] : undefined;
+    const all = sessions.listSessions({ days: 7 });
+    const task = id ? store.getTask(id) : null;
+    if (id && !task) fail(`No existe la tarea ${id}`);
+    const list = task ? sessions.sessionsForTask(task, all) : all.filter((x) => x.status !== "inactive");
+    if (!list.length) console.log("Sin sesiones vinculadas.");
+    for (const session of list) printSessionDigest(session, since);
+    break;
+  }
   case "open": {
     const url = `http://localhost:4600/${args[0] ? `#/t/${args[0]}` : ""}`;
     execFileSync("open", [url]);
@@ -96,4 +110,29 @@ switch (command) {
   }
   default:
     console.log(USAGE);
+}
+
+function printSessionDigest(session, since) {
+  const short = (text, max) => (text && text.length > max ? `${text.slice(0, max)}…` : text ?? "");
+  console.log(`\n## ${session.title}  [${session.status}]  ${session.id}`);
+  console.log(`${session.project} · ${session.gitBranch ?? "-"} · última actividad ${session.lastTs}${session.prLinks.length ? ` · PRs ${session.prLinks.map((u) => "#" + u.split("/").pop()).join(" ")}` : ""}`);
+  const detail = sessions.readSessionEvents(session.id);
+  const events = detail.events.filter((e) => !since || e.ts > since);
+  const results = new Map(events.filter((e) => e.kind === "result").map((e) => [e.toolUseId, e]));
+  console.log("\n### Línea de tiempo (más reciente al final)");
+  for (const e of events.slice(-70)) {
+    if (e.kind === "prompt") console.log(`\n👤 ${short(e.text, 500)}`);
+    if (e.kind === "text") console.log(`\n🤖 ${short(e.text, 700)}`);
+    if (e.kind === "notice") console.log(`ℹ️ ${short(e.text, 200)}`);
+    if (e.kind === "tool") {
+      const r = results.get(e.id);
+      console.log(`→ ${e.name}: ${short(e.title, 140)}${r?.isError ? `  ✗ ${short(r.text, 300)}` : ""}`);
+    }
+  }
+  for (const agent of session.subagents.filter((a) => !since || (a.lastTs ?? "") > since)) {
+    const agentDetail = sessions.readSessionEvents(session.id, { agent: agent.id });
+    const finalTexts = agentDetail?.events.filter((e) => e.kind === "text").slice(-2).map((e) => e.text) ?? [];
+    console.log(`\n### Subagente: ${agent.description}  [${agent.status}]`);
+    console.log(short(finalTexts.join("\n\n"), 2500) || "(sin texto todavía)");
+  }
 }

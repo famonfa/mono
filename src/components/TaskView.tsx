@@ -1,14 +1,18 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, ChevronRight, ExternalLink, GitBranch, GitPullRequest, Image as ImageIcon, LayoutDashboard, Link2, Plus, Target, Wrench, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { AlertTriangle, Bot, ChevronRight, Loader2, Sparkles, ExternalLink, GitBranch, GitPullRequest, Image as ImageIcon, LayoutDashboard, Link2, Plus, Target, Wrench, X } from "lucide-react";
 import { api, fileUrl } from "../api";
 import { useApp } from "../app-context";
 import { BoardIcon, DocIcon, RISK_META, RiskIcon, STATUS_META, STATUS_MENU_ORDER, STATUS_ORDER, StatusIcon, type Risk } from "../icons";
 import { href, navigate } from "../router";
 import { BOARD_KIND, type BoardKind, type Task } from "../types";
 import { formatDate, Menu, slugify } from "../ui";
+import { sessionsApi, type RefreshJob } from "../sessions";
+import { SessionRow, StatusDot } from "./Agents";
 import { Markdown } from "./Markdown";
 
 export function TaskTopBar({ task, active }: { task: Task; active: string }) {
+  const { sessions } = useApp();
+  const working = sessions.filter((s) => s.status === "working" && s.taskIds?.includes(task.id));
   return (
     <header className="topbar task-topbar">
       <nav className="breadcrumb">
@@ -34,6 +38,13 @@ export function TaskTopBar({ task, active }: { task: Task; active: string }) {
           </a>
         ))}
       </nav>
+      <span className="spacer" />
+      {working.length > 0 && (
+        <a className="status-pill-live working" href={href.session(working[0].id)} title={working.map((s) => s.title).join("\n")}>
+          <StatusDot status="working" size={7} />
+          {working.length === 1 ? "1 agente trabajando" : `${working.length} agentes trabajando`}
+        </a>
+      )}
     </header>
   );
 }
@@ -100,8 +111,50 @@ const TLDR = [
   { key: "impacto", label: "Impacto", icon: <Target size={14} />, tone: "green" },
 ] as const;
 
+function RefreshButton({ task, onDone }: { task: Task; onDone: () => void }) {
+  const { openDialog } = useApp();
+  const [job, setJob] = useState<RefreshJob>({ status: "never" });
+
+  const poll = useCallback(() => sessionsApi.refreshStatus(task.id).then(setJob, () => {}), [task.id]);
+  useEffect(() => void poll(), [poll]);
+  useEffect(() => {
+    if (job.status !== "running") return;
+    const id = setInterval(poll, 3000);
+    return () => clearInterval(id);
+  }, [job.status, poll]);
+  const previous = useRef(job.status);
+  useEffect(() => {
+    if (previous.current === "running" && job.status !== "running") onDone();
+    previous.current = job.status;
+  }, [job.status, onDone]);
+
+  const start = async () => setJob(await sessionsApi.startRefresh(task.id));
+  const showOutput = () =>
+    openDialog({ title: job.status === "failed" ? "La actualización falló" : "Resultado de la última actualización", submitLabel: "Cerrar", fields: [{ name: "out", label: "Salida", defaultValue: job.output?.trim() || "(sin salida)", multiline: true, readOnly: true }], onSubmit: () => {} });
+
+  return (
+    <div className="refresh-box">
+      <button className="btn ai" onClick={start} disabled={job.status === "running"}>
+        {job.status === "running" ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
+        {job.status === "running" ? "Actualizando con IA…" : "Actualizar con IA"}
+      </button>
+      <div className="refresh-meta">
+        {job.status === "running" && "Una sesión headless está leyendo lo que hicieron los agentes. Aparece en vivo en Agentes."}
+        {job.status !== "running" && task.refreshedAt && `Última actualización: ${formatDate(task.refreshedAt)}`}
+        {job.status !== "running" && !task.refreshedAt && "Lee la actividad de los agentes vinculados y actualiza boards y testeo."}
+        {(job.status === "done" || job.status === "failed") && (
+          <button className={`link-btn ${job.status === "failed" ? "err" : ""}`} onClick={showOutput}>
+            {job.status === "failed" ? "Ver error" : "Ver resultado"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function TaskOverview({ task, onChange }: { task: Task; onChange: () => void }) {
-  const { updateTask, openDialog } = useApp();
+  const { updateTask, openDialog, sessions } = useApp();
+  const linkedSessions = sessions.filter((s) => s.taskIds?.includes(task.id));
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [editingSummary, setEditingSummary] = useState(false);
 
@@ -199,6 +252,14 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
             )}
           </div>
 
+          {linkedSessions.length > 0 && (
+            <Section title="Agentes" count={linkedSessions.length}>
+              {linkedSessions.map((s) => (
+                <SessionRow key={s.id} session={s} compact />
+              ))}
+            </Section>
+          )}
+
           <Section title="Boards" count={task.boards.length} onAdd={createBoard}>
             {task.boards.map((b) => (
               <a key={b.id} className="sub-row" href={href.board(task.id, b.id)}>
@@ -247,6 +308,7 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
       </div>
 
       <aside className="properties">
+        <RefreshButton task={task} onDone={onChange} />
         <div className="prop-group">
           <div className="prop-title">Propiedades</div>
           <Prop label="Estado">

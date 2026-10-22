@@ -5,6 +5,7 @@ import { BoardIcon, RiskIcon, STATUS_META, STATUS_MENU_ORDER, STATUS_ORDER, Stat
 import { href, navigate, type HomeFilter } from "../router";
 import type { Task, TaskStatus } from "../types";
 import { formatDate, Menu, useHotkey } from "../ui";
+import { StatusDot } from "./Agents";
 
 type Display = "list" | "board";
 
@@ -108,7 +109,8 @@ function TaskMeta({ task }: { task: Task }) {
 }
 
 function ListView({ tasks, statuses }: { tasks: Task[]; statuses: TaskStatus[] }) {
-  const { newTask } = useApp();
+  const { newTask, sessions } = useApp();
+  const workingTasks = new Set(sessions.filter((s) => s.status === "working").flatMap((s) => s.taskIds ?? []));
   const groups = statuses.map((s) => ({ status: s, items: tasks.filter((t) => t.status === s) })).filter((g) => g.items.length);
   const ordered = groups.flatMap((g) => g.items);
   const [cursor, setCursor] = useState(-1);
@@ -149,6 +151,11 @@ function ListView({ tasks, statuses }: { tasks: Task[]; statuses: TaskStatus[] }
                   <StatusMenu task={t} />
                 </span>
                 <span className="row-title">{t.title}</span>
+                {workingTasks.has(t.id) && (
+                  <span className="row-live" title="Hay agentes trabajando en esta tarea">
+                    <StatusDot status="working" size={6} /> en vivo
+                  </span>
+                )}
                 <span className="row-tldr">{t.tldr?.solucion}</span>
                 <span className="row-meta">
                   <TaskMeta task={t} />

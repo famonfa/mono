@@ -53,6 +53,8 @@ export type Task = {
   linear?: string;
   tags?: string[];
   updatedAt?: string;
+  refreshedAt?: string;
+  relatedPrs?: (number | string)[];
   boards: BoardSummary[];
   docs: string[];
   assets: string[];

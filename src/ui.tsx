@@ -129,7 +129,16 @@ export function Menu<T extends string>({
   );
 }
 
-export type DialogField = { name: string; label: string; placeholder?: string; defaultValue?: string; options?: { value: string; label: string; icon?: ReactNode }[]; mono?: boolean };
+export type DialogField = {
+  name: string;
+  label: string;
+  placeholder?: string;
+  defaultValue?: string;
+  options?: { value: string; label: string; icon?: ReactNode }[];
+  mono?: boolean;
+  multiline?: boolean;
+  readOnly?: boolean;
+};
 
 export type DialogRequest = {
   title: string;
@@ -177,6 +186,8 @@ export function Dialog({ request, onClose }: { request: DialogRequest; onClose: 
                 </button>
               ))}
             </div>
+          ) : f.multiline ? (
+            <textarea key={f.name} className="dialog-textarea" readOnly={f.readOnly} value={values[f.name]} onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))} />
           ) : (
             <input
               key={f.name}

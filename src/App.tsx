@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { CheckCircle2, CircleDot, Layers, Moon, PanelLeft, Search, SquarePen, Sun } from "lucide-react";
+import { Bot, CheckCircle2, CircleDot, Layers, Moon, PanelLeft, Search, SquarePen, Sun } from "lucide-react";
 import { api, useLiveData } from "./api";
 import { AppContext, useApp, type AppContextValue } from "./app-context";
+import { AgentsPage, SessionView, StatusDot } from "./components/Agents";
 import { BoardView } from "./components/BoardView";
 import { CommandPalette } from "./components/CommandPalette";
 import { DocView } from "./components/DocView";
@@ -9,6 +10,7 @@ import { Home } from "./components/Home";
 import { TaskOverview, TaskTopBar } from "./components/TaskView";
 import { StatusIcon, STATUS_META, STATUS_ORDER } from "./icons";
 import { href, navigate, useRoute, type Route } from "./router";
+import { useSessions } from "./sessions";
 import type { Task, TaskStatus } from "./types";
 import { Dialog, useHotkey, useTheme, type DialogRequest } from "./ui";
 
@@ -17,6 +19,7 @@ export function App() {
   const { data, reload: reloadTasks, setData } = useLiveData(api.listTasks, []);
   const tasks = useMemo(() => data ?? [], [data]);
   const { theme, toggleTheme } = useTheme();
+  const sessions = useSessions(3);
   const [dialog, setDialog] = useState<DialogRequest | null>(null);
   const [palette, setPalette] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -55,6 +58,7 @@ export function App() {
 
   const ctx: AppContextValue = {
     tasks,
+    sessions,
     reloadTasks,
     updateTask,
     openDialog: setDialog,
@@ -76,13 +80,28 @@ export function App() {
     },
     { enabled: !overlayOpen },
   );
+  useHotkey(
+    "a",
+    () => {
+      if (Date.now() - pendingG.current < 800) navigate(href.agents());
+    },
+    { enabled: !overlayOpen },
+  );
 
   return (
     <AppContext.Provider value={ctx}>
       <div className={`app ${collapsed ? "collapsed" : ""}`}>
         <Sidebar route={route} onToggle={() => setCollapsed((c) => !c)} />
         <main className="panel">
-          {route.view === "home" ? <Home filter={route.filter} /> : <TaskShell key={route.taskId} route={route} />}
+          {route.view === "home" ? (
+            <Home filter={route.filter} />
+          ) : route.view === "agents" ? (
+            <AgentsPage sessions={sessions} />
+          ) : route.view === "session" ? (
+            <SessionView key={`${route.sessionId}/${route.agentId ?? ""}`} sessionId={route.sessionId} agentId={route.agentId} sessions={sessions} />
+          ) : (
+            <TaskShell key={route.taskId} route={route} />
+          )}
         </main>
       </div>
       {palette && <CommandPalette route={route} onClose={() => setPalette(false)} />}
@@ -92,8 +111,10 @@ export function App() {
 }
 
 function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
-  const { tasks, openPalette, newTask, theme, toggleTheme } = useApp();
-  const activeTaskId = route.view === "home" ? undefined : route.taskId;
+  const { tasks, sessions, openPalette, newTask, theme, toggleTheme } = useApp();
+  const activeTaskId = "taskId" in route ? route.taskId : undefined;
+  const working = sessions.filter((s) => s.status === "working");
+  const workingTasks = new Set(working.flatMap((s) => s.taskIds ?? []));
   const counts = {
     todas: tasks.length,
     activas: tasks.filter((t) => t.status !== "hecho").length,
@@ -131,6 +152,17 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
             <span className="nav-count">{counts[n.filter] || ""}</span>
           </a>
         ))}
+        <a href={href.agents()} className={route.view === "agents" || route.view === "session" ? "active" : ""}>
+          <Bot size={15} />
+          <span>Agentes</span>
+          <span className="nav-count">
+            {working.length > 0 && (
+              <span className="nav-live">
+                <StatusDot status="working" size={6} /> {working.length}
+              </span>
+            )}
+          </span>
+        </a>
       </nav>
 
       <div className="sidebar-section">Recientes</div>
@@ -139,6 +171,7 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
           <a key={t.id} href={href.task(t.id)} className={t.id === activeTaskId ? "active" : ""} title={`${t.id} · ${t.title}`}>
             <StatusIcon status={t.status} size={13} />
             <span className="recent-title">{t.title}</span>
+            {workingTasks.has(t.id) && <StatusDot status="working" size={6} />}
           </a>
         ))}
         {!recent.length && <span className="sidebar-empty">Sin tareas todavía</span>}
@@ -161,7 +194,7 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
   );
 }
 
-type TaskRoute = Exclude<Route, { view: "home" }>;
+type TaskRoute = Extract<Route, { taskId: string }>;
 
 function TaskShell({ route }: { route: TaskRoute }) {
   const { reloadTasks } = useApp();
