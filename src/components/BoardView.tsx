@@ -24,7 +24,7 @@ import { BoardContext, nodeTypes } from "../nodes";
 import { CHANGE_STATUS, TEST_STATUS, type Board, type NodeData, type Task, type WsEdge, type WsNode } from "../types";
 import { Inspector } from "./Inspector";
 
-type Props = { task: Task; boardId: string };
+type Props = { task: Task; boardId: string; embedded?: boolean };
 
 export function BoardView(props: Props) {
   return (
@@ -45,7 +45,7 @@ function toStoredEdges(edges: WsEdge[]): WsEdge[] {
 let idCounter = 0;
 const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}${(idCounter++).toString(36)}`;
 
-function BoardCanvas({ task, boardId }: Props) {
+function BoardCanvas({ task, boardId, embedded = false }: Props) {
   const [board, setBoard] = useState<Board | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<WsNode>([]);
@@ -234,7 +234,7 @@ function BoardCanvas({ task, boardId }: Props) {
   if (error) return <div className="empty">No se pudo abrir el board: {error}</div>;
 
   return (
-    <div className="board">
+    <div className={`board ${embedded ? "embedded" : ""}`}>
       <div className="board-toolbar">
         <button className="board-title" onClick={renameBoard} title="Renombrar">
           {board?.title ?? "…"}
@@ -287,6 +287,8 @@ function BoardCanvas({ task, boardId }: Props) {
               onConnect={onConnect}
               onNodeDragStop={onNodeDragStop}
               zoomOnDoubleClick={false}
+              zoomOnScroll={!embedded}
+              preventScrolling={!embedded}
               deleteKeyCode={["Backspace", "Delete"]}
               multiSelectionKeyCode="Shift"
               minZoom={0.1}
@@ -296,15 +298,15 @@ function BoardCanvas({ task, boardId }: Props) {
             >
               <Background variant={BackgroundVariant.Dots} gap={22} size={1.1} color="var(--canvas-dots)" />
               <Controls showInteractive={false} />
-              <MiniMap
+              {!embedded && <MiniMap
                 pannable
                 zoomable
                 maskColor="var(--minimap-mask)"
                 nodeColor={(n) => (n.type === "lane" ? "var(--minimap-lane)" : CHANGE_STATUS[(n.data as NodeData).status ?? "same"].color)}
-              />
+              />}
             </ReactFlow>
           </BoardContext.Provider>
-          <Legend />
+          {!embedded && <Legend />}
         </div>
         {(selectedNode || selectedEdge) && (
         <Inspector

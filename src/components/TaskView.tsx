@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, Bot, ChevronRight, Loader2, Sparkles, ExternalLink, GitBranch, GitPullRequest, Image as ImageIcon, LayoutDashboard, Link2, MessagesSquare, Plus, Target, Wrench, X } from "lucide-react";
+import { AlertTriangle, Bot, ChevronRight, Maximize2, Loader2, Sparkles, ExternalLink, GitBranch, GitPullRequest, Image as ImageIcon, LayoutDashboard, Link2, MessagesSquare, Plus, Target, Wrench, X } from "lucide-react";
 import { api, fileUrl } from "../api";
 import { useApp } from "../app-context";
 import { BoardIcon, DocIcon, RISK_META, RiskIcon, STATUS_META, STATUS_MENU_ORDER, STATUS_ORDER, StatusIcon, type Risk } from "../icons";
@@ -8,6 +8,7 @@ import { BOARD_KIND, type BoardKind, type Task } from "../types";
 import { formatDate, Menu, slugify } from "../ui";
 import { sessionsApi, type RefreshJob } from "../sessions";
 import { SessionRow, StatusDot } from "./Agents";
+import { BoardView } from "./BoardView";
 import { Markdown } from "./Markdown";
 import { ProjectIcon } from "./Projects";
 
@@ -34,11 +35,6 @@ export function TaskTopBar({ task, active }: { task: Task; active: string }) {
           {linkedCount > 0 && <span className="tab-count">{linkedCount}</span>}
           {working.length > 0 && <StatusDot status="working" size={6} />}
         </a>
-        {task.boards.map((b) => (
-          <a key={b.id} className={active === `b:${b.id}` ? "active" : ""} href={href.board(task.id, b.id)}>
-            <BoardIcon kind={b.kind} size={13} /> {b.title}
-          </a>
-        ))}
         {task.docs.map((d) => (
           <a key={d} className={active === `d:${d}` ? "active" : ""} href={href.doc(task.id, d)}>
             <DocIcon size={13} /> {d.replace(/\.md$/, "")}
@@ -237,6 +233,8 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
             ))}
           </div>
 
+          <BoardsPanel task={task} onCreate={createBoard} />
+
           <div className="issue-summary">
             {editingSummary ? (
               <EditableText
@@ -266,22 +264,6 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
               ))}
             </Section>
           )}
-
-          <Section title="Boards" count={task.boards.length} onAdd={createBoard}>
-            {task.boards.map((b) => (
-              <a key={b.id} className="sub-row" href={href.board(task.id, b.id)}>
-                <span className={`sub-icon kind-${b.kind}`}>
-                  <BoardIcon kind={b.kind} size={14} />
-                </span>
-                <span className="sub-title">{b.title}</span>
-                <span className="sub-kind">{BOARD_KIND[b.kind]?.label}</span>
-                <span className="spacer" />
-                <span className="sub-count">{b.nodeCount} nodos</span>
-                <ChevronRight size={14} className="sub-chevron" />
-              </a>
-            ))}
-            {!task.boards.length && <EmptyRow onClick={createBoard}>Crear el primer board</EmptyRow>}
-          </Section>
 
           <Section title="Documentos" count={task.docs.length} onAdd={createDoc}>
             {task.docs.map((d) => (
@@ -421,6 +403,53 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
         </div>
       )}
     </div>
+  );
+}
+
+
+function BoardsPanel({ task, onCreate }: { task: Task; onCreate: () => void }) {
+  const [selected, setSelected] = useState(() => localStorage.getItem(`ws-board-${task.id}`) ?? "");
+  const board = task.boards.find((b) => b.id === selected) ?? task.boards[0];
+  const [visible, setVisible] = useState(false);
+  const holder = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = holder.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(([entry]) => entry.isIntersecting && setVisible(true), { rootMargin: "200px" });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [board?.id]);
+
+  const choose = (id: string) => {
+    localStorage.setItem(`ws-board-${task.id}`, id);
+    setSelected(id);
+  };
+
+  return (
+    <section className="boards-panel">
+      <div className="boards-head">
+        <div className="board-switch">
+          {task.boards.map((b) => (
+            <button key={b.id} className={b.id === board?.id ? "active" : ""} onClick={() => choose(b.id)}>
+              <BoardIcon kind={b.kind} size={13} /> {b.title}
+              <span className="tab-count">{b.nodeCount}</span>
+            </button>
+          ))}
+        </div>
+        <span className="spacer" />
+        {board && (
+          <a className="tool" href={href.board(task.id, board.id)} title="Abrir a pantalla completa para editar">
+            <Maximize2 size={13} /> Abrir
+          </a>
+        )}
+        <button className="icon-btn" onClick={onCreate} title="Nuevo board">
+          <Plus size={14} />
+        </button>
+      </div>
+      <div className="boards-body" ref={holder}>
+        {board ? visible && <BoardView key={board.id} task={task} boardId={board.id} embedded /> : <EmptyRow onClick={onCreate}>Crear el primer board</EmptyRow>}
+      </div>
+    </section>
   );
 }
 

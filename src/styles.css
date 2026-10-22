@@ -1021,7 +1021,7 @@ code,
 }
 
 .issue-content {
-  max-width: 820px;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 36px 40px 80px;
 }
@@ -3132,4 +3132,66 @@ code,
 .topbar-title {
   display: flex;
   align-items: center;
+}
+
+/* Unified boards panel */
+.boards-panel {
+  margin-top: 26px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-canvas);
+}
+
+.boards-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.board-switch {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.board-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--text-3);
+  font: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.board-switch button:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+.board-switch button.active {
+  color: var(--text);
+  background: var(--bg-active);
+  border-color: var(--border);
+}
+
+.boards-body {
+  height: min(68vh, 640px);
+  min-height: 380px;
+  position: relative;
+}
+
+.board.embedded .board-toolbar {
+  display: none;
 }
