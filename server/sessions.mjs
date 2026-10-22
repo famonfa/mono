@@ -64,7 +64,7 @@ function textOf(content) {
 }
 
 function isSystemText(text) {
-  return /^\s*<(task-notification|system-reminder|local-command|command-|bash-|user-memory|ide_)/.test(text);
+  return /^\s*(<(task-notification|system-reminder|local-command|command-|bash-|user-memory|ide_)|Base directory for this skill:|Caveat: The messages below)/.test(text);
 }
 
 function emptyMeta(file) {
@@ -79,6 +79,7 @@ function emptyMeta(file) {
     mentions: new Set(),
     firstTs: null,
     lastTs: null,
+    firstPrompt: null,
     lastPrompt: null,
     lastText: null,
     lastAction: null,
@@ -111,10 +112,11 @@ function applyRecord(meta, rec) {
       const typedByUser = typeof content === "string" || (Array.isArray(content) && !content.some((c) => c.type === "tool_result"));
       const text = textOf(content);
       if (typedByUser && text && !isSystemText(text)) {
+        meta.firstPrompt ??= truncate(text.trim(), 120);
         meta.lastPrompt = truncate(text.trim(), 280);
         meta.turns++;
+        for (const m of text.slice(0, 4000).matchAll(MENTION)) meta.mentions.add(m[1]);
       }
-      for (const m of text.slice(0, 4000).matchAll(MENTION)) meta.mentions.add(m[1]);
       break;
     }
     case "assistant": {
@@ -155,6 +157,8 @@ function statusFor(mtimeMs, now = Date.now()) {
 
 function projectLabel(cwd, dir) {
   const source = cwd ?? dir;
+  const refresh = source.match(/ws-refresh\/([^/]+?)-\d+$/);
+  if (refresh) return `Refresco IA · ${refresh[1]}`;
   const worktree = source.match(/\.worktrees\/([^/]+)\/([^/]+)/);
   if (worktree) return `${worktree[1]} · ${worktree[2]}`;
   return path.basename(source);
@@ -225,7 +229,7 @@ function summarize({ id, dir, file }, withSubagents = true) {
   const status = anySubWorking ? "working" : statusFor(meta.mtimeMs);
   return {
     id,
-    title: meta.customTitle ?? meta.title ?? meta.lastPrompt ?? "Sesión sin título",
+    title: meta.customTitle ?? meta.title ?? meta.firstPrompt ?? "Sesión sin título",
     project: projectLabel(meta.cwd, dir),
     cwd: meta.cwd,
     gitBranch: meta.gitBranch,
