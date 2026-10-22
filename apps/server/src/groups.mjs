@@ -4,7 +4,7 @@ import { DATA_DIR, readJson, writeJson } from "./store.mjs";
 
 export const GROUPS_FILE = path.join(DATA_DIR, "groups.json");
 
-export const PANE_SIZE = { w: 480, h: 680 };
+export const PANE_SIZE = { w: 600, h: 680 };
 const PANE_GAP = 48;
 
 const readAll = () => readJson(GROUPS_FILE, { groups: [] }).groups ?? [];

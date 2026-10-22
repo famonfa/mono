@@ -517,7 +517,7 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
           draftKey={`session-${sessionId}`}
           placeholder={running ? "Mandale otro mensaje (se encola)…" : "Escribile a esta sesión…"}
           disabled={busyElsewhere}
-          disabledReason={busyElsewhere ? "Esta sesión está trabajando en otra app (T3 Code o la terminal). Cuando quede en pausa, podés seguirla desde acá." : undefined}
+          disabledReason={busyElsewhere ? "Esta sesión está trabajando en otra app. Cuando quede en pausa, podés seguirla desde acá." : undefined}
           running={running && live}
           commandsCwd={chat?.cwd ?? summary?.focusCwd ?? summary?.firstCwd ?? summary?.cwd ?? undefined}
           onSend={send}

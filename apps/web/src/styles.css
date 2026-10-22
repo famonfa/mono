@@ -4031,15 +4031,34 @@ textarea,
 }
 
 .group-pane-resize {
-  border-color: var(--accent) !important;
+  z-index: 2;
+  border-color: transparent !important;
+}
+
+.group-pane-resize.left,
+.group-pane-resize.right {
+  width: 10px !important;
+}
+
+.group-pane-resize.top,
+.group-pane-resize.bottom {
+  height: 10px !important;
 }
 
 .group-pane-handle {
+  z-index: 3;
   width: 9px !important;
   height: 9px !important;
   border-radius: 2px !important;
   background: var(--bg-panel) !important;
   border: 1px solid var(--accent) !important;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.react-flow__node:hover > .group-pane-handle,
+.react-flow__node.selected > .group-pane-handle {
+  opacity: 1;
 }
 
 /* Sessions that finished and haven't been opened yet */

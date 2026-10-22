@@ -58,7 +58,7 @@ function toPanes(nodes: PaneNode[]): GroupPane[] {
 
 const layoutKey = (panes: GroupPane[]) => JSON.stringify(panes.map((p) => [p.sessionId, Math.round(p.x), Math.round(p.y), Math.round(p.w), Math.round(p.h)]));
 
-function SessionPane({ id, data, selected }: NodeProps<PaneNode>) {
+function SessionPane({ id, data }: NodeProps<PaneNode>) {
   const { sessions, tasks } = useApp();
   const { remove, focus } = useContext(PaneActions);
   const summary = sessions.find((s) => s.id === data.sessionId);
@@ -66,33 +66,35 @@ function SessionPane({ id, data, selected }: NodeProps<PaneNode>) {
   const unread = useUnread()(summary);
 
   return (
-    <div className={`group-pane ${status} ${unread ? "unread" : ""}`} onPointerDownCapture={() => unread && summary && markSeen([summary])}>
-      <NodeResizer isVisible={selected} minWidth={340} minHeight={280} lineClassName="group-pane-resize" handleClassName="group-pane-handle" />
-      <header className="group-pane-head" onDoubleClick={() => focus(id)} title="Arrastrá para mover · doble click para acercar">
-        <StatusDot status={unread ? "unread" : status} size={7} />
-        <span className="group-pane-title">{summary?.title ?? data.title ?? "Sesión"}</span>
-        {summary?.taskIds?.map((taskId) => {
-          const task = tasks.find((t) => t.id === taskId);
-          return (
-            <a key={taskId} className="task-chip nodrag" href={href.task(taskId)}>
-              {task && <StatusIcon status={task.status} size={11} />}
-              {taskId}
-            </a>
-          );
-        })}
-        <span className="spacer" />
-        {summary && <span className="group-pane-date">{formatDate(summary.lastTs)}</span>}
-        <a className="icon-btn tiny nodrag" href={href.session(data.sessionId)} title="Abrir la sesión">
-          <ExternalLink size={13} />
-        </a>
-        <button className="icon-btn tiny nodrag" onClick={() => remove(data.sessionId)} title="Quitar del grupo">
-          <X size={13} />
-        </button>
-      </header>
-      <div className="group-pane-body nodrag nowheel nopan">
-        <SessionChat sessionId={data.sessionId} summary={summary} />
+    <>
+      <NodeResizer isVisible minWidth={340} minHeight={280} lineClassName="group-pane-resize" handleClassName="group-pane-handle" />
+      <div className={`group-pane ${status} ${unread ? "unread" : ""}`} onPointerDownCapture={() => unread && summary && markSeen([summary])}>
+        <header className="group-pane-head" onDoubleClick={() => focus(id)} title="Arrastrá para mover · doble click para acercar">
+          <StatusDot status={unread ? "unread" : status} size={7} />
+          <span className="group-pane-title">{summary?.title ?? data.title ?? "Sesión"}</span>
+          {summary?.taskIds?.map((taskId) => {
+            const task = tasks.find((t) => t.id === taskId);
+            return (
+              <a key={taskId} className="task-chip nodrag" href={href.task(taskId)}>
+                {task && <StatusIcon status={task.status} size={11} />}
+                {taskId}
+              </a>
+            );
+          })}
+          <span className="spacer" />
+          {summary && <span className="group-pane-date">{formatDate(summary.lastTs)}</span>}
+          <a className="icon-btn tiny nodrag" href={href.session(data.sessionId)} title="Abrir la sesión">
+            <ExternalLink size={13} />
+          </a>
+          <button className="icon-btn tiny nodrag" onClick={() => remove(data.sessionId)} title="Quitar del grupo">
+            <X size={13} />
+          </button>
+        </header>
+        <div className="group-pane-body nodrag nowheel nopan">
+          <SessionChat sessionId={data.sessionId} summary={summary} />
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

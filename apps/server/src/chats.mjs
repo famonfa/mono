@@ -345,7 +345,7 @@ export function sendMessage(sessionId, text, { workingSessions = [], model, effo
     return Promise.resolve(publicState(chat));
   }
   if (workingSessions.includes(sessionId)) {
-    throw new Error("Esta sesión está trabajando en otra app (por ejemplo T3 Code). Esperá a que quede en pausa para escribirle desde acá.");
+    throw new Error("Esta sesión está trabajando en otra app. Esperá a que quede en pausa para escribirle desde acá.");
   }
   const cwd = sessionCwd(sessionId);
   if (!cwd) throw new Error("No encontré la carpeta original de esta sesión");
