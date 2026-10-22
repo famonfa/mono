@@ -27,7 +27,7 @@ export type ChatState = {
 
 export type Attachment = { path: string; name: string; type: string; size: number };
 export type ModelOption = { id: string; name: string; efforts: { id: string; label: string; isDefault: boolean }[] };
-export type ChatConfig = { model?: string; effort?: string; attachments?: Attachment[] };
+export type ChatConfig = { model?: string; effort?: string; permissionMode?: PermissionMode; attachments?: Attachment[] };
 
 export type Worktree = { path: string; repo: string; branch: string | null; root?: boolean };
 
@@ -43,7 +43,7 @@ const enc = encodeURIComponent;
 export const chatApi = {
   start: (input: { taskId?: string; cwd?: string; prompt: string } & ChatConfig) => call<ChatState>("/api/chats", input),
   send: (sessionId: string, text: string, config: ChatConfig = {}) => call<ChatState>(`/api/chats/${enc(sessionId)}/messages`, { text, ...config }),
-  configure: (sessionId: string, config: { model?: string; effort?: string }) => call<ChatState>(`/api/chats/${enc(sessionId)}/config`, config),
+  configure: (sessionId: string, config: { model?: string; effort?: string; permissionMode?: PermissionMode }) => call<ChatState>(`/api/chats/${enc(sessionId)}/config`, config),
   models: () => call<ModelOption[]>("/api/models"),
   upload: async (file: File): Promise<Attachment> => {
     const data = await new Promise<string>((resolve, reject) => {
@@ -83,6 +83,14 @@ export const uploadUrl = (path: string) => `/api/uploads/file?path=${encodeURICo
 
 const MODEL_KEY = "ws-chat-model";
 const EFFORT_KEY = "ws-chat-effort";
+const MODE_KEY = "ws-chat-mode";
+
+export const PERMISSION_MODES: { id: PermissionMode; label: string; description: string }[] = [
+  { id: "bypassPermissions", label: "Full access", description: "No pide permisos" },
+  { id: "acceptEdits", label: "Aceptar ediciones", description: "Edita solo; pregunta antes de comandos" },
+  { id: "default", label: "Pedir permiso", description: "Pregunta antes de editar o ejecutar" },
+  { id: "plan", label: "Solo planear", description: "Analiza y propone, no cambia nada" },
+];
 
 /** Last model/effort picked in a composer, reused as the default for new sessions. */
 export function useChatDefaults() {
@@ -90,10 +98,15 @@ export function useChatDefaults() {
   useEffect(() => {
     chatApi.models().then(setModels, () => {});
   }, []);
-  const stored = { model: localStorage.getItem(MODEL_KEY) ?? undefined, effort: localStorage.getItem(EFFORT_KEY) ?? undefined };
-  const remember = (config: { model?: string; effort?: string }) => {
+  const stored = {
+    model: localStorage.getItem(MODEL_KEY) ?? undefined,
+    effort: localStorage.getItem(EFFORT_KEY) ?? undefined,
+    permissionMode: (localStorage.getItem(MODE_KEY) as PermissionMode | null) ?? "bypassPermissions",
+  };
+  const remember = (config: { model?: string; effort?: string; permissionMode?: PermissionMode }) => {
     if (config.model) localStorage.setItem(MODEL_KEY, config.model);
     if (config.effort) localStorage.setItem(EFFORT_KEY, config.effort);
+    if (config.permissionMode) localStorage.setItem(MODE_KEY, config.permissionMode);
   };
   return { models, stored, remember };
 }

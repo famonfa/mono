@@ -3303,3 +3303,9 @@ a.icon-btn {
   flex: 1;
   max-width: none;
 }
+
+.mode-trigger.full {
+  color: #f2994a;
+  background: rgb(242 153 74 / 0.1);
+  border-color: rgb(242 153 74 / 0.3);
+}

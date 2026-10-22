@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Bot, Cpu, File as FileIcon, FolderGit2, Gauge, Loader2, Paperclip, Plus, ShieldCheck, Square, X, Zap } from "lucide-react";
+import { ArrowUp, Bot, ClipboardList, Cpu, File as FileIcon, FolderGit2, Gauge, Loader2, Paperclip, Plus, ShieldCheck, Square, X, Zap } from "lucide-react";
 import { useApp } from "../app-context";
-import { chatApi, useChatDefaults, useChatState, type Attachment, type ChatState, type ModelOption, type PendingPermission, type Worktree } from "../chat";
+import { chatApi, PERMISSION_MODES, useChatDefaults, useChatState, type Attachment, type ChatState, type ModelOption, type PendingPermission, type PermissionMode, type Worktree } from "../chat";
 import { href, navigate } from "../router";
 import { useSessionFeed, type SessionSummary } from "../sessions";
 import type { Task } from "../types";
@@ -9,11 +9,18 @@ import { formatDate, Menu } from "../ui";
 import { Feed, StatusDot, ToolIcon } from "./Agents";
 import { ProjectIcon } from "./Projects";
 
-function FullAccessBadge() {
+function PermissionMenu({ value, onChange }: { value: PermissionMode; onChange: (mode: PermissionMode) => void }) {
+  const current = PERMISSION_MODES.find((m) => m.id === value) ?? PERMISSION_MODES[0];
+  const icon = (id: PermissionMode) => (id === "bypassPermissions" ? <Zap size={13} /> : id === "plan" ? <ClipboardList size={13} /> : <ShieldCheck size={13} />);
   return (
-    <span className="full-access" title="Las sesiones lanzadas desde el workspace no piden permisos">
-      <Zap size={12} /> Full access
-    </span>
+    <Menu
+      value={current.id}
+      options={PERMISSION_MODES.map((m) => ({ value: m.id, label: `${m.label} — ${m.description}`, icon: icon(m.id) }))}
+      onChange={onChange}
+      className={`mode-trigger ${current.id === "bypassPermissions" ? "full" : ""}`}
+    >
+      {icon(current.id)} {current.label}
+    </Menu>
   );
 }
 
@@ -253,13 +260,13 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
   const [chat, setChat] = useChatState(sessionId);
   const [pendingText, setPendingText] = useState<string | null>(null);
   const { models, stored, remember } = useChatDefaults();
-  const [config, setConfig] = useState<{ model?: string; effort?: string }>(stored);
+  const [config, setConfig] = useState<{ model?: string; effort?: string; permissionMode?: PermissionMode }>(stored);
   useEffect(() => {
-    if (chat?.live && (chat.model || chat.effort)) setConfig({ model: chat.model, effort: chat.effort });
-  }, [chat?.live, chat?.model, chat?.effort]);
+    if (chat?.live) setConfig((c) => ({ model: chat.model ?? c.model, effort: chat.effort ?? c.effort, permissionMode: chat.permissionMode ?? c.permissionMode }));
+  }, [chat?.live, chat?.model, chat?.effort, chat?.permissionMode]);
 
-  const changeConfig = async (next: { model: string; effort: string }) => {
-    setConfig(next);
+  const changeConfig = async (next: { model?: string; effort?: string; permissionMode?: PermissionMode }) => {
+    setConfig((c) => ({ ...c, ...next }));
     remember(next);
     if (chat?.live) setChat(await chatApi.configure(sessionId, next));
   };
@@ -304,7 +311,7 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
           footer={
             <>
               <ModelPicker models={models} model={config.model} effort={config.effort} onChange={changeConfig} />
-              <FullAccessBadge />
+              <PermissionMenu value={config.permissionMode ?? "bypassPermissions"} onChange={(permissionMode) => changeConfig({ permissionMode })} />
               {chat?.cwd && (
                 <span className="composer-cwd" title={chat.cwd}>
                   <FolderGit2 size={12} /> {chat.cwd.split("/").slice(-2).join("/")}
@@ -328,7 +335,11 @@ export function NewSession({ task }: { task?: Task }) {
   const [worktrees, setWorktrees] = useState<Worktree[]>([]);
   const [cwd, setCwd] = useState<string>("");
   const { models, stored, remember } = useChatDefaults();
-  const [config, setConfig] = useState<{ model?: string; effort?: string }>(stored);
+  const [config, setConfig] = useState<{ model?: string; effort?: string; permissionMode?: PermissionMode }>(stored);
+  const updateConfig = (next: { model?: string; effort?: string; permissionMode?: PermissionMode }) => {
+    setConfig((c) => ({ ...c, ...next }));
+    remember(next);
+  };
 
   useEffect(() => {
     if (task || projectId || !projects.length) return;
@@ -371,12 +382,9 @@ export function NewSession({ task }: { task?: Task }) {
                 models={models}
                 model={config.model}
                 effort={config.effort}
-                onChange={(next) => {
-                  setConfig(next);
-                  remember(next);
-                }}
+                onChange={updateConfig}
               />
-              <FullAccessBadge />
+              <PermissionMenu value={config.permissionMode ?? "bypassPermissions"} onChange={(permissionMode) => updateConfig({ permissionMode })} />
               {!task && (
                 <Menu
                   value={projectId}

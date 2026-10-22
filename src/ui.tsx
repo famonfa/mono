@@ -57,14 +57,20 @@ export function Menu<T extends string>({
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const trigger = useRef<HTMLButtonElement>(null);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const menu = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; visibility?: "hidden" }>({ top: 0, left: 0, visibility: "hidden" });
   const filtered = options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()));
 
+  // Opens downward when it fits, otherwise upward (composers sit at the bottom of the screen).
   useLayoutEffect(() => {
-    if (!open || !trigger.current) return;
+    if (!open || !trigger.current || !menu.current) return;
     const rect = trigger.current.getBoundingClientRect();
-    setPos({ top: rect.bottom + 4, left: Math.min(rect.left, window.innerWidth - 240) });
-  }, [open]);
+    const height = menu.current.offsetHeight;
+    const width = menu.current.offsetWidth;
+    const fitsBelow = rect.bottom + 4 + height <= window.innerHeight - 8;
+    const top = fitsBelow ? rect.bottom + 4 : Math.max(8, rect.top - 4 - height);
+    setPos({ top, left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)) });
+  }, [open, filtered.length]);
 
   const choose = (v: T) => {
     onChange(v);
@@ -79,6 +85,7 @@ export function Menu<T extends string>({
         className={`menu-trigger ${className}`}
         onClick={(e) => {
           e.stopPropagation();
+          setPos((p) => ({ ...p, visibility: "hidden" }));
           setOpen((o) => !o);
           setActive(Math.max(0, options.findIndex((o) => o.value === value)));
         }}
@@ -88,7 +95,7 @@ export function Menu<T extends string>({
       {open &&
         createPortal(
           <div className="menu-backdrop" onMouseDown={() => setOpen(false)}>
-            <div className="menu" style={pos} onMouseDown={(e) => e.stopPropagation()}>
+            <div className="menu" ref={menu} style={pos} onMouseDown={(e) => e.stopPropagation()}>
               <input
                 className="menu-filter"
                 autoFocus
