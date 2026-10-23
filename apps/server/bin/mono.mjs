@@ -6,6 +6,7 @@ import * as store from "../src/store.mjs";
 import * as sessions from "../src/sessions.mjs";
 import * as groups from "../src/groups.mjs";
 import * as launcher from "../src/launcher.mjs";
+import * as designs from "../src/designs.mjs";
 
 launcher.runFromRuntime();
 
@@ -28,6 +29,9 @@ const USAGE = `mono (alias: ws) — Mono CLI (http://localhost:4600)
   ws undo <task> <board>                   Revert the board to before its last write
   ws doc <task> <name.md> <file.md|->      Write a doc
   ws asset <task> <image...>               Copy images to assets/
+  ws figma <task> <board> <figma-url> [--lane <name>]
+                                           Import Figma frames as design nodes (re-run to refresh).
+                                           Token: FIGMA_TOKEN or figmaToken in ~/.mono/config.json
   ws sessions [task] [--since ISO]         Recent agent activity (one task or all)
   ws groups                                List session groups (chat canvases)
   ws group <group> <session-id...>         Add sessions to a group's canvas (creates it if missing)
@@ -143,6 +147,20 @@ switch (command === "--web" ? "launch" : (command ?? (invokedAs === "ws" ? "help
       fs.copyFileSync(file, path.join(dir, name));
       console.log(`✓ assets/${name}`);
     }
+    break;
+  }
+  case "figma": {
+    requireArgs(3);
+    const laneAt = args.indexOf("--lane");
+    const lane = laneAt >= 0 ? args[laneAt + 1] : undefined;
+    const [id, boardId, url] = args.filter((a, i) => !a.startsWith("--") && i !== laneAt + 1);
+    const frames = await designs.importFigma(id, url).catch((e) => fail(e.message));
+    const existing = store.getBoard(id, boardId);
+    // Same frame → same node id, so re-importing refreshes the node in place.
+    const nodes = frames.map(({ aspect, ...data }) => ({ id: `figma-${data.design.fileKey.slice(0, 8)}-${data.design.nodeId.replace(/[^A-Za-z0-9]/g, "-")}`, type: "design", ...data, ...(lane ? { lane } : {}) }));
+    store.snapshotBoard(id, boardId);
+    store.saveBoard(id, boardId, store.mergeBoard(existing, { title: existing?.title ?? boardId, kind: existing?.kind ?? "ui", nodes, edges: [] }, { patch: true }));
+    for (const n of nodes) console.log(`✓ ${n.id}  ${n.label}  → ${n.image}`);
     break;
   }
   case "sessions": {

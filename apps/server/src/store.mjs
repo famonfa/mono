@@ -165,7 +165,7 @@ function touchTask(id) {
   writeJson(file, { ...current, updatedAt: new Date().toISOString() });
 }
 
-const DATA_KEYS = ["label", "detail", "status", "test", "repo", "files", "image", "lane", "activity", "color", "kind", "link", "video"];
+const DATA_KEYS = ["label", "detail", "status", "test", "repo", "files", "image", "lane", "activity", "color", "kind", "link", "video", "design"];
 
 /** Accepts the flat node shape the AI writes ({id, type, label, status, ...}) and returns a React Flow node. */
 export function normalizeNode(node) {

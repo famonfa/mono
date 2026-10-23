@@ -21,6 +21,8 @@ export function estimateSize(node: WsNode) {
       return { width: 240, height: 140 };
     case "image":
       return { width: 300, height: 230 };
+    case "design":
+      return { width: 360, height: 300 };
     case "lane":
       return { width: Number(node.style?.width ?? 600), height: Number(node.style?.height ?? 300) };
     default:
@@ -247,6 +249,7 @@ function placeMissing(board: Board): WsNode[] {
 const RESIZABLE_DEFAULT_SIZE: Record<string, { width: number; height: number }> = {
   note: { width: 240, height: 140 },
   image: { width: 300, height: 230 },
+  design: { width: 360, height: 300 },
 };
 
 /**

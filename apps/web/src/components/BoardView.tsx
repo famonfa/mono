@@ -16,14 +16,14 @@ import {
   type Connection,
 } from "@xyflow/react";
 import { toPng } from "html-to-image";
-import { ArrowLeft, Download, Maximize, Plus, Rows3, Sparkles, StickyNote, Image as ImageIcon, SquareStack } from "lucide-react";
+import { ArrowLeft, Download, Frame, Maximize, Plus, Rows3, Sparkles, StickyNote, Image as ImageIcon, SquareStack } from "lucide-react";
 import { api, onDataChange } from "../api";
 import { useApp } from "../app-context";
 import { href, navigate } from "../router";
 import { useHotkey } from "../ui";
 import { autoLayout, prepareNodes, sortParentsFirst } from "../layout";
 import { BoardContext, nodeTypes } from "../nodes";
-import { CHANGE_STATUS, type Board, type NodeData, type Task, type WsEdge, type WsNode } from "../types";
+import { CHANGE_STATUS, type Board, type FigmaFrame, type NodeData, type Task, type WsEdge, type WsNode } from "../types";
 import { CanvasAssistant } from "./CanvasAssistant";
 import { Inspector } from "./Inspector";
 
@@ -90,6 +90,13 @@ function toStored(nodes: WsNode[]): WsNode[] {
 function toStoredEdges(edges: WsEdge[]): WsEdge[] {
   return edges.map(({ selected, style, markerEnd, type, ...rest }) => rest as WsEdge);
 }
+
+const DESIGN_WIDTH = 360;
+/** Head + foot around the snapshot, so a frame keeps its proportions on the canvas. */
+const DESIGN_CHROME = 64;
+/** Stable per frame (matches `ws figma`), so importing the same frame again refreshes it. */
+const figmaNodeId = ({ fileKey, nodeId }: { fileKey: string; nodeId: string }) => `figma-${fileKey.slice(0, 8)}-${nodeId.replace(/[^A-Za-z0-9]/g, "-")}`;
+const figmaLink = (fileKey: string, nodeId: string) => `https://www.figma.com/design/${fileKey}/?node-id=${nodeId.replace(/:/g, "-")}`;
 
 let idCounter = 0;
 const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}${(idCounter++).toString(36)}`;
@@ -199,6 +206,77 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
     setNodes((ns) => sortParentsFirst([...ns.map((n) => ({ ...n, selected: false })), node]));
   };
 
+  /** Frames already on the board are refreshed in place; new ones go in a row to the right of everything else. */
+  const placeFrames = (frames: FigmaFrame[]) => {
+    const current = flow.getNodes().filter((n) => !n.parentId);
+    const bounds = current.length ? getNodesBounds(current) : null;
+    const origin = bounds ? { x: bounds.x + bounds.width + 80, y: bounds.y } : center();
+    const fresh = frames.filter((f) => !flow.getNode(figmaNodeId(f.design))).length;
+    if (fresh) requestAnimationFrame(() => flow.fitView({ padding: 0.15, duration: 300 }));
+    setNodes((ns) => {
+      const existing = new Set(ns.map((n) => n.id));
+      const updated = ns.map((n) => {
+        const frame = frames.find((f) => figmaNodeId(f.design) === n.id);
+        return frame ? { ...n, data: { ...n.data, image: frame.image, link: frame.link, design: frame.design } } : { ...n, selected: false };
+      });
+      const added = frames
+        .filter((f) => !existing.has(figmaNodeId(f.design)))
+        .map((frame, i): WsNode => {
+          const height = Math.round(Math.min(900, Math.max(160, DESIGN_WIDTH / frame.aspect + DESIGN_CHROME)));
+          return {
+            id: figmaNodeId(frame.design),
+            type: "design",
+            position: { x: origin.x + i * (DESIGN_WIDTH + 40), y: origin.y },
+            data: { label: frame.label, image: frame.image, link: frame.link, design: frame.design, manual: true },
+            width: DESIGN_WIDTH,
+            height,
+            selected: frames.length === 1,
+          };
+        });
+      return sortParentsFirst([...updated, ...added]);
+    });
+  };
+
+  const importFigma = async () => {
+    const { hasToken } = await api.figmaStatus(task.id).catch(() => ({ hasToken: false }));
+    openDialog({
+      title: "Import from Figma",
+      submitLabel: "Import",
+      fields: [
+        { name: "url", label: "Frame or page link", placeholder: "https://www.figma.com/design/…?node-id=…", mono: true },
+        {
+          name: "token",
+          label: "Token",
+          render: (value, set) => (
+            <input
+              className="dialog-input mono"
+              type="password"
+              autoComplete="off"
+              placeholder={hasToken ? "Saved (paste a new one to replace it)" : "Figma personal access token (file_content:read)"}
+              value={value}
+              onChange={(e) => set(e.target.value)}
+            />
+          ),
+        },
+      ],
+      onSubmit: async ({ url, token }) => {
+        if (!url.trim()) throw new Error("Paste a Figma link");
+        placeFrames(await api.importFigma(task.id, url.trim(), token.trim() || undefined));
+      },
+    });
+  };
+
+  const refreshDesign = useCallback(
+    async (nodeId: string) => {
+      const design = flow.getNode(nodeId)?.data.design;
+      if (design?.source !== "figma") return;
+      const [frame] = await api.importFigma(task.id, figmaLink(design.fileKey, design.nodeId));
+      if (!frame) throw new Error("Figma returned nothing for this frame");
+      setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, image: frame.image, design: frame.design } } : n)));
+    },
+    [flow, task.id, setNodes],
+  );
+
   const onPaneDoubleClick = (event: React.MouseEvent) => {
     if (!(event.target as HTMLElement).classList.contains("react-flow__pane")) return;
     addNode("card", {}, flow.screenToFlowPosition({ x: event.clientX - 120, y: event.clientY - 30 }));
@@ -299,7 +377,7 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
     [edges],
   );
 
-  const contextValue = useMemo(() => ({ taskId: task.id, direction, openImage: setLightbox }), [task.id, direction]);
+  const contextValue = useMemo(() => ({ taskId: task.id, direction, openImage: setLightbox, refreshDesign }), [task.id, direction, refreshDesign]);
 
   if (error) return <div className="empty">Couldn't open board: {error}</div>;
 
@@ -335,6 +413,9 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
               <ImageIcon size={14} />
             </button>
           )}
+          <button className="tool" onClick={importFigma} title="Import from Figma">
+            <Frame size={14} />
+          </button>
         </div>
         <div className="tool-group">
           <button className="tool" onClick={relayout} title="Auto-layout">

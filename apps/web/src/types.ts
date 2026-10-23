@@ -18,10 +18,18 @@ export type NodeData = {
   activity?: string;
   color?: string;
   link?: string;
+  /** Snapshot of a frame from a design tool; `image` holds the exported PNG. */
+  design?: DesignSource;
   manual?: boolean;
   edited?: boolean;
   [key: string]: unknown;
 };
+
+export type DesignSource =
+  | { source: "figma"; fileKey: string; nodeId: string; syncedAt?: string }
+  | { source: "pen"; file: string; nodeId?: string; syncedAt?: string };
+
+export type FigmaFrame = Pick<NodeData, "label" | "image" | "link"> & { design: Extract<DesignSource, { source: "figma" }>; aspect: number };
 
 export type WsNode = Node<NodeData>;
 export type WsEdge = Edge<{ manual?: boolean; dashed?: boolean }>;

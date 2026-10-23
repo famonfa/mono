@@ -166,13 +166,17 @@ export function Dialog({ request, onClose }: { request: DialogRequest; onClose: 
     Object.fromEntries(request.fields.map((f) => [f.name, f.defaultValue ?? f.options?.[0]?.value ?? ""])),
   );
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const submit = async () => {
+    if (busy) return;
+    setBusy(true);
     try {
       await request.onSubmit(values);
       onClose();
     } catch (e) {
       setError((e as Error).message);
+      setBusy(false);
     }
   };
 
@@ -223,8 +227,8 @@ export function Dialog({ request, onClose }: { request: DialogRequest; onClose: 
           <button type="button" className="btn ghost" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="btn primary">
-            {request.submitLabel ?? "Create"} <kbd className="kbd on-primary">⌘↵</kbd>
+          <button type="submit" className="btn primary" disabled={busy}>
+            {busy ? "Working…" : (request.submitLabel ?? "Create")} <kbd className="kbd on-primary">⌘↵</kbd>
           </button>
         </div>
       </form>

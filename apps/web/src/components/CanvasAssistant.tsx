@@ -18,6 +18,7 @@ function canvasPrompt(task: Task, boardId: string, request: string, selected: Se
     `- Apply the request by writing a JSON file with the new or changed nodes and loading it with \`ws board ${task.id} ${boardId} <file> --patch\` (reuse existing ids; the canvas updates itself).`,
     "- To delete nodes, send the full board without --patch (nodes created or edited by hand are kept anyway).",
     "- Use the workspace skill format (short labels, status, test, etc.). To put a node in a lane, set its name in `lane`; don't create lane nodes or set parentId or position (the app handles layout). Don't touch repos.",
+    `- Design frames: for a Figma link run \`ws figma ${task.id} ${boardId} <url> [--lane <name>]\`. For a .pen file (Pencil), export the frames to PNG with the Pencil MCP, copy them with \`ws asset ${task.id} <png...>\`, and add nodes \`{ "type": "design", "label", "image": "assets/<name>.png", "design": { "source": "pen", "file": "<absolute .pen path>", "nodeId": "<frame id>" } }\`.`,
     selected.length ? `- Nodes selected by the user: ${selected.map((n) => `\`${n.id}\` ("${n.label}")`).join(", ")}.` : null,
     "- End with a single line saying what you changed.",
   ]

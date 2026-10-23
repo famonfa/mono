@@ -8,6 +8,7 @@ import * as sessions from "./sessions.mjs";
 import * as chats from "./chats.mjs";
 import * as groups from "./groups.mjs";
 import * as projects from "./projects.mjs";
+import * as designs from "./designs.mjs";
 import { listCommands, readCommand } from "./commands.mjs";
 import { refreshStatus, startRefresh } from "./refresh.mjs";
 import { prStatus } from "./prs.mjs";
@@ -288,6 +289,10 @@ export function createApi(broadcast) {
         const task = store.getTask(id);
         return send(res, 200, await prStatus((task?.repos ?? []).map((r) => r.pr).filter(Boolean)));
       }
+      if (id && sub === "designs" && subId === "figma") {
+        if (method === "GET") return send(res, 200, { hasToken: designs.hasFigmaToken() });
+        if (method === "POST") return send(res, 200, await designs.importFigma(id, body.url, { token: body.token?.trim() || undefined }));
+      }
       if (id && sub === "refresh") {
         if (method === "POST") return send(res, 200, startRefresh(id));
         if (method === "GET") return send(res, 200, refreshStatus(id));
@@ -349,7 +354,7 @@ export function createApi(broadcast) {
 
       return send(res, 404, { error: "not found" });
     } catch (error) {
-      return send(res, 400, { error: String(error.message ?? error) });
+      return send(res, 400, { error: String(error.message ?? error), ...(error instanceof designs.FigmaTokenError ? { code: error.code } : {}) });
     }
   };
 }

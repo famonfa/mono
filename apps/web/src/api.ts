@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { onServerEvent } from "./events";
-import type { Board, Project, Task } from "./types";
+import type { Board, FigmaFrame, Project, Task } from "./types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -8,7 +8,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
   const body = await res.json();
-  if (!res.ok) throw new Error(body?.error ?? res.statusText);
+  if (!res.ok) throw Object.assign(new Error(body?.error ?? res.statusText), { code: body?.code as string | undefined });
   return body as T;
 }
 
@@ -26,6 +26,8 @@ export const api = {
   saveBoard: (id: string, board: Board) => request<Board>(`/api/tasks/${enc(id)}/boards/${enc(board.id)}`, { method: "PUT", body: JSON.stringify(board) }),
   undoBoard: (id: string, boardId: string) => request<{ restored: string; remaining: number }>(`/api/tasks/${enc(id)}/boards/${enc(boardId)}/undo`, { method: "POST", body: "{}" }),
   deleteBoard: (id: string, boardId: string) => request(`/api/tasks/${enc(id)}/boards/${enc(boardId)}`, { method: "DELETE" }),
+  figmaStatus: (id: string) => request<{ hasToken: boolean }>(`/api/tasks/${enc(id)}/designs/figma`),
+  importFigma: (id: string, url: string, token?: string) => request<FigmaFrame[]>(`/api/tasks/${enc(id)}/designs/figma`, { method: "POST", body: JSON.stringify({ url, token }) }),
   getDoc: (id: string, name: string) => request<{ content: string }>(`/api/tasks/${enc(id)}/docs/${enc(name)}`),
   saveDoc: (id: string, name: string, content: string) => request(`/api/tasks/${enc(id)}/docs/${enc(name)}`, { method: "PUT", body: JSON.stringify({ content }) }),
 };

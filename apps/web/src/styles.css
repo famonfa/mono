@@ -2079,6 +2079,83 @@ code,
   border-top: 1px solid var(--border);
 }
 
+/* Design nodes: a frame snapshot from Figma or Pencil, with its source and a way back to it. */
+.design-node {
+  width: 100%;
+  height: 100%;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.design-node img {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  object-fit: contain;
+  background: var(--bg-app);
+}
+
+.design-head,
+.design-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  min-height: 32px;
+}
+
+.design-head {
+  border-bottom: 1px solid var(--border);
+}
+
+.design-foot {
+  border-top: 1px solid var(--border);
+  color: var(--text-3);
+}
+
+.design-label {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.design-source {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.design-source.figma {
+  background: #a259ff1f;
+  color: #a259ff;
+}
+
+.design-source.pen {
+  background: #0ea5e91f;
+  color: #0ea5e9;
+}
+
+.design-meta {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.design-error {
+  color: #eb5757;
+}
+
 .lane {
   width: 100%;
   height: 100%;
@@ -4544,6 +4621,19 @@ a.status-tile.link:hover {
   gap: 6px;
 }
 
+.dialog-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dialog-row-label {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-right: 4px;
+}
+
 /* Skills */
 .skills-tabs {
   display: flex;
@@ -4743,19 +4833,6 @@ a.status-tile.link:hover {
   margin-top: 22px;
   padding-top: 18px;
   border-top: 1px solid var(--border);
-}
-
-.dialog-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.dialog-row-label {
-  font-size: 12px;
-  color: var(--text-3);
-  margin-right: 4px;
 }
 
 /* Appearance picker */
