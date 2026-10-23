@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Bot, CornerDownLeft, Home, MessageSquarePlus, Moon, Plus, Search, Sun, Trash2 } from "lucide-react";
+import { Bot, CornerDownLeft, Home, MessageSquarePlus, Moon, Plus, Search, Sparkles, Sun, Trash2 } from "lucide-react";
 import { api } from "../api";
 import { ALL_PROJECTS, ProjectIcon } from "./Projects";
 import { useApp } from "../app-context";
@@ -54,6 +54,7 @@ export function CommandPalette({ route, onClose }: { route: Route; onClose: () =
     }
     list.push({ id: "new-session", group: "Actions", label: "New session", icon: <MessageSquarePlus size={14} />, shortcut: "S", run: () => navigate(href.newSession()) });
     list.push({ id: "agents", group: "Actions", label: "Agents", icon: <Bot size={14} />, shortcut: "G A", run: () => navigate(href.agents()) });
+    list.push({ id: "skills", group: "Actions", label: "Skills", icon: <Sparkles size={14} />, run: () => navigate(href.skills()) });
     for (const s of sessions.filter((x) => x.status !== "inactive")) {
       list.push({ id: `session:${s.id}`, group: "Agents", label: s.title, sublabel: s.project, icon: <Bot size={14} />, run: () => navigate(href.session(s.id)) });
     }

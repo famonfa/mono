@@ -8,7 +8,7 @@ import * as sessions from "./sessions.mjs";
 import * as chats from "./chats.mjs";
 import * as groups from "./groups.mjs";
 import * as projects from "./projects.mjs";
-import { listCommands } from "./commands.mjs";
+import { listCommands, readCommand } from "./commands.mjs";
 import { refreshStatus, startRefresh } from "./refresh.mjs";
 import { listCaptureSkills } from "./capture.mjs";
 import { prStatus } from "./prs.mjs";
@@ -235,6 +235,10 @@ export function createApi(broadcast) {
       if (resource === "groups") return await handleGroups(res, method, parts, body);
       if (resource === "capture-skills" && method === "GET") return send(res, 200, listCaptureSkills());
       if (resource === "models" && method === "GET") return send(res, 200, chats.listModels());
+      if (resource === "commands" && method === "GET" && url.searchParams.get("name")) {
+        const found = readCommand(url.searchParams.get("cwd") ? chats.expandHome(url.searchParams.get("cwd")) : null, url.searchParams.get("name"));
+        return found ? send(res, 200, found) : send(res, 404, { error: "Skill not found" });
+      }
       if (resource === "commands" && method === "GET") return send(res, 200, listCommands(url.searchParams.get("cwd") ? chats.expandHome(url.searchParams.get("cwd")) : null));
       if (resource === "uploads" && method === "POST") return send(res, 200, chats.saveUpload(body));
       if (resource === "uploads" && method === "GET" && id === "file") {

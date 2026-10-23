@@ -5,6 +5,7 @@ export type HomeFilter = "todas" | "activas" | "hechas";
 export type Route =
   | { view: "home"; filter: HomeFilter }
   | { view: "agents" }
+  | { view: "skills"; name?: string }
   | { view: "newSession" }
   | { view: "session"; sessionId: string; agentId?: string }
   | { view: "group"; groupId: string }
@@ -17,6 +18,7 @@ function parse(hash: string): Route {
   const [kind, taskId, sub, name] = hash.replace(/^#\/?/, "").split("/").map(decodeURIComponent);
   if (kind === "activas" || kind === "hechas") return { view: "home", filter: kind };
   if (kind === "nueva-sesion") return { view: "newSession" };
+  if (kind === "skills") return { view: "skills", name: taskId || undefined };
   if (kind === "g" && taskId) return { view: "group", groupId: taskId };
   if (kind === "agentes") return taskId ? { view: "session", sessionId: taskId, agentId: sub || undefined } : { view: "agents" };
   if (kind !== "t" || !taskId) return { view: "home", filter: "todas" };
@@ -30,6 +32,8 @@ export const href = {
   home: (filter: HomeFilter = "todas") => (filter === "todas" ? "#/" : `#/${filter}`),
   task: (id: string) => `#/t/${encodeURIComponent(id)}`,
   agents: () => "#/agentes",
+  skills: () => "#/skills",
+  skill: (name: string) => `#/skills/${encodeURIComponent(name)}`,
   newSession: () => "#/nueva-sesion",
   session: (id: string, agentId?: string) => `#/agentes/${encodeURIComponent(id)}${agentId ? `/${encodeURIComponent(agentId)}` : ""}`,
   group: (id: string) => `#/g/${encodeURIComponent(id)}`,

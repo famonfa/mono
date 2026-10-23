@@ -6,8 +6,8 @@ import { launchRootFor } from "./projects.mjs";
 const HOME = os.homedir();
 const CACHE_MS = 60_000;
 const BUILTINS = [
-  { name: "compact", description: "Compact the conversation to free up context", source: "builtin" },
-  { name: "context", description: "Show how much context the session is using", source: "builtin" },
+  { name: "compact", description: "Compact the conversation to free up context", source: "builtin", kind: "command" },
+  { name: "context", description: "Show how much context the session is using", source: "builtin", kind: "command" },
 ];
 
 const cache = new Map();
@@ -24,12 +24,16 @@ function frontmatter(file) {
     return {};
   }
   const block = head.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? "";
-  const field = (key) => block.match(new RegExp(`^${key}:\\s*(.+)$`, "m"))?.[1]?.trim().replace(/^["']|["']$/g, "");
+  const field = (key) => {
+    const m = block.match(new RegExp(`^${key}:[ \\t]*(.*)$((?:\\n[ \\t]+.*)*)`, "m"));
+    if (!m) return undefined;
+    // `key: |` / `key: >` block scalars and plain values wrapped onto indented lines.
+    const first = /^[|>][-+]?$/.test(m[1].trim()) ? "" : m[1];
+    return [first, ...m[2].split("\n")].map((l) => l.trim()).filter(Boolean).join(" ").replace(/^["']|["']$/g, "") || undefined;
+  };
   const firstLine = head.replace(/^---[\s\S]*?---\n/, "").split("\n").find((l) => l.trim() && !l.startsWith("#"));
   return { name: field("name"), description: field("description") ?? firstLine?.trim() };
 }
-
-const short = (text) => (text && text.length > 160 ? `${text.slice(0, 157)}…` : text ?? "");
 
 function skillsIn(dir, source, prefix = "") {
   let entries = [];
@@ -44,7 +48,7 @@ function skillsIn(dir, source, prefix = "") {
     .filter((f) => fs.existsSync(f))
     .map((f) => {
       const meta = frontmatter(f);
-      return { name: prefix + (meta.name ?? path.basename(path.dirname(f))), description: short(meta.description), source };
+      return { name: prefix + (meta.name ?? path.basename(path.dirname(f))), description: meta.description ?? "", source, kind: "skill", path: f };
     });
 }
 
@@ -55,7 +59,7 @@ function commandsIn(dir, source, prefix = "") {
   } catch {
     return [];
   }
-  return files.map((f) => ({ name: prefix + f.replace(/\.md$/, ""), description: short(frontmatter(path.join(dir, f)).description), source }));
+  return files.map((f) => ({ name: prefix + f.replace(/\.md$/, ""), description: frontmatter(path.join(dir, f)).description ?? "", source, kind: "command", path: path.join(dir, f) }));
 }
 
 function pluginEntries() {
@@ -82,12 +86,14 @@ function pluginEntries() {
 /** Slash commands a session started from `cwd` can use: project skills/commands win over personal ones, then plugins and built-ins. */
 export function listCommands(cwd) {
   const root = cwd ? launchRootFor(cwd) : null;
-  const key = root ?? "";
+  // A nested project (avocado/instamenu) launches from the outer root but can ship its own .claude too.
+  const dirs = [...new Set([cwd, root].filter(Boolean).map((d) => path.resolve(d)))];
+  const key = dirs.join("|");
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.list;
 
   const all = [
-    ...(root ? [...skillsIn(path.join(root, ".claude", "skills"), "project"), ...commandsIn(path.join(root, ".claude", "commands"), "project")] : []),
+    ...dirs.flatMap((d) => [...skillsIn(path.join(d, ".claude", "skills"), "project"), ...commandsIn(path.join(d, ".claude", "commands"), "project")]),
     ...skillsIn(path.join(HOME, ".claude", "skills"), "user"),
     ...commandsIn(path.join(HOME, ".claude", "commands"), "user"),
     ...pluginEntries(),
@@ -97,4 +103,24 @@ export function listCommands(cwd) {
   const list = all.filter((c) => c.name && !seen.has(c.name) && seen.add(c.name));
   cache.set(key, { at: Date.now(), list });
   return list;
+}
+
+/** The full markdown of one skill/command from `listCommands(cwd)`; only files that list exposes can be read. */
+export function readCommand(cwd, name) {
+  const entry = listCommands(cwd).find((c) => c.name === name && c.path);
+  if (!entry) return null;
+  let body = "";
+  try {
+    body = fs.readFileSync(entry.path, "utf8");
+  } catch {}
+  const files = entry.kind === "skill" ? safeList(path.dirname(entry.path)).filter((f) => f !== "SKILL.md") : [];
+  return { ...entry, body, files };
+}
+
+function safeList(dir) {
+  try {
+    return fs.readdirSync(dir).filter((f) => !f.startsWith(".")).sort();
+  } catch {
+    return [];
+  }
 }

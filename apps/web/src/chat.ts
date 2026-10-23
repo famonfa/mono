@@ -29,7 +29,8 @@ export type Attachment = { path: string; name: string; type: string; size: numbe
 export type ModelOption = { id: string; name: string; efforts: { id: string; label: string; isDefault: boolean }[] };
 export type ChatConfig = { model?: string; effort?: string; permissionMode?: PermissionMode; attachments?: Attachment[] };
 
-export type SlashCommand = { name: string; description: string; source: "project" | "user" | "plugin" | "builtin" };
+export type SlashCommand = { name: string; description: string; source: "project" | "user" | "plugin" | "builtin"; kind: "skill" | "command"; path?: string };
+export type SkillDetail = SlashCommand & { path: string; body: string; files: string[] };
 
 export type Worktree = { path: string; repo: string; branch: string | null; root?: boolean };
 
@@ -48,6 +49,7 @@ export const chatApi = {
   configure: (sessionId: string, config: { model?: string; effort?: string; permissionMode?: PermissionMode }) => call<ChatState>(`/api/chats/${enc(sessionId)}/config`, config),
   models: () => call<ModelOption[]>("/api/models"),
   commands: (cwd?: string) => call<SlashCommand[]>(`/api/commands${cwd ? `?cwd=${enc(cwd)}` : ""}`),
+  skill: (name: string, cwd?: string) => call<SkillDetail>(`/api/commands?name=${enc(name)}${cwd ? `&cwd=${enc(cwd)}` : ""}`),
   upload: async (file: File): Promise<Attachment> => {
     const data = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();

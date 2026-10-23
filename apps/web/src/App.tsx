@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bot, CheckCircle2, CircleDot, LayoutGrid, Layers, MessageSquarePlus, Moon, PanelLeft, Plus, Search, SquarePen, Sun } from "lucide-react";
+import { Bot, CheckCircle2, CircleDot, LayoutGrid, Layers, MessageSquarePlus, Moon, PanelLeft, Plus, Search, Sparkles, SquarePen, Sun } from "lucide-react";
 import { api, useLiveData } from "./api";
 import { AppContext, useApp, type AppContextValue } from "./app-context";
 import { AgentsPage, SessionView, StatusDot } from "./components/Agents";
@@ -11,6 +11,7 @@ import { DocView } from "./components/DocView";
 import { GroupView } from "./components/GroupCanvas";
 import { Home } from "./components/Home";
 import { ALL_PROJECTS, inProject, projectScope, ProjectSwitcher, sessionInProject } from "./components/Projects";
+import { SkillsPage, useSkillList } from "./components/Skills";
 import { TaskOverview, TaskTopBar } from "./components/TaskView";
 import { UserWidget } from "./components/UserWidget";
 import { StatusIcon, STATUS_META, STATUS_ORDER } from "./icons";
@@ -131,6 +132,8 @@ export function App() {
             <Home filter={route.filter} />
           ) : route.view === "agents" ? (
             <AgentsPage sessions={sessions.filter((s) => sessionInProject(projectScope(project, projects), s, tasks))} />
+          ) : route.view === "skills" ? (
+            <SkillsPage name={route.name} />
           ) : route.view === "newSession" ? (
             <NewSession />
           ) : route.view === "session" ? (
@@ -152,6 +155,8 @@ export function App() {
 function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
   const { tasks: allTasks, sessions: allSessions, project, projects, openPalette, newTask, openDialog, theme, toggleTheme } = useApp();
   const groups = useGroups();
+  const currentRoot = projects.find((p) => p.id === project)?.root;
+  const skills = useSkillList(currentRoot);
   const scope = projectScope(project, projects);
   const tasks = allTasks.filter((t) => inProject(scope, t.projectIds));
   const sessions = allSessions.filter((s) => sessionInProject(scope, s, allTasks));
@@ -219,6 +224,11 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
           <span className="nav-count">
             <LiveCounts working={working.length} unread={unread.length} />
           </span>
+        </a>
+        <a href={href.skills()} className={route.view === "skills" ? "active" : ""} title={currentRoot ? `Skills available in ${currentRoot}` : "Personal and plugin skills"}>
+          <Sparkles size={15} />
+          <span>Skills</span>
+          <span className="nav-count">{skills ? (currentRoot ? skills.filter((s) => s.source === "project").length : skills.length) || "" : ""}</span>
         </a>
       </nav>
 
