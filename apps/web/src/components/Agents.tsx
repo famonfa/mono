@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import {
   ArrowDown,
   Bot,
   Check,
+  CheckCheck,
   ChevronRight,
   FilePen,
   FolderGit2,
@@ -14,10 +15,13 @@ import {
   ListTodo,
   Loader2,
   MessageSquare,
+  Pause,
   Plus,
+  RotateCcw,
   Search,
   Sparkles,
   Terminal,
+  Trash2,
   Wrench,
   X,
 } from "lucide-react";
@@ -25,7 +29,7 @@ import { useApp } from "../app-context";
 import { StatusIcon } from "../icons";
 import { href, navigate } from "../router";
 import { uploadUrl } from "../chat";
-import { rememberSession, useSessionFeed, type SessionEvent, type SessionStatus, type SessionSummary, type SubagentSummary } from "../sessions";
+import { deleteSession, fileSession, rememberSession, useSessionFeed, type SessionEvent, type SessionStatus, type SessionSummary, type SessionTriage, type SubagentSummary } from "../sessions";
 import { formatDate, Menu } from "../ui";
 import { markSeen, useMarkSeen, useUnread } from "../unread";
 import { SessionChat } from "./Chat";
@@ -73,6 +77,70 @@ export function ContextMeter({ session, label = false }: { session: SessionSumma
   );
 }
 
+const TRIAGE_TABS: { value: SessionTriage; label: string }[] = [
+  { value: "ongoing", label: "Ongoing" },
+  { value: "on-hold", label: "On hold" },
+  { value: "finished", label: "Finished" },
+];
+
+const triageOf = (s: SessionSummary): SessionTriage => s.triage ?? "ongoing";
+
+/** Ongoing / On hold / Finished tabs over a session list; the choice is remembered per list. */
+export function useTriageFilter(sessions: SessionSummary[], key: string) {
+  const [triage, setTriageState] = useState<SessionTriage>(() => (localStorage.getItem(`ws-triage-${key}`) as SessionTriage) || "ongoing");
+  const setTriage = (t: SessionTriage) => {
+    localStorage.setItem(`ws-triage-${key}`, t);
+    setTriageState(t);
+  };
+  const counts = Object.fromEntries(TRIAGE_TABS.map((t) => [t.value, sessions.filter((s) => triageOf(s) === t.value).length])) as Record<SessionTriage, number>;
+  const tabs = (
+    <div className="triage-tabs" role="tablist">
+      {TRIAGE_TABS.map((t) => (
+        <button key={t.value} type="button" role="tab" aria-selected={triage === t.value} className={triage === t.value ? "active" : ""} onClick={() => setTriage(t.value)}>
+          {t.label}
+          {counts[t.value] > 0 && <span className="triage-count">{counts[t.value]}</span>}
+        </button>
+      ))}
+    </div>
+  );
+  return { triage, tabs, visible: sessions.filter((s) => triageOf(s) === triage) };
+}
+
+/** Hover actions on a session row: file it under another tab, or delete it. Rows are links, so clicks stop here. */
+export function TriageActions({ session }: { session: SessionSummary }) {
+  const current = triageOf(session);
+  const act = (e: MouseEvent, run: () => Promise<void>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    run().catch((err: Error) => window.alert(err.message));
+  };
+  const move = (triage: SessionTriage, label: string, icon: ReactNode) => (
+    <button type="button" className="icon-btn tiny" title={label} aria-label={label} onClick={(e) => act(e, () => fileSession(session.id, triage))}>
+      {icon}
+    </button>
+  );
+  return (
+    <span className="triage-actions">
+      {current !== "ongoing" && move("ongoing", "Move to ongoing", <RotateCcw size={13} />)}
+      {current === "ongoing" && move("on-hold", "Put on hold", <Pause size={13} />)}
+      {current !== "finished" && move("finished", "Mark finished", <CheckCheck size={13} />)}
+      <button
+        type="button"
+        className="icon-btn tiny danger"
+        title="Delete session"
+        aria-label="Delete session"
+        onClick={(e) =>
+          act(e, async () => {
+            if (window.confirm(`Delete "${session.title}"? The transcript moves to Mono's trash.`)) await deleteSession(session.id);
+          })
+        }
+      >
+        <Trash2 size={13} />
+      </button>
+    </span>
+  );
+}
+
 export function SessionRow({ session, compact = false }: { session: SessionSummary; compact?: boolean }) {
   const { tasks } = useApp();
   const unread = useUnread()(session);
@@ -111,11 +179,13 @@ export function SessionRow({ session, compact = false }: { session: SessionSumma
         )}
       </span>
       <span className="row-date">{formatDate(session.lastTs)}</span>
+      {!compact && <TriageActions session={session} />}
     </a>
   );
 }
 
-export function AgentsPage({ sessions }: { sessions: SessionSummary[] }) {
+export function AgentsPage({ sessions: all }: { sessions: SessionSummary[] }) {
+  const { triage, tabs, visible: sessions } = useTriageFilter(all, "agents");
   const isUnread = useUnread();
   const unread = sessions.filter((s) => isUnread(s));
   const groups: { status: SessionStatus | "unread"; label: string; items: SessionSummary[] }[] = [
@@ -129,6 +199,7 @@ export function AgentsPage({ sessions }: { sessions: SessionSummary[] }) {
       <header className="topbar">
         <div className="topbar-title">Agents</div>
         <span className="topbar-sub">Last 3 days</span>
+        {tabs}
         <span className="spacer" />
         <a className="btn primary" href={href.newSession()}>
           <Plus size={14} /> New session <kbd className="kbd on-primary">S</kbd>
@@ -155,7 +226,7 @@ export function AgentsPage({ sessions }: { sessions: SessionSummary[] }) {
             </section>
           );
         })}
-        {!sessions.length && <div className="empty">No recent sessions</div>}
+        {!sessions.length && <div className="empty">{triage === "ongoing" ? "No recent sessions" : triage === "on-hold" ? "Nothing on hold" : "Nothing finished yet"}</div>}
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ import type { Task } from "../types";
 import { formatDate, Menu } from "../ui";
 import { useIsMobile } from "../mobile";
 import { useMarkSeen, useUnread } from "../unread";
-import { Feed, StatusDot, ToolIcon } from "./Agents";
+import { Feed, StatusDot, ToolIcon, TriageActions, useTriageFilter } from "./Agents";
 import { SendToGroup } from "./GroupCanvas";
 import { groupsApi, type SessionGroup } from "../groups";
 import { createPortal } from "react-dom";
@@ -555,7 +555,7 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
                   options={worktrees.map((w) => ({ value: w.path, label: worktreeLabel(w), icon: <FolderGit2 size={13} /> }))}
                   custom={(q) => (/^[/~]/.test(q) ? { value: q, label: `Use folder ${q}`, icon: <Folder size={13} /> } : null)}
                   onChange={(next) => void changeCwd(next)}
-                  className="mode-trigger"
+                  className="mode-trigger cwd-trigger"
                 >
                   <FolderGit2 size={12} /> <span title={currentCwd}>{currentCwd.split("/").slice(-2).join("/")}</span>
                 </Menu>
@@ -656,17 +656,11 @@ export function NewSession({ task }: { task?: Task }) {
   );
 }
 
-/** Asks Claude to plan the sessions a request needs; the planner joins the group and launches them when its plan is ready. */
-export function LaunchSessions({ group, onClose }: { group: SessionGroup; onClose: () => void }) {
+/** Project + folder menus: lists the project's repos and worktrees, or takes any typed path. Picks the first folder when the project changes. */
+export function FolderPicker({ value, onChange }: { value: string; onChange: (cwd: string) => void }) {
   const { projects, project } = useApp();
   const [projectId, setProjectId] = useState("");
   const [worktrees, setWorktrees] = useState<Worktree[]>([]);
-  const [cwd, setCwd] = useState("");
-  const [goal, setGoal] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { models, stored, remember } = useChatDefaults();
-  const [config, setConfig] = useState<{ model?: string; effort?: string }>(stored);
 
   useEffect(() => {
     if (projectId || !projects.length) return;
@@ -677,12 +671,46 @@ export function LaunchSessions({ group, onClose }: { group: SessionGroup; onClos
     if (!projectId) return;
     void chatApi.projectWorktrees(projectId).then((list) => {
       setWorktrees(list);
-      setCwd(list[0]?.path ?? "");
+      onChange(list[0]?.path ?? "");
     });
+    // onChange is a fresh closure every render; only a new project should reset the folder.
   }, [projectId]);
 
-  const selected = worktrees.find((w) => w.path === cwd);
+  const selected = worktrees.find((w) => w.path === value);
   const selectedProject = projects.find((p) => p.id === projectId);
+  return (
+    <>
+      <Menu
+        value={projectId}
+        placeholder="Search projects…"
+        options={projects.map((p) => ({ value: p.id, label: p.title, icon: <ProjectIcon project={p} size={14} /> }))}
+        onChange={setProjectId}
+        className="mode-trigger"
+      >
+        <ProjectIcon project={selectedProject} size={14} /> {selectedProject?.title ?? "…"}
+      </Menu>
+      <Menu
+        value={value}
+        placeholder="Search folders or branches, or type a path (/… or ~/…)"
+        options={worktrees.map((w) => ({ value: w.path, label: worktreeLabel(w), icon: <FolderGit2 size={13} /> }))}
+        custom={(q) => (/^[/~]/.test(q) ? { value: q, label: `Use folder ${q}`, icon: <Folder size={13} /> } : null)}
+        onChange={onChange}
+        className="mode-trigger"
+      >
+        <FolderGit2 size={12} /> {selected ? worktreeLabel(selected) : value ? value.split("/").slice(-2).join("/") : "…"}
+      </Menu>
+    </>
+  );
+}
+
+/** Asks Claude to plan the sessions a request needs; the planner joins the group and launches them when its plan is ready. */
+export function LaunchSessions({ group, onClose }: { group: SessionGroup; onClose: () => void }) {
+  const [cwd, setCwd] = useState("");
+  const [goal, setGoal] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { models, stored, remember } = useChatDefaults();
+  const [config, setConfig] = useState<{ model?: string; effort?: string }>(stored);
 
   const submit = async () => {
     if (!goal.trim()) return setError("Describe the work");
@@ -721,25 +749,7 @@ export function LaunchSessions({ group, onClose }: { group: SessionGroup; onClos
           onChange={(e) => setGoal(e.target.value)}
         />
         <div className="launch-row">
-          <Menu
-            value={projectId}
-            placeholder="Search projects…"
-            options={projects.map((p) => ({ value: p.id, label: p.title, icon: <ProjectIcon project={p} size={14} /> }))}
-            onChange={setProjectId}
-            className="mode-trigger"
-          >
-            <ProjectIcon project={selectedProject} size={14} /> {selectedProject?.title ?? "…"}
-          </Menu>
-          <Menu
-            value={cwd}
-            placeholder="Search folders or branches, or type a path (/… or ~/…)"
-            options={worktrees.map((w) => ({ value: w.path, label: worktreeLabel(w), icon: <FolderGit2 size={13} /> }))}
-            custom={(q) => (/^[/~]/.test(q) ? { value: q, label: `Use folder ${q}`, icon: <Folder size={13} /> } : null)}
-            onChange={setCwd}
-            className="mode-trigger"
-          >
-            <FolderGit2 size={12} /> {selected ? worktreeLabel(selected) : cwd ? cwd.split("/").slice(-2).join("/") : "…"}
-          </Menu>
+          <FolderPicker value={cwd} onChange={setCwd} />
           <ModelPicker
             models={models}
             model={config.model}
@@ -770,6 +780,7 @@ export function LaunchSessions({ group, onClose }: { group: SessionGroup; onClos
 export function TaskSessions({ task, sessionId }: { task: Task; sessionId?: string }) {
   const { sessions } = useApp();
   const linked = useMemo(() => sessions.filter((s) => s.taskIds?.includes(task.id)), [sessions, task.id]);
+  const { triage, tabs, visible } = useTriageFilter(linked, "task");
   const current = linked.find((s) => s.id === sessionId) ?? sessions.find((s) => s.id === sessionId);
   useEffect(() => {
     if (sessionId) rememberSession(sessionId, task.id);
@@ -792,19 +803,23 @@ export function TaskSessions({ task, sessionId }: { task: Task; sessionId?: stri
     <div className="task-sessions">
       {showList && (
       <aside className="session-list">
-        <a
-          className={`session-new ${!sessionId && !mobile ? "active" : ""}`}
-          href={href.taskSession(task.id)}
-          onClick={(e) => {
-            if (!mobile) return;
-            e.preventDefault();
-            setComposing(true);
-          }}
-        >
-          <Plus size={14} /> New session
-        </a>
-        <div className="prop-title session-list-title">Sessions · {linked.length}</div>
-        {linked.map((s) => (
+        <div className="session-list-head">
+          <span className="session-list-title">Sessions</span>
+          <a
+            className={`session-new ${!sessionId && !mobile ? "active" : ""}`}
+            href={href.taskSession(task.id)}
+            title="New session"
+            onClick={(e) => {
+              if (!mobile) return;
+              e.preventDefault();
+              setComposing(true);
+            }}
+          >
+            <Plus size={13} /> New
+          </a>
+        </div>
+        {tabs}
+        {visible.map((s) => (
           <a key={s.id} className={`session-item ${s.id === sessionId ? "active" : ""} ${isUnread(s) ? "unread" : ""}`} href={href.taskSession(task.id, s.id)}>
             <StatusDot status={isUnread(s) ? "unread" : s.status} size={7} />
             <span className="session-item-body">
@@ -814,9 +829,10 @@ export function TaskSessions({ task, sessionId }: { task: Task; sessionId?: stri
                 {s.subagents.length > 0 && ` · ${s.subagents.length} ${s.subagents.length === 1 ? "subagent" : "subagents"}`}
               </span>
             </span>
+            <TriageActions session={s} />
           </a>
         ))}
-        {!linked.length && <p className="hint session-empty">No linked sessions</p>}
+        {!visible.length && <p className="hint session-empty">{!linked.length ? "No linked sessions" : triage === "on-hold" ? "Nothing on hold" : triage === "finished" ? "Nothing finished yet" : "No ongoing sessions"}</p>}
       </aside>
       )}
       {showPane && (

@@ -2962,31 +2962,115 @@ code,
   gap: 2px;
 }
 
-.session-new {
+.session-list-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 32px;
-  padding: 0 10px;
-  border-radius: 7px;
-  border: 1px dashed var(--border-strong);
-  color: var(--text-2);
-  font-weight: 500;
-  margin-bottom: 10px;
-}
-
-.session-new:hover,
-.session-new.active {
-  border-style: solid;
-  background: var(--bg-active);
-  color: var(--text);
+  justify-content: space-between;
+  padding: 0 2px 0 4px;
+  margin-bottom: 8px;
 }
 
 .session-list-title {
-  margin: 6px 4px 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.session-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px 0 6px;
+  border-radius: 6px;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.session-new:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.session-new.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.triage-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--bg-hover);
+  margin-bottom: 8px;
+}
+
+.topbar .triage-tabs {
+  margin: 0 0 0 4px;
+}
+
+.triage-tabs button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.triage-tabs button:hover {
+  color: var(--text);
+}
+
+.triage-tabs button.active {
+  background: var(--bg-elev-2);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 0 0 1px var(--border);
+}
+
+.triage-count {
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.triage-actions {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  display: none;
+  gap: 1px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--bg-elev-2);
+  box-shadow: 0 0 0 1px var(--border), 0 2px 6px rgb(0 0 0 / 0.18);
+}
+
+.session-item .triage-actions {
+  top: 6px;
+  transform: none;
+}
+
+.agent-row:hover .triage-actions,
+.session-item:hover .triage-actions,
+.triage-actions:focus-within {
+  display: inline-flex;
+}
+
+.agent-row {
+  position: relative;
 }
 
 .session-item {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -4803,4 +4887,17 @@ a.status-tile.link:hover {
   margin-top: 22px;
   padding-top: 18px;
   border-top: 1px solid var(--border);
+}
+
+.dialog-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dialog-row-label {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-right: 4px;
 }

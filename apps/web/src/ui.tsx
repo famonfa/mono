@@ -161,6 +161,8 @@ export type DialogField = {
   mono?: boolean;
   multiline?: boolean;
   readOnly?: boolean;
+  /** Custom control (e.g. a folder picker) that owns the field's value. */
+  render?: (value: string, set: (value: string) => void) => ReactNode;
 };
 
 export type DialogRequest = {
@@ -201,7 +203,12 @@ export function Dialog({ request, onClose }: { request: DialogRequest; onClose: 
       >
         <div className="dialog-title">{request.title}</div>
         {request.fields.map((f, i) =>
-          f.options ? (
+          f.render ? (
+            <div key={f.name} className="dialog-row">
+              <span className="dialog-row-label">{f.label}</span>
+              {f.render(values[f.name], (value) => setValues((v) => ({ ...v, [f.name]: value })))}
+            </div>
+          ) : f.options ? (
             <div key={f.name} className="segmented">
               {f.options.map((o) => (
                 <button type="button" key={o.value} className={values[f.name] === o.value ? "active" : ""} onClick={() => setValues((v) => ({ ...v, [f.name]: o.value }))}>

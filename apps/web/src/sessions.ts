@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { onServerEvent } from "./events";
 import type { CaptureSkill, PrStatus } from "./types";
 
 export type SessionStatus = "working" | "idle" | "inactive";
+/** Where the user filed a session: ongoing until put on hold or finished. */
+export type SessionTriage = "ongoing" | "on-hold" | "finished";
 
 export type ToolAction = { tool: string; title: string; ts?: string };
 
@@ -40,6 +42,7 @@ export type SessionSummary = {
   projectId?: string | null;
   focusCwd?: string | null;
   firstCwd?: string | null;
+  triage?: SessionTriage;
 };
 
 export type SessionEvent = {
@@ -96,9 +99,53 @@ onServerEvent("ws:sessions", (payload: { ids: string[] }) => {
   for (const listener of listeners) listener(payload.ids);
 });
 
+async function send(url: string, method: "PUT" | "DELETE", body?: unknown) {
+  const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? res.statusText);
+}
+
+// Applied on top of the server list until it catches up, so filing or deleting a session is instant.
+const overrides = new Map<string, SessionTriage | "deleted">();
+const overrideListeners = new Set<() => void>();
+const overridesChanged = () => overrideListeners.forEach((l) => l());
+
+async function withOverride(id: string, value: SessionTriage | "deleted", request: Promise<void>) {
+  overrides.set(id, value);
+  overridesChanged();
+  try {
+    await request;
+  } catch (e) {
+    overrides.delete(id);
+    overridesChanged();
+    throw e;
+  }
+}
+
+export const fileSession = (id: string, triage: SessionTriage) =>
+  withOverride(id, triage, send(`/api/sessions/${encodeURIComponent(id)}/triage`, "PUT", { triage }));
+
+/** Moves the transcript to Mono's trash (data/.trash/sessions), where it can be restored by hand. */
+export const deleteSession = (id: string) => withOverride(id, "deleted", send(`/api/sessions/${encodeURIComponent(id)}`, "DELETE"));
+
 /** Session list that refreshes on transcript writes (throttled) and every 30s so statuses age out. */
 export function useSessions(days = 3) {
-  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [raw, setSessions] = useState<SessionSummary[]>([]);
+  const [version, bump] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    overrideListeners.add(bump);
+    return () => void overrideListeners.delete(bump);
+  }, []);
+  const sessions = useMemo(() => {
+    for (const [id, value] of overrides) {
+      const s = raw.find((x) => x.id === id);
+      if (value === "deleted" ? !s : s?.triage === value) overrides.delete(id);
+    }
+    if (!overrides.size) return raw;
+    return raw.flatMap((s) => {
+      const value = overrides.get(s.id);
+      return value === "deleted" ? [] : value ? [{ ...s, triage: value }] : [s];
+    });
+  }, [raw, version]);
   const lastLoad = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 

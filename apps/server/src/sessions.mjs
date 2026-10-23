@@ -295,6 +295,19 @@ function findSessionFile(id) {
   return null;
 }
 
+/** Moves a transcript (and its subagents folder) out of Claude's projects folder, so it can be restored by hand. */
+export function trashSession(id, trashDir) {
+  const session = findSessionFile(id);
+  if (!session) throw new Error("Session not found");
+  const dest = path.join(trashDir, `${id}-${Date.now()}`);
+  fs.mkdirSync(dest, { recursive: true });
+  fs.writeFileSync(path.join(dest, "origin.txt"), `${session.file}\n`);
+  fs.renameSync(session.file, path.join(dest, path.basename(session.file)));
+  const extra = session.file.replace(/\.jsonl$/, "");
+  if (fs.existsSync(extra)) fs.renameSync(extra, path.join(dest, path.basename(extra)));
+  metaCache.delete(session.file);
+}
+
 /** A slash command the user typed (`/pr-plan foo`), which Claude Code records as tagged text. */
 function commandEvent(text, ts) {
   const name = text.match(/<command-name>\/?([^<]+)<\/command-name>/)?.[1]?.trim() ?? "command";

@@ -234,6 +234,12 @@ export function worktreesForTask(task, projectRoots = []) {
   for (const root of projectRoots) {
     if (!found.some((f) => f.path === root)) found.push({ path: root, repo: path.basename(root), branch: null, root: true });
   }
+  // The folder the task was created in goes first: new sessions for the task start there.
+  if (task?.cwd && isDir(task.cwd)) {
+    const at = found.findIndex((f) => f.path === task.cwd);
+    const [own] = at >= 0 ? found.splice(at, 1) : [{ path: task.cwd, repo: path.basename(task.cwd), branch: null, root: true }];
+    found.unshift(own);
+  }
   const fallback = defaultCwd();
   if (!found.length) found.push({ path: fallback, repo: path.basename(fallback), branch: null, root: true });
   return found;
@@ -274,6 +280,26 @@ export function readSessionFocus() {
   } catch {
     return {};
   }
+}
+
+const TRIAGE_FILE = path.join(store.DATA_DIR, "session-triage.json");
+const TRIAGE = new Set(["on-hold", "finished"]);
+
+/** What the user filed each session under; sessions without an entry are ongoing. */
+export function readSessionTriage() {
+  try {
+    return JSON.parse(fs.readFileSync(TRIAGE_FILE, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+export function setSessionTriage(sessionId, triage) {
+  const all = readSessionTriage();
+  if (TRIAGE.has(triage)) all[sessionId] = triage;
+  else if (sessionId in all) delete all[sessionId];
+  else return;
+  fs.writeFileSync(TRIAGE_FILE, JSON.stringify(all, null, 2));
 }
 
 const isDir = (dir) => path.isAbsolute(dir) && Boolean(fs.statSync(dir, { throwIfNoEntry: false })?.isDirectory());

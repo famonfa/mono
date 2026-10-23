@@ -66,6 +66,8 @@ export type Task = {
   relatedPrs?: (number | string)[];
   projects?: string[];
   projectIds?: string[];
+  /** Folder the task was created in; its sessions start there. */
+  cwd?: string;
   sessionIds?: string[];
   boardOrder?: number;
   boards: BoardSummary[];

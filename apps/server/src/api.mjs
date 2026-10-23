@@ -100,12 +100,14 @@ function sessionList(days) {
   const list = sessions.listSessions({ days });
   const live = new Set(chats.liveChatIds());
   const focus = chats.readSessionFocus();
+  const triage = chats.readSessionTriage();
   for (const task of store.listTasks()) {
     for (const s of sessions.sessionsForTask(task, list)) (s.taskIds ??= []).push(task.id);
   }
   for (const s of list) {
     s.ownedByWorkspace = live.has(s.id);
     s.focusCwd = focus[s.id] ?? null;
+    s.triage = triage[s.id] ?? "ongoing";
     s.projectId = projects.projectForPath(focus[s.id] ?? s.firstCwd ?? s.cwd);
   }
   return list;
@@ -148,6 +150,8 @@ async function handleChats(res, method, parts, body) {
   if (action === "messages" && method === "POST") {
     const text = String(body.text ?? "").trim();
     if (!text) throw new Error("Message is empty");
+    // Writing to a session filed away brings it back to the ongoing list.
+    chats.setSessionTriage(sessionId, null);
     return send(res, 200, await chats.sendMessage(sessionId, text, { workingSessions: workingElsewhere(sessionId), model: body.model, effort: body.effort, permissionMode: body.permissionMode, attachments: body.attachments ?? [] }));
   }
   if (action === "interrupt" && method === "POST") return send(res, 200, await chats.interrupt(sessionId));
@@ -259,6 +263,18 @@ export function createApi(broadcast) {
       }
       if (resource === "sessions") {
         if (!id) return send(res, 200, sessionList(Number(url.searchParams.get("days") ?? 3)));
+        if (sub === "triage" && method === "PUT") {
+          chats.setSessionTriage(id, body.triage);
+          broadcast("ws:sessions", { ids: [id] });
+          return send(res, 200, { ok: true });
+        }
+        if (!sub && method === "DELETE") {
+          if (sessions.listSessions({ days: 1 }).some((s) => s.id === id && s.status === "working")) throw new Error("Stop the session before deleting it");
+          sessions.trashSession(id, path.join(store.DATA_DIR, ".trash", "sessions"));
+          chats.setSessionTriage(id, null);
+          broadcast("ws:sessions", { ids: [id] });
+          return send(res, 200, { ok: true });
+        }
         const since = url.searchParams.get("since");
         const detail = sessions.readSessionEvents(id, { since: since === null ? undefined : Number(since), agent: url.searchParams.get("agent") ?? undefined });
         return detail ? send(res, 200, detail) : send(res, 404, { error: "not found" });
@@ -283,6 +299,12 @@ export function createApi(broadcast) {
         if (method === "GET") return send(res, 200, store.listTasks().map(withProjects));
         if (method === "POST") {
           store.assertSafe(body.id);
+          if (body.cwd) {
+            body.cwd = chats.expandHome(String(body.cwd).trim());
+            if (!fs.statSync(body.cwd, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`Folder not found: ${body.cwd}`);
+            const project = projects.projectForPath(body.cwd);
+            if (!body.projects?.length && project) body.projects = [project];
+          }
           return send(res, 200, store.saveTask(body.id, body));
         }
       }

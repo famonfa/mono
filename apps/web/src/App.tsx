@@ -4,7 +4,7 @@ import { api, useLiveData } from "./api";
 import { AppContext, useApp, type AppContextValue } from "./app-context";
 import { AgentsPage, SessionView, StatusDot } from "./components/Agents";
 import { BoardView } from "./components/BoardView";
-import { NewSession, TaskSessions } from "./components/Chat";
+import { FolderPicker, NewSession, TaskSessions } from "./components/Chat";
 import { CommandPalette } from "./components/CommandPalette";
 import { UpdateToast } from "./components/UpdateToast";
 import { DocView } from "./components/DocView";
@@ -66,12 +66,14 @@ export function App() {
           { name: "title", label: "Title" },
           { name: "id", label: "ID (e.g. IME-3001)", mono: true },
           { name: "status", label: "Status", defaultValue: status, options: STATUS_ORDER.map((s) => ({ value: s, label: STATUS_META[s].label, icon: <StatusIcon status={s} /> })) },
+          { name: "cwd", label: "Folder", render: (value, set) => <FolderPicker value={value} onChange={set} /> },
         ],
-        onSubmit: async ({ title, id, status: chosen }) => {
+        onSubmit: async ({ title, id, status: chosen, cwd }) => {
           const taskId = id.trim().toUpperCase().replace(/\s+/g, "-") || `T-${Date.now().toString(36).toUpperCase()}`;
           if (!title.trim()) throw new Error("Title is required");
           if (tasks.some((t) => t.id === taskId)) throw new Error(`${taskId} already exists`);
-          await api.createTask({ id: taskId, title: title.trim(), status: chosen as TaskStatus, ...(project !== ALL_PROJECTS ? { projects: [project] } : {}) });
+          // The server files the task under the folder's project.
+          await api.createTask({ id: taskId, title: title.trim(), status: chosen as TaskStatus, ...(cwd ? { cwd } : project !== ALL_PROJECTS ? { projects: [project] } : {}) });
           reloadTasks();
           navigate(href.task(taskId));
         },
