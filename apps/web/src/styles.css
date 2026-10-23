@@ -1067,27 +1067,6 @@ code,
   padding: 12px 14px;
   background: var(--bg-hover);
   border: 1px solid var(--border);
-  position: relative;
-  overflow: hidden;
-}
-
-.tldr-block::before {
-  content: "";
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-}
-
-.tldr-block.red::before {
-  background: #eb5757;
-}
-
-.tldr-block.blue::before {
-  background: var(--accent);
-}
-
-.tldr-block.green::before {
-  background: #4cb782;
 }
 
 .tldr-head {
@@ -1098,18 +1077,6 @@ code,
   font-weight: 500;
   color: var(--text-3);
   margin-bottom: 6px;
-}
-
-.tldr-block.red .tldr-head svg {
-  color: #eb5757;
-}
-
-.tldr-block.blue .tldr-head svg {
-  color: var(--accent);
-}
-
-.tldr-block.green .tldr-head svg {
-  color: #4cb782;
 }
 
 .tldr-block .editable {

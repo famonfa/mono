@@ -118,9 +118,9 @@ function EditableText({
 }
 
 const TLDR = [
-  { key: "problema", label: "Problema", icon: <AlertTriangle size={14} />, tone: "red" },
-  { key: "solucion", label: "Solución", icon: <Wrench size={14} />, tone: "blue" },
-  { key: "impacto", label: "Impacto", icon: <Target size={14} />, tone: "green" },
+  { key: "problema", label: "Problema", icon: <AlertTriangle size={14} /> },
+  { key: "solucion", label: "Solución", icon: <Wrench size={14} /> },
+  { key: "impacto", label: "Impacto", icon: <Target size={14} /> },
 ] as const;
 
 function RefreshButton({ task, onDone, onAuto }: { task: Task; onDone: () => void; onAuto: (on: boolean) => Promise<void> }) {
@@ -227,7 +227,7 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
 
           <div className="tldr">
             {TLDR.map((t) => (
-              <div key={t.key} className={`tldr-block ${t.tone}`}>
+              <div key={t.key} className="tldr-block">
                 <div className="tldr-head">
                   {t.icon}
                   {t.label}
