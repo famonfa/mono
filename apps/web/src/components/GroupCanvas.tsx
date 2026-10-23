@@ -3,12 +3,16 @@ import {
   Background,
   BackgroundVariant,
   Controls,
+  Handle,
+  MarkerType,
   MiniMap,
+  Position,
   NodeResizer,
   ReactFlow,
   ReactFlowProvider,
   useNodesState,
   useReactFlow,
+  type Edge,
   type Node,
   type NodeChange,
   type NodeProps,
@@ -32,6 +36,9 @@ type PaneNode = Node<PaneData, "pane">;
 const PaneActions = createContext<{ remove: (sessionId: string) => void; focus: (nodeId: string) => void }>(null as never);
 
 const TILE_GAP = 48;
+// Match the server's layout for launched sessions (groups.mjs).
+const CHILD_ROW = 6;
+const CHILD_DROP = 140;
 const viewportKey = (id: string) => `ws-group-viewport-${id}`;
 
 function toNode(pane: GroupPane): PaneNode {
@@ -69,6 +76,8 @@ function SessionPane({ id, data }: NodeProps<PaneNode>) {
   return (
     <>
       <NodeResizer isVisible minWidth={340} minHeight={280} lineClassName="group-pane-resize" handleClassName="group-pane-handle" />
+      <Handle type="target" position={Position.Top} isConnectable={false} className="group-pane-port" />
+      <Handle type="source" position={Position.Bottom} isConnectable={false} className="group-pane-port" />
       <div className={`group-pane ${status} ${unread ? "unread" : ""}`} onPointerDownCapture={() => unread && summary && markSeen([summary])}>
         <header className="group-pane-head" onDoubleClick={() => focus(id)} title="Arrastrá para mover · doble click para acercar">
           <StatusDot status={unread ? "unread" : status} size={7} />
@@ -195,24 +204,52 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
     [flow, group.id, setNodes],
   );
 
+  // Planners keep their launched sessions in rows of up to six right below them; everything else tiles as before.
   const tile = () => {
-    const ordered = [...flow.getNodes()].sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x);
-    const perRow = Math.max(1, Math.min(4, Math.ceil(Math.sqrt(ordered.length * 1.5))));
-    const rowHeights: number[] = [];
-    ordered.forEach((n, i) => {
-      const row = Math.floor(i / perRow);
-      rowHeights[row] = Math.max(rowHeights[row] ?? 0, n.height ?? 0);
-    });
+    const all = flow.getNodes();
+    const parentOf = new Map(group.panes.filter((p) => p.parent && all.some((n) => n.id === p.parent)).map((p) => [p.sessionId, p.parent!]));
+    const byPos = (a: PaneNode, b: PaneNode) => a.position.y - b.position.y || a.position.x - b.position.x;
+    const roots = all.filter((n) => !parentOf.has(n.id)).sort(byPos);
+    const kids = (id: string) => all.filter((n) => parentOf.get(n.id) === id).sort(byPos);
+    const w = (n: PaneNode) => n.width ?? n.measured?.width ?? 0;
+    const h = (n: PaneNode) => n.height ?? n.measured?.height ?? 0;
+    const rowsOf = (list: PaneNode[]) => Array.from({ length: Math.ceil(list.length / CHILD_ROW) }, (_, i) => list.slice(i * CHILD_ROW, (i + 1) * CHILD_ROW));
+    const rowWidth = (row: PaneNode[]) => row.reduce((sum, n) => sum + w(n), 0) + Math.max(0, row.length - 1) * TILE_GAP;
+
+    const placed = new Map<string, { x: number; y: number }>();
+    const trees = roots.filter((r) => kids(r.id).length);
+    const loose = roots.filter((r) => !kids(r.id).length);
     let x = 0;
-    const placed = ordered.map((n, i) => {
+    for (const root of trees) {
+      const rows = rowsOf(kids(root.id));
+      const width = Math.max(w(root), ...rows.map(rowWidth));
+      placed.set(root.id, { x: x + (width - w(root)) / 2, y: 0 });
+      let y = h(root) + CHILD_DROP;
+      for (const row of rows) {
+        let cx = x + (width - rowWidth(row)) / 2;
+        for (const n of row) {
+          placed.set(n.id, { x: cx, y });
+          cx += w(n) + TILE_GAP;
+        }
+        y += Math.max(...row.map(h)) + TILE_GAP;
+      }
+      x += width + TILE_GAP * 3;
+    }
+    // Panes without a planner: the old grid, to the right of the trees.
+    const perRow = Math.max(1, Math.min(4, Math.ceil(Math.sqrt(loose.length * 1.5))));
+    const rowHeights: number[] = [];
+    loose.forEach((n, i) => {
       const row = Math.floor(i / perRow);
-      if (i % perRow === 0) x = 0;
-      const y = rowHeights.slice(0, row).reduce((sum, h) => sum + h + TILE_GAP, 0);
-      const position = { x, y };
-      x += (n.width ?? 0) + TILE_GAP;
-      return { ...n, position };
+      rowHeights[row] = Math.max(rowHeights[row] ?? 0, h(n));
     });
-    setNodes(placed);
+    let lx = x;
+    loose.forEach((n, i) => {
+      const row = Math.floor(i / perRow);
+      if (i % perRow === 0) lx = x;
+      placed.set(n.id, { x: lx, y: rowHeights.slice(0, row).reduce((sum, rh) => sum + rh + TILE_GAP, 0) });
+      lx += w(n) + TILE_GAP;
+    });
+    setNodes(all.map((n) => ({ ...n, position: placed.get(n.id) ?? n.position })));
     persist();
     setTimeout(fitAll, 50);
   };
@@ -251,6 +288,21 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
   const isUnread = useUnread();
   const unreadIds = new Set(live.filter((s) => isUnread(s)).map((s) => s.id));
   const idle = live.filter((s) => s.status === "idle" && !unreadIds.has(s.id)).length;
+
+  // Each launched session hangs from its planner with a right-angled wire, live while it works.
+  const edges: Edge[] = group.panes
+    .filter((p) => p.parent && inGroup.has(p.parent) && inGroup.has(p.sessionId))
+    .map((p) => ({
+      id: `${p.parent}->${p.sessionId}`,
+      source: p.parent!,
+      target: p.sessionId,
+      type: "smoothstep",
+      className: "group-wire",
+      animated: workingIds.has(p.sessionId),
+      markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
+      selectable: false,
+      focusable: false,
+    }));
 
   useHotkey("!", fitAll);
   const [launching, setLaunching] = useState(false);
@@ -319,6 +371,7 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
         <div className="group-canvas">
           <ReactFlow
             nodes={nodes}
+            edges={edges}
             onNodesChange={handleNodesChange}
             nodeTypes={nodeTypes}
             onNodeDragStop={persist}

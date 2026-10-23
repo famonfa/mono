@@ -83,7 +83,7 @@ function pump() {
       .then(() => chats.startChat({ cwd: item.cwd, taskId: item.taskId, prompt: item.prompt, model: item.model, effort: item.effort, context: item.context }))
       .then(({ sessionId }) => {
         running.add(sessionId);
-        groups.addSession(item.groupId, sessionId, item.title);
+        groups.addSession(item.groupId, sessionId, item.title, item.child);
       })
       .catch((error) => groups.setSpawnState(item.groupId, { failed: [{ title: item.title, error: String(error?.message ?? error) }] }))
       .finally(() => {
@@ -98,7 +98,7 @@ function pump() {
  * Queues one session per spec (`{ title, prompt, cwd, taskId?, worktree? }`) into the group.
  * Sessions that share a git repo get their own worktree unless the spec says `worktree: false`.
  */
-export function spawnSessions({ group: groupId, sessions = [], taskId, model, effort }) {
+export function spawnSessions({ group: groupId, sessions = [], taskId, model, effort, parent }) {
   const group = groups.findGroup(groupId);
   if (!group) throw new Error(`No existe el grupo ${groupId}`);
   if (!Array.isArray(sessions) || !sessions.length) throw new Error("Pasá al menos una sesión para lanzar");
@@ -115,11 +115,11 @@ export function spawnSessions({ group: groupId, sessions = [], taskId, model, ef
   const shared = new Map();
   for (const s of specs) if (s.top) shared.set(s.top, (shared.get(s.top) ?? 0) + 1);
 
-  for (const s of specs) {
+  for (const [slot, s] of specs.entries()) {
     const isolate = s.top && (s.worktree ?? shared.get(s.top) > 1);
     const cwd = isolate ? makeWorktree(s.top, s.cwd, `${slug(group.name)}-${slug(s.title)}`) : s.cwd;
     const context = childContext({ group, title: s.title, total: specs.length, cwd, worktree: Boolean(isolate), original: s.cwd });
-    queue.push({ groupId: group.id, title: s.title, prompt: s.prompt, cwd, taskId: s.taskId, model, effort, context });
+    queue.push({ groupId: group.id, title: s.title, prompt: s.prompt, cwd, taskId: s.taskId, model, effort, context, child: parent && { parent, slot, total: specs.length } });
   }
   pump();
   setQueued(group.id);
@@ -172,7 +172,7 @@ export async function planSessions({ group: groupId, goal, cwd, taskId, model, e
     }
     launched = true;
     try {
-      spawnSessions({ group: group.id, sessions: sessions.map((s) => ({ ...s, cwd: s.cwd || dir })), taskId, model, effort });
+      spawnSessions({ group: group.id, sessions: sessions.map((s) => ({ ...s, cwd: s.cwd || dir })), taskId, model, effort, parent: msg.session_id });
     } catch (error) {
       launched = false;
       groups.setSpawnState(group.id, { failed: [{ title: "Plan", error: String(error?.message ?? error) }] });

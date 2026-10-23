@@ -38,9 +38,27 @@ function nextSlot(panes) {
   return { x: right + PANE_GAP, y: top };
 }
 
-function addPane(group, sessionId, title) {
+const CHILD_ROW = 6;
+const CHILD_DROP = 140;
+
+/** Child `slot` of `total` goes in rows of up to six under its parent, each row centered below it. */
+function childSlot(parent, slot, total) {
+  const row = Math.floor(slot / CHILD_ROW);
+  const inRow = Math.min(CHILD_ROW, total - row * CHILD_ROW);
+  const col = slot % CHILD_ROW;
+  const rowWidth = inRow * PANE_SIZE.w + (inRow - 1) * PANE_GAP;
+  return {
+    x: Math.round(parent.x + parent.w / 2 - rowWidth / 2 + col * (PANE_SIZE.w + PANE_GAP)),
+    y: parent.y + parent.h + CHILD_DROP + row * (PANE_SIZE.h + PANE_GAP),
+  };
+}
+
+/** `child` ({ parent, slot, total }) hangs the pane under the session that launched it, wired to it in the canvas. */
+function addPane(group, sessionId, title, child) {
   if (group.panes.some((p) => p.sessionId === sessionId)) return;
-  group.panes.push({ sessionId, title: title || undefined, ...nextSlot(group.panes), ...PANE_SIZE });
+  const parent = child && group.panes.find((p) => p.sessionId === child.parent);
+  const position = parent ? childSlot(parent, child.slot, child.total) : nextSlot(group.panes);
+  group.panes.push({ sessionId, title: title || undefined, ...(parent ? { parent: parent.sessionId } : {}), ...position, ...PANE_SIZE });
 }
 
 export function createGroup({ name, sessions = [] }) {
@@ -72,9 +90,9 @@ export function deleteGroup(id) {
   writeAll(readAll().filter((g) => g.id !== id));
 }
 
-export function addSession(id, sessionId, title) {
+export function addSession(id, sessionId, title, child) {
   if (!sessionId) throw new Error("Falta la sesión");
-  return mutate(id, (group) => addPane(group, sessionId, title));
+  return mutate(id, (group) => addPane(group, sessionId, title, child));
 }
 
 export function removeSession(id, sessionId) {

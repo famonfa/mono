@@ -1,7 +1,8 @@
 import { useSyncExternalStore } from "react";
 import { onServerEvent } from "./events";
 
-export type GroupPane = { sessionId: string; title?: string; x: number; y: number; w: number; h: number };
+/** `parent`: the session that launched this one (a group's planner); the canvas wires them together. */
+export type GroupPane = { sessionId: string; title?: string; parent?: string; x: number; y: number; w: number; h: number };
 
 export type SessionGroup = {
   id: string;
