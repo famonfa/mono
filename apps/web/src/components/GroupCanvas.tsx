@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
+  ConnectionLineType,
   BackgroundVariant,
   Controls,
   Handle,
@@ -10,17 +11,20 @@ import {
   NodeResizer,
   ReactFlow,
   ReactFlowProvider,
+  applyNodeChanges,
   useNodesState,
   useReactFlow,
+  type Connection,
+  type FinalConnectionState,
   type Edge,
   type Node,
   type NodeChange,
   type NodeProps,
   type Viewport,
 } from "@xyflow/react";
-import { ChevronRight, ExternalLink, LayoutGrid, Layers, Maximize, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ChevronRight, Clock, ExternalLink, LayoutGrid, Layers, Maximize, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useApp } from "../app-context";
-import { groupsApi, reloadGroups, useGroups, type GroupPane, type SessionGroup } from "../groups";
+import { groupsApi, reloadGroups, useGroups, type GroupPane, type QueuedPane, type SessionGroup } from "../groups";
 import { StatusIcon } from "../icons";
 import { href, navigate } from "../router";
 import type { SessionSummary } from "../sessions";
@@ -32,6 +36,9 @@ import { LaunchSessions, SessionChat } from "./Chat";
 
 type PaneData = { sessionId: string; title?: string };
 type PaneNode = Node<PaneData, "pane">;
+type QueuedData = { title: string; after?: string };
+type QueuedNode = Node<QueuedData, "queued">;
+type CanvasNode = PaneNode | QueuedNode;
 
 const PaneActions = createContext<{ remove: (sessionId: string) => void; focus: (nodeId: string) => void }>(null as never);
 
@@ -39,6 +46,7 @@ const TILE_GAP = 48;
 // Match the server's layout for launched sessions (groups.mjs).
 const CHILD_ROW = 6;
 const CHILD_DROP = 140;
+const QUEUED_SIZE = { w: 300, h: 96 };
 const viewportKey = (id: string) => `ws-group-viewport-${id}`;
 
 function toNode(pane: GroupPane): PaneNode {
@@ -53,8 +61,8 @@ function toNode(pane: GroupPane): PaneNode {
   };
 }
 
-function toPanes(nodes: PaneNode[]): GroupPane[] {
-  return nodes.map((n) => ({
+function toPanes(nodes: CanvasNode[]): GroupPane[] {
+  return nodes.filter((n): n is PaneNode => n.type === "pane").map((n) => ({
     sessionId: n.data.sessionId,
     title: n.data.title,
     x: n.position.x,
@@ -76,8 +84,8 @@ function SessionPane({ id, data }: NodeProps<PaneNode>) {
   return (
     <>
       <NodeResizer isVisible minWidth={340} minHeight={280} lineClassName="group-pane-resize" handleClassName="group-pane-handle" />
-      <Handle type="target" position={Position.Top} isConnectable={false} className="group-pane-port" />
-      <Handle type="source" position={Position.Bottom} isConnectable={false} className="group-pane-port" />
+      <Handle type="target" position={Position.Top} className="group-pane-port" />
+      <Handle type="source" position={Position.Bottom} className="group-pane-port group-pane-out" title="Drag onto another session to make it a child" />
       <div className={`group-pane ${status} ${unread ? "unread" : ""}`} onPointerDownCapture={() => unread && summary && markSeen([summary])}>
         <header className="group-pane-head" onDoubleClick={() => focus(id)} title="Drag to move · double-click to zoom">
           <StatusDot status={unread ? "unread" : status} size={7} />
@@ -108,7 +116,61 @@ function SessionPane({ id, data }: NodeProps<PaneNode>) {
   );
 }
 
-const nodeTypes = { pane: SessionPane };
+/** A launched session that hasn't started: waiting for a free slot or for the session it follows. */
+function QueuedCard({ data }: NodeProps<QueuedNode>) {
+  return (
+    <>
+      <Handle type="target" position={Position.Top} isConnectable={false} className="group-pane-port" />
+      <Handle type="source" position={Position.Bottom} isConnectable={false} className="group-pane-port" />
+      <div className="group-queued">
+        <span className="group-queued-title">{data.title}</span>
+        <span className="group-queued-sub">
+          <Clock size={12} /> {data.after ? `Waiting for ${data.after}` : "Queued"}
+        </span>
+      </div>
+    </>
+  );
+}
+
+const nodeTypes = { pane: SessionPane, queued: QueuedCard };
+
+const asQueued = (q: string | QueuedPane, i: number): QueuedPane => (typeof q === "string" ? { key: `legacy-${i}`, title: q } : q);
+
+/**
+ * Waiting cards sit where their session will appear: under the pane (or card) they hang from, after the
+ * siblings already there. Cards with nothing to hang from line up to the right of the canvas.
+ */
+function queuedNodes(queued: QueuedPane[], panes: PaneNode[]): QueuedNode[] {
+  const size = (n: CanvasNode) => ({ w: n.width ?? n.measured?.width ?? 0, h: n.height ?? n.measured?.height ?? 0 });
+  const placed = new Map<string, QueuedNode>();
+  const byId = new Map<string, CanvasNode>(panes.map((n) => [n.id, n]));
+  const right = panes.length ? Math.max(...panes.map((n) => n.position.x + size(n).w)) + TILE_GAP * 2 : 0;
+  let looseY = 0;
+  const place = (q: QueuedPane, depth = 0): QueuedNode => {
+    const id = `queued:${q.key}`;
+    const done = placed.get(id);
+    if (done) return done;
+    let parent = q.parent ? byId.get(q.parent) : undefined;
+    const waitingOn = q.parent?.startsWith("queued:") ? queued.find((o) => `queued:${o.key}` === q.parent) : undefined;
+    if (!parent && waitingOn && depth < 50) parent = place(waitingOn, depth + 1);
+    let position: { x: number; y: number };
+    if (parent) {
+      const below = parent.position.y + size(parent).h + CHILD_DROP;
+      const row = [...byId.values()].filter((n) => n.id !== parent!.id && Math.abs(n.position.y - below) < 1 && n.position.x + size(n).w > parent!.position.x - 2000);
+      const next = row.length ? Math.max(...row.map((n) => n.position.x + size(n).w)) + TILE_GAP : parent.position.x + size(parent).w / 2 - QUEUED_SIZE.w / 2;
+      position = { x: next, y: below };
+    } else {
+      position = { x: right, y: looseY };
+      looseY += QUEUED_SIZE.h + TILE_GAP / 2;
+    }
+    const node: QueuedNode = { id, type: "queued", position, width: QUEUED_SIZE.w, height: QUEUED_SIZE.h, draggable: false, selectable: false, data: { title: q.title, after: q.after } };
+    placed.set(id, node);
+    byId.set(id, node);
+    return node;
+  };
+  for (const q of queued) place(q);
+  return [...placed.values()];
+}
 
 export function GroupView({ groupId }: { groupId: string }) {
   const groups = useGroups();
@@ -145,8 +207,12 @@ function GroupList({ group }: { group: SessionGroup }) {
 
 function GroupCanvas({ group }: { group: SessionGroup }) {
   const { sessions, openDialog, theme } = useApp();
-  const flow = useReactFlow<PaneNode>();
+  const flow = useReactFlow<CanvasNode>();
   const [nodes, setNodes, onNodesChange] = useNodesState<PaneNode>(group.panes.map(toNode));
+  const queued = useMemo(() => (group.queued ?? []).map(asQueued), [group.queued]);
+  const [waiting, setWaiting] = useState<QueuedNode[]>([]);
+  useEffect(() => setWaiting((prev) => queuedNodes(queued, nodes).map((n) => ({ ...n, measured: prev.find((p) => p.id === n.id)?.measured }))), [queued, nodes]);
+  const onCanvasNodesChange = onNodesChange as (changes: NodeChange<CanvasNode>[]) => void;
   const savedLayout = useRef(layoutKey(group.panes));
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const viewportTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -185,11 +251,15 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
   useEffect(() => () => clearTimeout(saveTimer.current), []);
 
   const handleNodesChange = useCallback(
-    (changes: NodeChange<PaneNode>[]) => {
-      onNodesChange(changes);
+    (changes: NodeChange<CanvasNode>[]) => {
+      // Waiting cards are derived from the group and kept apart from the persisted layout; they only take their measurements.
+      const isQueued = (c: NodeChange<CanvasNode>) => "id" in c && String(c.id).startsWith("queued:");
+      const queuedChanges = changes.filter(isQueued) as NodeChange<QueuedNode>[];
+      if (queuedChanges.length) setWaiting((ns) => applyNodeChanges(queuedChanges, ns));
+      onCanvasNodesChange(changes.filter((c) => !isQueued(c)));
       if (changes.some((c) => c.type === "dimensions" && c.resizing === false)) persist();
     },
-    [onNodesChange, persist],
+    [onCanvasNodesChange, persist],
   );
 
   const focus = useCallback((nodeId: string) => void flow.fitView({ nodes: [{ id: nodeId }], padding: 0.08, maxZoom: 1.2, duration: 300 }), [flow]);
@@ -204,9 +274,9 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
     [flow, group.id, setNodes],
   );
 
-  // Planners keep their launched sessions in rows of up to six right below them; everything else tiles as before.
+  // Trees (a planner, its sessions, and the stacked sessions below those) stay as trees; everything else tiles as before.
   const tile = () => {
-    const all = flow.getNodes();
+    const all = flow.getNodes().filter((n): n is PaneNode => n.type === "pane");
     const parentOf = new Map(group.panes.filter((p) => p.parent && all.some((n) => n.id === p.parent)).map((p) => [p.sessionId, p.parent!]));
     const byPos = (a: PaneNode, b: PaneNode) => a.position.y - b.position.y || a.position.x - b.position.x;
     const roots = all.filter((n) => !parentOf.has(n.id)).sort(byPos);
@@ -216,24 +286,51 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
     const rowsOf = (list: PaneNode[]) => Array.from({ length: Math.ceil(list.length / CHILD_ROW) }, (_, i) => list.slice(i * CHILD_ROW, (i + 1) * CHILD_ROW));
     const rowWidth = (row: PaneNode[]) => row.reduce((sum, n) => sum + w(n), 0) + Math.max(0, row.length - 1) * TILE_GAP;
 
+    // Children that are leaves wrap in rows of six; once any of them has its own children, they share one row
+    // so every subtree keeps its column.
+    const widths = new Map<string, number>();
+    const width = (n: PaneNode): number => {
+      const cached = widths.get(n.id);
+      if (cached !== undefined) return cached;
+      const children = kids(n.id);
+      const branchy = children.some((c) => kids(c.id).length);
+      const span = !children.length ? 0 : branchy ? children.reduce((sum, c) => sum + width(c), 0) + (children.length - 1) * TILE_GAP : Math.max(...rowsOf(children).map(rowWidth));
+      const result = Math.max(w(n), span);
+      widths.set(n.id, result);
+      return result;
+    };
     const placed = new Map<string, { x: number; y: number }>();
+    const layout = (n: PaneNode, x: number, y: number) => {
+      const span = width(n);
+      placed.set(n.id, { x: x + (span - w(n)) / 2, y });
+      const children = kids(n.id);
+      if (!children.length) return;
+      const top = y + h(n) + CHILD_DROP;
+      if (children.some((c) => kids(c.id).length)) {
+        let cx = x + (span - (children.reduce((sum, c) => sum + width(c), 0) + (children.length - 1) * TILE_GAP)) / 2;
+        for (const c of children) {
+          layout(c, cx, top);
+          cx += width(c) + TILE_GAP;
+        }
+        return;
+      }
+      let ry = top;
+      for (const row of rowsOf(children)) {
+        let cx = x + (span - rowWidth(row)) / 2;
+        for (const c of row) {
+          placed.set(c.id, { x: cx, y: ry });
+          cx += w(c) + TILE_GAP;
+        }
+        ry += Math.max(...row.map(h)) + TILE_GAP;
+      }
+    };
+
     const trees = roots.filter((r) => kids(r.id).length);
     const loose = roots.filter((r) => !kids(r.id).length);
     let x = 0;
     for (const root of trees) {
-      const rows = rowsOf(kids(root.id));
-      const width = Math.max(w(root), ...rows.map(rowWidth));
-      placed.set(root.id, { x: x + (width - w(root)) / 2, y: 0 });
-      let y = h(root) + CHILD_DROP;
-      for (const row of rows) {
-        let cx = x + (width - rowWidth(row)) / 2;
-        for (const n of row) {
-          placed.set(n.id, { x: cx, y });
-          cx += w(n) + TILE_GAP;
-        }
-        y += Math.max(...row.map(h)) + TILE_GAP;
-      }
-      x += width + TILE_GAP * 3;
+      layout(root, x, 0);
+      x += width(root) + TILE_GAP * 3;
     }
     // Panes without a planner: the old grid, to the right of the trees.
     const perRow = Math.max(1, Math.min(4, Math.ceil(Math.sqrt(loose.length * 1.5))));
@@ -249,7 +346,7 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
       placed.set(n.id, { x: lx, y: rowHeights.slice(0, row).reduce((sum, rh) => sum + rh + TILE_GAP, 0) });
       lx += w(n) + TILE_GAP;
     });
-    setNodes(all.map((n) => ({ ...n, position: placed.get(n.id) ?? n.position })));
+    setNodes((ns) => ns.map((n) => ({ ...n, position: placed.get(n.id) ?? n.position })));
     persist();
     setTimeout(fitAll, 50);
   };
@@ -289,20 +386,60 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
   const unreadIds = new Set(live.filter((s) => isUnread(s)).map((s) => s.id));
   const idle = live.filter((s) => s.status === "idle" && !unreadIds.has(s.id)).length;
 
-  // Each launched session hangs from its planner with a right-angled wire, live while it works.
-  const edges: Edge[] = group.panes
-    .filter((p) => p.parent && inGroup.has(p.parent) && inGroup.has(p.sessionId))
-    .map((p) => ({
-      id: `${p.parent}->${p.sessionId}`,
-      source: p.parent!,
-      target: p.sessionId,
-      type: "smoothstep",
-      className: "group-wire",
-      animated: workingIds.has(p.sessionId),
-      markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
-      selectable: false,
-      focusable: false,
-    }));
+  const canvasNodes: CanvasNode[] = waiting.length ? [...nodes, ...waiting] : nodes;
+  const doneIds = new Set(live.filter((s) => s.status !== "working" && s.turns > 0).map((s) => s.id));
+
+  // The circuit: each launched session hangs from its planner, a stacked one from the session it waited on.
+  // Wires pulse while the session they feed works; waiting cards hang by dashed wires.
+  const wire = { type: "smoothstep", selectable: false, focusable: false, markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 } } as const;
+  const edges: Edge[] = [
+    ...group.panes
+      .filter((p) => p.parent && inGroup.has(p.parent) && inGroup.has(p.sessionId))
+      .map((p) => ({
+        ...wire,
+        id: `${p.parent}->${p.sessionId}`,
+        // Selectable so the wire takes the double click that unwires it.
+        selectable: true,
+        interactionWidth: 16,
+        source: p.parent!,
+        target: p.sessionId,
+        className: `group-wire ${p.link === "after" ? "after" : ""} ${doneIds.has(p.sessionId) ? "done" : ""}`,
+        animated: workingIds.has(p.sessionId),
+        ...(p.link === "after" ? { label: "base branch", labelClassName: "group-wire-label" } : {}),
+      })),
+    ...waiting.flatMap((n) => {
+      const q = queued.find((o) => `queued:${o.key}` === n.id);
+      const source = q?.parent;
+      if (!source || !(inGroup.has(source) || waiting.some((o) => o.id === source))) return [];
+      return [{ ...wire, id: `${source}->${n.id}`, source, target: n.id, className: "group-wire waiting" }];
+    }),
+  ];
+
+  // Dragging from a session's bottom port onto another one hangs the second below the first.
+  const connect = useCallback(
+    (c: Connection) => {
+      if (!c.source || !c.target || c.source === c.target || c.target.startsWith("queued:") || c.source.startsWith("queued:")) return;
+      groupsApi.link(group.id, c.target, c.source).catch((error) => window.alert(String(error?.message ?? error)));
+    },
+    [group.id],
+  );
+  // Dropping anywhere on a session counts, not just on its small top port.
+  const connectEnd = useCallback(
+    (event: MouseEvent | TouchEvent, state: FinalConnectionState) => {
+      if (state.isValid || !state.fromNode) return;
+      const point = "changedTouches" in event ? event.changedTouches[0] : event;
+      const target = document.elementFromPoint(point.clientX, point.clientY)?.closest(".react-flow__node")?.getAttribute("data-id");
+      if (target) connect({ source: state.fromNode.id, target, sourceHandle: null, targetHandle: null });
+    },
+    [connect],
+  );
+  const unlink = useCallback(
+    (_e: unknown, edge: Edge) => {
+      if (edge.target.startsWith("queued:")) return;
+      void groupsApi.link(group.id, edge.target, null);
+    },
+    [group.id],
+  );
 
   useHotkey("!", fitAll);
   const [launching, setLaunching] = useState(false);
@@ -336,7 +473,7 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
               </span>
             )}
             {group.queued?.length ? (
-              <span className="status-pill-live idle" title={group.queued.join("\n")}>
+              <span className="status-pill-live idle" title={queued.map((q) => (q.after ? `${q.title} (waiting for ${q.after})` : q.title)).join("\n")}>
                 {group.queued.length} queued
               </span>
             ) : null}
@@ -370,10 +507,14 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
         </header>
         <div className="group-canvas">
           <ReactFlow
-            nodes={nodes}
+            nodes={canvasNodes}
             edges={edges}
             onNodesChange={handleNodesChange}
             nodeTypes={nodeTypes}
+            onConnect={connect}
+            onConnectEnd={connectEnd}
+            onEdgeDoubleClick={unlink}
+            connectionLineType={ConnectionLineType.SmoothStep}
             onNodeDragStop={persist}
             onSelectionDragStop={persist}
             onMoveEnd={(_e, viewport) => {

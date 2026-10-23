@@ -1,8 +1,14 @@
 import { useSyncExternalStore } from "react";
 import { onServerEvent } from "./events";
 
-/** `parent`: the session that launched this one (a group's planner); the canvas wires them together. */
-export type GroupPane = { sessionId: string; title?: string; parent?: string; x: number; y: number; w: number; h: number };
+/**
+ * `parent`: the session this one hangs from in the canvas, wired to it. Its planner, or with `link: "after"`
+ * the session it waited on (a stacked PR below the PR its branch is based on).
+ */
+export type GroupPane = { sessionId: string; title?: string; parent?: string; link?: "after"; x: number; y: number; w: number; h: number };
+
+/** A waiting session: `parent` is the pane (or `queued:<key>` card) it hangs from, `after` the title it waits on. */
+export type QueuedPane = { key: string; title: string; after?: string; parent?: string };
 
 export type SessionGroup = {
   id: string;
@@ -10,8 +16,8 @@ export type SessionGroup = {
   createdAt: string;
   updatedAt: string;
   panes: GroupPane[];
-  /** `ws spawn` children still waiting for a free slot, and the ones that failed to start. */
-  queued?: string[];
+  /** Launched sessions still waiting (for a free slot or for the session they follow), and the ones that failed to start. */
+  queued?: (string | QueuedPane)[];
   failed?: { title: string; error: string }[];
 };
 
@@ -35,6 +41,8 @@ export const groupsApi = {
     request<SessionGroup>(`/api/groups/${enc(id)}/sessions`, { method: "POST", body: JSON.stringify({ sessionId, title }) }),
   plan: (id: string, input: { goal: string; cwd: string; model?: string; effort?: string }) =>
     request<{ group: SessionGroup; sessionId: string }>(`/api/groups/${enc(id)}/plan`, { method: "POST", body: JSON.stringify(input) }),
+  link: (id: string, sessionId: string, parent: string | null) =>
+    request<SessionGroup>(`/api/groups/${enc(id)}/sessions/${enc(sessionId)}`, { method: "PUT", body: JSON.stringify({ parent }) }),
   removeSession: (id: string, sessionId: string) => request<SessionGroup>(`/api/groups/${enc(id)}/sessions/${enc(sessionId)}`, { method: "DELETE" }),
 };
 

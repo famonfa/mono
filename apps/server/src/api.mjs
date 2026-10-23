@@ -168,6 +168,7 @@ function handleGroups(res, method, parts, body) {
   }
   if (sub === "sessions" && !sessionId && method === "POST") return send(res, 200, groups.addSession(id, body.sessionId, body.title));
   if (sub === "plan" && method === "POST") return planSessions({ ...body, group: id }).then((out) => send(res, 200, out));
+  if (sub === "sessions" && sessionId && method === "PUT") return send(res, 200, groups.linkSession(id, sessionId, body.parent ?? null));
   if (sub === "sessions" && sessionId && method === "DELETE") return send(res, 200, groups.removeSession(id, sessionId));
   return send(res, 404, { error: "not found" });
 }

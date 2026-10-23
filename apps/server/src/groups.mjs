@@ -53,12 +53,13 @@ function childSlot(parent, slot, total) {
   };
 }
 
-/** `child` ({ parent, slot, total }) hangs the pane under the session that launched it, wired to it in the canvas. */
+/** `child` ({ parent, slot, total, link? }) hangs the pane under the session that launched it, wired to it in the canvas. */
 function addPane(group, sessionId, title, child) {
   if (group.panes.some((p) => p.sessionId === sessionId)) return;
   const parent = child && group.panes.find((p) => p.sessionId === child.parent);
   const position = parent ? childSlot(parent, child.slot, child.total) : nextSlot(group.panes);
-  group.panes.push({ sessionId, title: title || undefined, ...(parent ? { parent: parent.sessionId } : {}), ...position, ...PANE_SIZE });
+  const link = parent ? { parent: parent.sessionId, ...(child.link ? { link: child.link } : {}) } : {};
+  group.panes.push({ sessionId, title: title || undefined, ...link, ...position, ...PANE_SIZE });
 }
 
 export function createGroup({ name, sessions = [] }) {
@@ -93,6 +94,25 @@ export function deleteGroup(id) {
 export function addSession(id, sessionId, title, child) {
   if (!sessionId) throw new Error("Missing session");
   return mutate(id, (group) => addPane(group, sessionId, title, child));
+}
+
+/** Wires `sessionId` below `parent` in the canvas (null unwires it). A session can't hang from its own subtree. */
+export function linkSession(id, sessionId, parent) {
+  return mutate(id, (group) => {
+    const pane = group.panes.find((p) => p.sessionId === sessionId);
+    if (!pane) throw new Error("That session isn't in the group");
+    if (parent === null) {
+      delete pane.parent;
+      delete pane.link;
+      return;
+    }
+    if (!group.panes.some((p) => p.sessionId === parent)) throw new Error("The parent session isn't in the group");
+    for (let up = parent; up; up = group.panes.find((p) => p.sessionId === up)?.parent) {
+      if (up === sessionId) throw new Error("A session can't hang from one of its own children");
+    }
+    pane.parent = parent;
+    delete pane.link;
+  });
 }
 
 export function removeSession(id, sessionId) {

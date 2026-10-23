@@ -4409,6 +4409,31 @@ a.status-tile.link:hover {
   pointer-events: none;
 }
 
+/* The bottom port shows on hover: drag it onto another session to wire it as a child. */
+.group-canvas .group-pane-port.group-pane-out {
+  z-index: 10;
+  width: 16px;
+  height: 16px;
+  background: var(--bg-elev-2);
+  border: 1.5px solid var(--text-3);
+  pointer-events: all;
+  cursor: crosshair;
+  transition: opacity 0.12s;
+}
+
+.group-canvas .react-flow__node:hover .group-pane-port.group-pane-out,
+.group-canvas .react-flow__node .group-pane-port.group-pane-out.connectingfrom {
+  opacity: 1;
+}
+
+.group-canvas .react-flow__node .group-pane-port.connectionindicator.valid {
+  opacity: 1;
+}
+
+.group-canvas .group-wire {
+  cursor: pointer;
+}
+
 .group-canvas .group-wire .react-flow__edge-path {
   stroke: var(--border-strong);
   stroke-width: 2;
@@ -4416,6 +4441,57 @@ a.status-tile.link:hover {
 
 .group-canvas .group-wire.animated .react-flow__edge-path {
   stroke: var(--text-3);
+}
+
+.group-canvas .group-wire.after .react-flow__edge-path {
+  stroke-width: 2.5;
+}
+
+.group-canvas .group-wire.done .react-flow__edge-path {
+  stroke: var(--text-3);
+}
+
+.group-canvas .group-wire.waiting .react-flow__edge-path {
+  stroke-dasharray: 6 6;
+}
+
+.group-wire-label {
+  font-size: 11px;
+  fill: var(--text-3);
+}
+
+.group-canvas .react-flow__edge-textbg {
+  fill: var(--bg-canvas);
+}
+
+.group-queued {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+  background: var(--bg-panel);
+  opacity: 0.8;
+}
+
+.group-queued-title {
+  font-weight: 500;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.group-queued-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text-3);
 }
 
 .toast {
