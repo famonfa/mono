@@ -61,6 +61,7 @@ export function Menu<T extends string>({
   const [active, setActive] = useState(0);
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
+  const filter = useRef<HTMLInputElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number; visibility?: "hidden" }>({ top: 0, left: 0, visibility: "hidden" });
   const typed = custom?.(query.trim());
   const filtered = [...options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase())), ...(typed && !options.some((o) => o.value === typed.value) ? [typed] : [])];
@@ -76,15 +77,22 @@ export function Menu<T extends string>({
     setPos({ top, left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)) });
   }, [open, filtered.length]);
 
+  // The menu mounts hidden while it measures itself, and hidden inputs can't take focus, so focus once it shows.
+  useEffect(() => {
+    if (open && !pos.visibility) filter.current?.focus();
+  }, [open, pos.visibility]);
+
   const choose = (v: T) => {
     onChange(v);
     setOpen(false);
     setQuery("");
+    trigger.current?.focus();
   };
 
   return (
     <>
       <button
+        type="button"
         ref={trigger}
         className={`menu-trigger ${className}`}
         onClick={(e) => {
@@ -101,8 +109,8 @@ export function Menu<T extends string>({
           <div className="menu-backdrop" onMouseDown={() => setOpen(false)}>
             <div className="menu" ref={menu} style={pos} onMouseDown={(e) => e.stopPropagation()}>
               <input
+                ref={filter}
                 className="menu-filter"
-                autoFocus
                 placeholder={placeholder}
                 value={query}
                 onChange={(e) => {

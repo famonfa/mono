@@ -5,7 +5,7 @@ import * as chats from "./chats.mjs";
 import * as groups from "./groups.mjs";
 
 /**
- * Fan-out: a session launches several child sessions (one per PR, repo, etc.) into a group canvas.
+ * Batch launch from a group canvas: several sessions at once (one per PR, repo, etc.), each a pane.
  * At most MAX_RUNNING children work at once; the rest wait in line and start as others finish their
  * turn. The line lives in memory, so restarting Mono drops whatever hadn't started yet.
  */
@@ -51,12 +51,12 @@ function makeWorktree(top, cwd, name) {
   let dir = path.join(main, ".worktrees", name);
   for (let n = 2; fs.existsSync(dir); n++) dir = path.join(main, ".worktrees", `${name}-${n}`);
   git(top, "worktree", "add", "--detach", dir, "HEAD");
-  return path.join(dir, path.relative(top, cwd));
+  return path.join(dir, path.relative(top, fs.realpathSync(cwd)));
 }
 
 function childContext({ group, title, total, cwd, worktree }) {
   return [
-    `Sos una de ${total} sesiones que Mono lanzó en paralelo en el grupo "${group.name}". Tu parte: ${title}.`,
+    `Sos una de ${total} sesiones lanzadas en paralelo en el grupo "${group.name}". Tu parte: ${title}.`,
     `- Trabajá solo en ${cwd}. Las otras sesiones trabajan al mismo tiempo en otras carpetas: no toques las suyas.`,
     worktree && "- Esa carpeta es un git worktree propio, en HEAD detached. Hacé checkout de la rama que necesites ahí (por ejemplo `gh pr checkout <n>`). No lo borres al terminar.",
     "- Si tenés que reescribir una rama remota (rebase, amend), usá `git push --force-with-lease`, nunca `--force` a secas.",
@@ -77,8 +77,9 @@ function pump() {
   while (queue.length && running.size + starting < MAX_RUNNING) {
     const item = queue.shift();
     starting++;
-    chats
-      .startChat({ cwd: item.cwd, taskId: item.taskId, prompt: item.prompt, model: item.model, effort: item.effort, context: item.context })
+    // startChat throws synchronously on a bad folder; going through a promise keeps the slot accounting right.
+    Promise.resolve()
+      .then(() => chats.startChat({ cwd: item.cwd, taskId: item.taskId, prompt: item.prompt, model: item.model, effort: item.effort, context: item.context }))
       .then(({ sessionId }) => {
         running.add(sessionId);
         groups.addSession(item.groupId, sessionId, item.title);
@@ -93,10 +94,12 @@ function pump() {
 }
 
 /**
- * Creates (or reuses) a group and queues one child session per spec: `{ title, prompt, cwd, taskId?, worktree? }`.
- * Children that share a git repo get their own worktree unless the spec says `worktree: false`.
+ * Queues one session per spec (`{ title, prompt, cwd, taskId?, worktree? }`) into the group.
+ * Sessions that share a git repo get their own worktree unless the spec says `worktree: false`.
  */
-export function spawnSessions({ group: name, sessions = [], taskId, model, effort }) {
+export function spawnSessions({ group: groupId, sessions = [], taskId, model, effort }) {
+  const group = groups.findGroup(groupId);
+  if (!group) throw new Error(`No existe el grupo ${groupId}`);
   if (!Array.isArray(sessions) || !sessions.length) throw new Error("Pasá al menos una sesión para lanzar");
   if (sessions.length > MAX_PER_CALL) throw new Error(`Máximo ${MAX_PER_CALL} sesiones por pedido`);
   const specs = sessions.map((s, i) => {
@@ -108,7 +111,6 @@ export function spawnSessions({ group: name, sessions = [], taskId, model, effor
     return { title, prompt, cwd, top: repoTop(cwd), taskId: s.taskId ?? taskId, worktree: s.worktree };
   });
 
-  const group = groups.findGroup(name) ?? groups.createGroup({ name: String(name ?? "").trim() || `Lote ${new Date().toLocaleString("es-AR")}` });
   const shared = new Map();
   for (const s of specs) if (s.top) shared.set(s.top, (shared.get(s.top) ?? 0) + 1);
 

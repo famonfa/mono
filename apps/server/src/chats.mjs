@@ -158,9 +158,6 @@ function focusContext(launchCwd, focusCwd) {
   return `Carpeta de trabajo de esta sesión: ${focusCwd}\nLa sesión arranca en ${launchCwd} para cargar sus skills y su CLAUDE.md, pero hacé los cambios, builds y tests en la carpeta de trabajo (usá rutas absolutas o \`cd\` a ella en cada comando).`;
 }
 
-const SPAWN_HINT =
-  "Si el pedido se reparte en varias partes independientes (por ejemplo una por PR o por repo), podés lanzarlas como sesiones en paralelo con `ws spawn <grupo> <file.json|->` (array de {title, prompt, cwd}). Aparecen en un canvas de grupo en Mono, corren hasta 6 a la vez y las que comparten repo trabajan cada una en su worktree. Usalo solo si el usuario lo pide o si las partes son claramente independientes.";
-
 function taskContext(task) {
   const lines = [
     `Estás trabajando en la tarea ${task.id} — "${task.title}" de Mono (http://localhost:4600/#/t/${task.id}).`,
@@ -300,7 +297,7 @@ function linkSessionToTask(taskId, sessionId) {
  * Starts (or resumes) a Claude Code session driven from the workspace. Resolves with the session id
  * once the CLI reports it, so the UI can navigate to the live feed straight away.
  */
-/** `context` is extra system prompt for sessions Mono launches itself (e.g. children of `ws spawn`). */
+/** `context` is extra system prompt for sessions Mono launches itself (e.g. a group's batch launch). */
 export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort, permissionMode, attachments = [], context }) {
   const mode = modeOrDefault(permissionMode);
   if (!CLAUDE_BIN) throw new Error("No encontré Claude Code en esta Mac. Instalalo (https://docs.claude.com/en/docs/claude-code/setup) y reiniciá Mono.");
@@ -312,7 +309,7 @@ export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort
   // a reassigned folder only changes where it works.
   const focus = resume && focusCwd && isDir(focusCwd) ? focusCwd : launch;
   const workdir = resume ? launch : launchRootFor(focus);
-  const append = [task && taskContext(task), focusContext(workdir, focus), context || SPAWN_HINT].filter(Boolean).join("\n\n");
+  const append = [task && taskContext(task), focusContext(workdir, focus), context].filter(Boolean).join("\n\n");
 
   const input = new InputQueue();
   input.push(userMessage(prompt, attachments));
@@ -332,8 +329,7 @@ export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort
       settingSources: ["user", "project", "local"],
       systemPrompt: { type: "preset", preset: "claude_code", ...(append ? { append } : {}) },
       ...(CLAUDE_BIN ? { pathToClaudeCodeExecutable: CLAUDE_BIN } : {}),
-      // MONO_TASK_ID lets `ws spawn` link the children to the same task.
-      env: { ...process.env, PATH, ...(taskId ? { MONO_TASK_ID: taskId } : {}) },
+      env: { ...process.env, PATH },
       canUseTool: (toolName, toolInput, { signal, suggestions, decisionReason, blockedPath }) =>
         new Promise((resolve) => {
           const id = `req-${++reqCounter}`;

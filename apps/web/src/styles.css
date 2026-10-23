@@ -729,7 +729,8 @@ code,
 .menu-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  /* Above .overlay, so menus inside a dialog open on top of it. */
+  z-index: 70;
 }
 
 .menu {
@@ -4390,4 +4391,22 @@ a.status-tile.link:hover {
   .status-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.launch-dialog .dialog-textarea {
+  min-height: 72px;
+  font: 13px/1.5 var(--font-sans);
+}
+
+.launch-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-3);
+  margin-bottom: -6px;
+}
+
+.launch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }

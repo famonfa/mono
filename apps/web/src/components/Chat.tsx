@@ -10,6 +10,8 @@ import { useIsMobile } from "../mobile";
 import { useMarkSeen, useUnread } from "../unread";
 import { Feed, StatusDot, ToolIcon } from "./Agents";
 import { SendToGroup } from "./GroupCanvas";
+import { groupsApi, type SessionGroup } from "../groups";
+import { createPortal } from "react-dom";
 import { ProjectIcon } from "./Projects";
 
 function PermissionMenu({ value, onChange }: { value: PermissionMode; onChange: (mode: PermissionMode) => void }) {
@@ -655,6 +657,126 @@ export function NewSession({ task }: { task?: Task }) {
         />
       </div>
     </div>
+  );
+}
+
+/** Launches several sessions into a group at once: one per line, all with the same instruction and folder. */
+export function LaunchSessions({ group, onClose }: { group: SessionGroup; onClose: () => void }) {
+  const { projects, project } = useApp();
+  const [projectId, setProjectId] = useState("");
+  const [worktrees, setWorktrees] = useState<Worktree[]>([]);
+  const [cwd, setCwd] = useState("");
+  const [instruction, setInstruction] = useState("");
+  const [items, setItems] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { models, stored, remember } = useChatDefaults();
+  const [config, setConfig] = useState<{ model?: string; effort?: string }>(stored);
+
+  useEffect(() => {
+    if (projectId || !projects.length) return;
+    setProjectId(projects.some((p) => p.id === project) ? project : projects[0].id);
+  }, [projectId, projects, project]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    void chatApi.projectWorktrees(projectId).then((list) => {
+      setWorktrees(list);
+      setCwd(list[0]?.path ?? "");
+    });
+  }, [projectId]);
+
+  const lines = items.split("\n").map((l) => l.trim()).filter(Boolean);
+  const selected = worktrees.find((w) => w.path === cwd);
+  const selectedProject = projects.find((p) => p.id === projectId);
+
+  const submit = async () => {
+    if (!lines.length) return setError("Escribí al menos una línea: cada una es una sesión");
+    if (!cwd) return setError("Elegí una carpeta");
+    setBusy(true);
+    setError(null);
+    try {
+      const sessions = lines.map((line) => ({ title: line.slice(0, 80), prompt: instruction.trim() ? `${instruction.trim()}\n\n${line}` : line, cwd }));
+      await groupsApi.spawn(group.id, { sessions, ...config });
+      onClose();
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  };
+
+  return createPortal(
+    <div className="overlay" onMouseDown={onClose}>
+      <form
+        className="dialog launch-dialog"
+        onMouseDown={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          void submit();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onClose();
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void submit();
+        }}
+      >
+        <div className="dialog-title">Lanzar sesiones en {group.name}</div>
+        <label className="launch-label">Instrucción para todas</label>
+        <textarea
+          autoFocus
+          className="dialog-textarea"
+          placeholder="Ej: corré /pr-review sobre este PR y hacé rebase sobre main"
+          value={instruction}
+          onChange={(e) => setInstruction(e.target.value)}
+        />
+        <label className="launch-label">Una sesión por línea</label>
+        <textarea className="dialog-textarea" placeholder={"#1481\n#1490\n#1502"} value={items} onChange={(e) => setItems(e.target.value)} />
+        <div className="launch-row">
+          <Menu
+            value={projectId}
+            placeholder="Buscar proyecto…"
+            options={projects.map((p) => ({ value: p.id, label: p.title, icon: <ProjectIcon project={p} size={14} /> }))}
+            onChange={setProjectId}
+            className="mode-trigger"
+          >
+            <ProjectIcon project={selectedProject} size={14} /> {selectedProject?.title ?? "…"}
+          </Menu>
+          <Menu
+            value={cwd}
+            placeholder="Buscar carpeta o rama, o escribí una ruta (/… o ~/…)"
+            options={worktrees.map((w) => ({ value: w.path, label: worktreeLabel(w), icon: <FolderGit2 size={13} /> }))}
+            custom={(q) => (/^[/~]/.test(q) ? { value: q, label: `Usar carpeta ${q}`, icon: <Folder size={13} /> } : null)}
+            onChange={setCwd}
+            className="mode-trigger"
+          >
+            <FolderGit2 size={12} /> {selected ? worktreeLabel(selected) : cwd ? cwd.split("/").slice(-2).join("/") : "…"}
+          </Menu>
+          <ModelPicker
+            models={models}
+            model={config.model}
+            effort={config.effort}
+            onChange={(next) => {
+              setConfig(next);
+              remember(next);
+            }}
+          />
+        </div>
+        <p className="hint">
+          {lines.length ? `${lines.length} ${lines.length === 1 ? "sesión" : "sesiones"}` : "Ninguna sesión todavía"} · hasta 6 a la vez, el resto espera en cola. Si
+          comparten repo, cada una trabaja en su propio worktree.
+        </p>
+        {error && <div className="dialog-error">{error}</div>}
+        <div className="dialog-actions">
+          <button type="button" className="btn ghost" onClick={onClose}>
+            Cancelar
+          </button>
+          <button type="submit" className="btn primary" disabled={busy || !lines.length}>
+            {busy ? <Loader2 size={13} className="spin" /> : null}
+            Lanzar {lines.length || ""} <kbd className="kbd on-primary">⌘↵</kbd>
+          </button>
+        </div>
+      </form>
+    </div>,
+    document.body,
   );
 }
 

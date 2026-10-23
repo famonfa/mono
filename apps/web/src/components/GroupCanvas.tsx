@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -14,7 +14,7 @@ import {
   type NodeProps,
   type Viewport,
 } from "@xyflow/react";
-import { ChevronRight, ExternalLink, LayoutGrid, Maximize, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ChevronRight, ExternalLink, LayoutGrid, Layers, Maximize, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useApp } from "../app-context";
 import { groupsApi, reloadGroups, useGroups, type GroupPane, type SessionGroup } from "../groups";
 import { StatusIcon } from "../icons";
@@ -24,7 +24,7 @@ import { formatDate, Menu, useHotkey } from "../ui";
 import { markSeen, useUnread } from "../unread";
 import { useIsMobile } from "../mobile";
 import { SessionRow, StatusDot } from "./Agents";
-import { SessionChat } from "./Chat";
+import { LaunchSessions, SessionChat } from "./Chat";
 
 type PaneData = { sessionId: string; title?: string };
 type PaneNode = Node<PaneData, "pane">;
@@ -253,6 +253,7 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
   const idle = live.filter((s) => s.status === "idle" && !unreadIds.has(s.id)).length;
 
   useHotkey("!", fitAll);
+  const [launching, setLaunching] = useState(false);
 
   return (
     <PaneActions.Provider value={{ remove, focus }}>
@@ -302,6 +303,9 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
           >
             <Plus size={14} /> Agregar sesión
           </Menu>
+          <button className="btn ghost" onClick={() => setLaunching(true)}>
+            <Layers size={14} /> Lanzar sesiones
+          </button>
           <button className="icon-btn" onClick={tile} title="Ordenar en grilla" disabled={!nodes.length}>
             <LayoutGrid size={15} />
           </button>
@@ -349,10 +353,11 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
             <div className="group-empty">
               <p>Este grupo está vacío.</p>
               <p className="hint">
-                Agregá sesiones con <b>Agregar sesión</b>, o desde cualquier sesión con <b>Enviar a grupo</b>.
+                Agregá sesiones con <b>Agregar sesión</b>, lanzá varias nuevas a la vez con <b>Lanzar sesiones</b>, o mandalas desde cualquier sesión con <b>Enviar a grupo</b>.
               </p>
             </div>
           )}
+          {launching && <LaunchSessions group={group} onClose={() => setLaunching(false)} />}
         </div>
       </div>
     </PaneActions.Provider>
