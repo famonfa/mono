@@ -16,7 +16,7 @@ import {
   type Connection,
 } from "@xyflow/react";
 import { toPng } from "html-to-image";
-import { ArrowLeft, Download, Frame, Maximize, Plus, Rows3, Sparkles, StickyNote, Image as ImageIcon, SquareStack } from "lucide-react";
+import { Download, Frame, Maximize, Plus, Rows3, Sparkles, StickyNote, Image as ImageIcon, SquareStack } from "lucide-react";
 import { api, onDataChange } from "../api";
 import { useApp } from "../app-context";
 import { href, navigate } from "../router";
@@ -384,12 +384,12 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
   return (
     <div className={`board ${embedded ? "embedded" : ""}`}>
       <div className="board-toolbar">
-        <a className="tool" href={href.task(task.id)} title="Back (Esc)">
-          <ArrowLeft size={14} /> Overview
-        </a>
-        <button className="board-title" onClick={renameBoard} title="Rename">
-          {board?.title ?? "…"}
-        </button>
+        {/* Full page, the breadcrumb already names the board and leads back (Esc too). */}
+        {embedded && (
+          <button className="board-title" onClick={renameBoard} title="Rename">
+            {board?.title ?? "…"}
+          </button>
+        )}
         {board?.description && <span className="board-description">{board.description}</span>}
         <span className="spacer" />
         <span className={`save-state ${saveState}`}>{saveState === "saved" ? "Saved" : "Saving…"}</span>

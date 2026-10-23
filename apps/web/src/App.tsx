@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bot, CheckCircle2, CircleDot, LayoutGrid, Layers, MessageSquarePlus, Moon, PanelLeft, Plus, Search, Sparkles, SquarePen, Sun } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Bot, Layers, LayoutGrid, MessageSquarePlus, Moon, PanelLeft, Plus, Search, Sparkles, SquarePen, Sun } from "lucide-react";
 import { api, useLiveData } from "./api";
 import { AppContext, useApp, type AppContextValue } from "./app-context";
 import { AgentsPage, SessionView, StatusDot } from "./components/Agents";
@@ -8,12 +8,14 @@ import { FolderPicker, NewSession, TaskSessions } from "./components/Chat";
 import { CommandPalette } from "./components/CommandPalette";
 import { UpdateToast } from "./components/UpdateToast";
 import { AppearancePicker } from "./components/AppearancePicker";
-import { DocView } from "./components/DocView";
 import { GroupView } from "./components/GroupCanvas";
 import { Home } from "./components/Home";
+import { FolderView } from "./components/PageTree";
+import { SidebarProjects } from "./components/SidebarProjects";
 import { ALL_PROJECTS, inProject, projectScope, ProjectSwitcher, sessionInProject } from "./components/Projects";
 import { SkillsPage, useSkillList } from "./components/Skills";
 import { TaskOverview, TaskTopBar } from "./components/TaskView";
+import { flattenPages } from "./pages";
 import { UserWidget } from "./components/UserWidget";
 import { StatusIcon, STATUS_META, STATUS_ORDER } from "./icons";
 import { groupsApi, reloadGroups, useGroups } from "./groups";
@@ -23,6 +25,10 @@ import type { Task, TaskStatus } from "./types";
 import { useAppearance } from "./appearance";
 import { Dialog, useHotkey, type DialogRequest } from "./ui";
 import { useUnread } from "./unread";
+import { markViewed } from "./viewed";
+
+// The block editor is heavy; load it the first time a doc opens.
+const DocView = lazy(() => import("./components/DocView").then((m) => ({ default: m.DocView })));
 
 export function App() {
   const route = useRoute();
@@ -62,8 +68,8 @@ export function App() {
   const newTask = useCallback(
     (status: TaskStatus = "en-curso") =>
       setDialog({
-        title: "New task",
-        submitLabel: "Create task",
+        title: "New project",
+        submitLabel: "Create project",
         fields: [
           { name: "title", label: "Title" },
           { name: "id", label: "ID (e.g. IME-3001)", mono: true },
@@ -140,6 +146,7 @@ export function App() {
             <AgentsPage sessions={sessions.filter((s) => sessionInProject(projectScope(project, projects), s, tasks))} />
           ) : route.view === "skills" ? (
             <SkillsPage name={route.name} />
+
           ) : route.view === "newSession" ? (
             <NewSession />
           ) : route.view === "session" ? (
@@ -160,46 +167,17 @@ export function App() {
 
 function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
   const { tasks: allTasks, sessions: allSessions, project, projects, openPalette, newTask, openDialog, theme, toggleTheme } = useApp();
-  const groups = useGroups();
   const currentRoot = projects.find((p) => p.id === project)?.root;
   const skills = useSkillList(currentRoot);
   const scope = projectScope(project, projects);
   const tasks = allTasks.filter((t) => inProject(scope, t.projectIds));
   const sessions = allSessions.filter((s) => sessionInProject(scope, s, allTasks));
-  const activeTaskId = "taskId" in route ? route.taskId : undefined;
   const working = sessions.filter((s) => s.status === "working");
-  const workingTasks = new Set(working.flatMap((s) => s.taskIds ?? []));
   const isUnread = useUnread();
   const unread = sessions.filter((s) => isUnread(s));
-  const unreadTasks = new Set(unread.flatMap((s) => s.taskIds ?? []));
-  const unreadIds = new Set(allSessions.filter((s) => isUnread(s)).map((s) => s.id));
-  const counts = {
-    todas: tasks.length,
-    activas: tasks.filter((t) => t.status !== "hecho").length,
-    hechas: tasks.filter((t) => t.status === "hecho").length,
-  };
-  const recent = tasks.slice(0, 12);
   const inAgents = ["agents", "session", "newSession"].includes(route.view);
   const last = lastSessionId();
   const agentsHref = !inAgents && last && allSessions.some((s) => s.id === last) ? href.session(last) : href.agents();
-  const workingIds = new Set(allSessions.filter((s) => s.status === "working").map((s) => s.id));
-  const newGroup = () =>
-    openDialog({
-      title: "New group",
-      submitLabel: "Create group",
-      fields: [{ name: "name", label: "Name" }],
-      onSubmit: async ({ name }) => {
-        const group = await groupsApi.create(name);
-        reloadGroups();
-        navigate(href.group(group.id));
-      },
-    });
-
-  const nav = [
-    { filter: "todas" as const, label: "All tasks", icon: <Layers size={15} /> },
-    { filter: "activas" as const, label: "Active", icon: <CircleDot size={15} /> },
-    { filter: "hechas" as const, label: "Done", icon: <CheckCircle2 size={15} /> },
-  ];
 
   return (
     <aside className="sidebar">
@@ -211,19 +189,17 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
         <a className="icon-btn" href={href.newSession()} title="New session (S)">
           <MessageSquarePlus size={15} />
         </a>
-        <button className="icon-btn new-btn" onClick={() => newTask()} title="New task (C)">
+        <button className="icon-btn new-btn" onClick={() => newTask()} title="New project (C)">
           <SquarePen size={15} />
         </button>
       </div>
 
       <nav className="sidebar-nav">
-        {nav.map((n) => (
-          <a key={n.filter} href={href.home(n.filter)} className={route.view === "home" && route.filter === n.filter ? "active" : ""}>
-            {n.icon}
-            <span>{n.label}</span>
-            <span className="nav-count">{counts[n.filter] || ""}</span>
-          </a>
-        ))}
+        <a href={href.home()} className={route.view === "home" ? "active" : ""}>
+          <Layers size={15} />
+          <span>All projects</span>
+          <span className="nav-count">{tasks.length || ""}</span>
+        </a>
         <a href={agentsHref} className={inAgents ? "active" : ""}>
           <Bot size={15} />
           <span>Agents</span>
@@ -236,59 +212,92 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
           <span>Skills</span>
           <span className="nav-count">{skills ? (currentRoot ? skills.filter((s) => s.source === "project").length : skills.length) || "" : ""}</span>
         </a>
+
       </nav>
 
       <div className="sidebar-section sidebar-section-row">
-        Groups
-        <button className="icon-btn tiny" onClick={newGroup} title="New group">
+        Projects
+        <button className="icon-btn tiny" onClick={() => newTask()} title="New project (C)">
           <Plus size={13} />
         </button>
       </div>
-      <nav className="sidebar-nav">
-        {groups.map((g) => {
-          const live = g.panes.filter((p) => workingIds.has(p.sessionId)).length;
-          const toSee = g.panes.filter((p) => unreadIds.has(p.sessionId)).length;
-          return (
-            <a key={g.id} href={href.group(g.id)} className={route.view === "group" && route.groupId === g.id ? "active" : ""} title={`${g.name} · ${g.panes.length} ${g.panes.length === 1 ? "session" : "sessions"}`}>
-              <LayoutGrid size={14} />
-              <span className="recent-title">{g.name}</span>
-              <span className="nav-count">
-                {live || toSee ? <LiveCounts working={live} unread={toSee} /> : g.panes.length || ""}
-              </span>
-            </a>
-          );
-        })}
-        {!groups.length && <span className="sidebar-empty">No groups</span>}
-      </nav>
-
-      <div className="sidebar-section">Recent</div>
-      <nav className="sidebar-nav recent">
-        {recent.map((t) => (
-          <a key={t.id} href={href.task(t.id)} className={t.id === activeTaskId ? "active" : ""} title={`${t.id} · ${t.title}`}>
-            <StatusIcon status={t.status} size={13} />
-            <span className="recent-title">{t.title}</span>
-            {workingTasks.has(t.id) ? <StatusDot status="working" size={6} /> : unreadTasks.has(t.id) && <StatusDot status="unread" size={6} />}
-          </a>
-        ))}
-        {!recent.length && <span className="sidebar-empty">No tasks yet</span>}
-      </nav>
-
-      <UserWidget />
-      <div className="sidebar-bottom">
-        <button className="icon-btn" onClick={toggleTheme} title="Toggle theme">
-          {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-        </button>
-        <AppearancePicker />
-        <button className="icon-btn" onClick={onToggle} title="Hide sidebar ([)">
-          <PanelLeft size={15} />
-        </button>
-        <span className="spacer" />
-        <span className="sidebar-hint">
-          <kbd className="kbd">⌘</kbd>
-          <kbd className="kbd">K</kbd>
-        </span>
+      <div className="sidebar-projects">
+        <SidebarProjects route={route} tasks={tasks} />
       </div>
+
+      <div className="sidebar-groups">
+        <GroupsSection route={route} />
+      </div>
+      <UserWidget />
+      <SidebarFooter onToggle={onToggle} />
     </aside>
+  );
+}
+
+/** Group canvases (chat canvases of several sessions). */
+function GroupsSection({ route }: { route: Route }) {
+  const { sessions: allSessions, openDialog } = useApp();
+  const groups = useGroups();
+  const isUnread = useUnread();
+  const workingIds = new Set(allSessions.filter((s) => s.status === "working").map((s) => s.id));
+  const unreadIds = new Set(allSessions.filter((s) => isUnread(s)).map((s) => s.id));
+  const newGroup = () =>
+    openDialog({
+      title: "New group",
+      submitLabel: "Create group",
+      fields: [{ name: "name", label: "Name" }],
+      onSubmit: async ({ name }) => {
+        const group = await groupsApi.create(name);
+        reloadGroups();
+        navigate(href.group(group.id));
+      },
+    });
+
+  return (
+    <>
+        <div className="sidebar-section sidebar-section-row">
+          Groups
+          <button className="icon-btn tiny" onClick={newGroup} title="New group">
+            <Plus size={13} />
+          </button>
+        </div>
+        <nav className="sidebar-nav">
+          {groups.map((g) => {
+            const live = g.panes.filter((p) => workingIds.has(p.sessionId)).length;
+            const toSee = g.panes.filter((p) => unreadIds.has(p.sessionId)).length;
+            return (
+              <a key={g.id} href={href.group(g.id)} className={route.view === "group" && route.groupId === g.id ? "active" : ""} title={`${g.name} · ${g.panes.length} ${g.panes.length === 1 ? "session" : "sessions"}`}>
+                <LayoutGrid size={14} />
+                <span className="recent-title">{g.name}</span>
+                <span className="nav-count">
+                  {live || toSee ? <LiveCounts working={live} unread={toSee} /> : g.panes.length || ""}
+                </span>
+              </a>
+            );
+          })}
+          {!groups.length && <span className="sidebar-empty">No groups</span>}
+        </nav>
+    </>
+  );
+}
+
+function SidebarFooter({ onToggle }: { onToggle: () => void }) {
+  const { theme, toggleTheme } = useApp();
+  return (
+    <div className="sidebar-bottom">
+      <button className="icon-btn" onClick={toggleTheme} title="Toggle theme">
+        {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+      </button>
+      <AppearancePicker />
+      <button className="icon-btn" onClick={onToggle} title="Hide sidebar ([)">
+        <PanelLeft size={15} />
+      </button>
+      <span className="spacer" />
+      <span className="sidebar-hint">
+        <kbd className="kbd">⌘</kbd>
+        <kbd className="kbd">K</kbd>
+      </span>
+    </div>
   );
 }
 
@@ -314,22 +323,29 @@ type TaskRoute = Extract<Route, { taskId: string }>;
 function TaskShell({ route }: { route: TaskRoute }) {
   const { reloadTasks } = useApp();
   const { data: task, error, reload } = useLiveData<Task>(() => api.getTask(route.taskId), [route.taskId], route.taskId);
+  useEffect(() => markViewed(route.taskId), [route.taskId]);
 
-  if (error) return <div className="empty">Task {route.taskId} not found.</div>;
+  if (error) return <div className="empty">Project {route.taskId} not found.</div>;
   if (!task) return null;
 
-  const active = route.view === "board" ? `b:${route.boardId}` : route.view === "doc" ? `d:${route.doc}` : route.view === "sessions" ? "sessions" : "overview";
+  const activePage = route.view === "board" ? route.boardId : route.view === "doc" ? route.doc.replace(/\.md$/, "") : route.view === "folder" ? route.path : undefined;
+  const crumb = route.view === "sessions" ? "Sessions" : activePage ? (flattenPages(task.pages ?? []).find((p) => p.id === activePage)?.title ?? activePage) : undefined;
   const refresh = () => {
     reload();
     reloadTasks();
   };
   return (
     <div className="task-shell">
-      <TaskTopBar task={task} active={active} />
+      <TaskTopBar task={task} crumb={crumb} />
       <div className="task-content">
         {route.view === "task" && <TaskOverview task={task} onChange={refresh} />}
         {route.view === "board" && <BoardView task={task} boardId={route.boardId} />}
-        {route.view === "doc" && <DocView task={task} doc={route.doc} />}
+        {route.view === "doc" && (
+          <Suspense fallback={null}>
+            <DocView key={route.doc} task={task} doc={route.doc} />
+          </Suspense>
+        )}
+        {route.view === "folder" && <FolderView task={task} path={route.path} />}
         {route.view === "sessions" && <TaskSessions task={task} sessionId={route.sessionId} />}
       </div>
     </div>

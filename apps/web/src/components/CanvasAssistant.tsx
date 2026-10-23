@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, ExternalLink, Loader2, MousePointer2, RotateCcw, Sparkles, Square, Undo2 } from "lucide-react";
+import { ArrowUp, ExternalLink, Loader2, MousePointer2, RotateCcw, Sparkles, Square, TextCursor, Undo2 } from "lucide-react";
 import { api } from "../api";
 import { chatApi, useChatDefaults, useChatState } from "../chat";
 import { href } from "../router";
@@ -8,12 +8,15 @@ import type { Task } from "../types";
 
 type SelectedNode = { id: string; label: string };
 
+/** What the bar edits: a canvas (with the nodes selected on it) or a doc (with the text selected in it). */
+export type AssistantTarget = { kind: "board"; id: string; selected: SelectedNode[] } | { kind: "doc"; id: string; selection: string };
+
 function canvasPrompt(task: Task, boardId: string, request: string, selected: SelectedNode[]) {
   return [
     request,
     "",
     "---",
-    `Context: you're editing board \`${boardId}\` of task ${task.id} ("${task.title}") in Mono. The user is watching it live.`,
+    `Context: you're editing board \`${boardId}\` of project ${task.id} ("${task.title}") in Mono. The user is watching it live.`,
     `- Read it with \`ws get ${task.id} ${boardId}\`.`,
     `- Apply the request by writing a JSON file with the new or changed nodes and loading it with \`ws board ${task.id} ${boardId} <file> --patch\` (reuse existing ids; the canvas updates itself).`,
     "- To delete nodes, send the full board without --patch (nodes created or edited by hand are kept anyway).",
@@ -26,9 +29,33 @@ function canvasPrompt(task: Task, boardId: string, request: string, selected: Se
     .join("\n");
 }
 
+function docPrompt(task: Task, pageId: string, request: string, selection: string) {
+  return [
+    request,
+    "",
+    "---",
+    `Context: you're editing doc \`${pageId}\` of project ${task.id} ("${task.title}") in Mono. The user is watching it live.`,
+    `- Read it with \`ws get ${task.id} ${pageId}\` (markdown).`,
+    `- Apply the request by writing the whole updated markdown to a file and saving it with \`ws doc ${task.id} ${pageId} <file>\`; the page updates itself and the user can undo it.`,
+    "- Keep the first `# Title` line and everything the request doesn't touch. Plain markdown: headings, lists, `- [ ]` checklists, tables, quotes, code blocks. Write in the doc's language. Don't touch repos.",
+    selection ? `- Text the user selected (the request is about it):\n\n${selection.split("\n").map((l) => `> ${l}`).join("\n")}` : null,
+    "- End with a single line saying what you changed.",
+  ]
+    .filter((line) => line !== null)
+    .join("\n");
+}
+
 /** Chat bar over the canvas: requests go to one Claude session per board, which edits it through `ws`. */
 export function CanvasAssistant({ task, boardId, selected }: { task: Task; boardId: string; selected: SelectedNode[] }) {
-  const storageKey = `ws-canvas-session:${task.id}/${boardId}`;
+  return <PageAssistant task={task} target={{ kind: "board", id: boardId, selected }} />;
+}
+
+/** The same bar for any page: one Claude session per page, which edits it through `ws` while the user watches. */
+export function PageAssistant({ task, target, onSent }: { task: Task; target: AssistantTarget; onSent?: () => void }) {
+  const boardId = target.id;
+  const selected = target.kind === "board" ? target.selected : [];
+  const selection = target.kind === "doc" ? target.selection.trim() : "";
+  const storageKey = `ws-${target.kind === "board" ? "canvas" : "doc"}-session:${task.id}/${boardId}`;
   const [sessionId, setSessionId] = useState<string | null>(() => localStorage.getItem(storageKey));
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -47,7 +74,7 @@ export function CanvasAssistant({ task, boardId, selected }: { task: Task; board
     setSending(true);
     setError(null);
     try {
-      const prompt = canvasPrompt(task, boardId, request, selected);
+      const prompt = target.kind === "board" ? canvasPrompt(task, boardId, request, selected) : docPrompt(task, boardId, request, selection);
       if (sessionId) {
         await chatApi.send(sessionId, prompt, stored);
       } else {
@@ -55,6 +82,7 @@ export function CanvasAssistant({ task, boardId, selected }: { task: Task; board
         setSessionId(state.sessionId);
       }
       setText("");
+      onSent?.();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -65,7 +93,7 @@ export function CanvasAssistant({ task, boardId, selected }: { task: Task; board
 
   return (
     <div className="canvas-assistant" onDoubleClick={(e) => e.stopPropagation()}>
-      {sessionId && <AssistantStatus sessionId={sessionId} taskId={task.id} boardId={boardId} onReset={() => setSessionId(null)} />}
+      {sessionId && <AssistantStatus sessionId={sessionId} taskId={task.id} target={target} onReset={() => setSessionId(null)} />}
       {error && <div className="canvas-assistant-error">{error}</div>}
       <div className="canvas-assistant-bar">
         <Sparkles size={15} className="canvas-assistant-icon" />
@@ -74,10 +102,15 @@ export function CanvasAssistant({ task, boardId, selected }: { task: Task; board
             <MousePointer2 size={11} /> {selected.length === 1 ? selected[0].label.slice(0, 24) : `${selected.length} nodes`}
           </span>
         )}
+        {selection && (
+          <span className="canvas-assistant-chip" title={selection}>
+            <TextCursor size={11} /> {selection.length > 24 ? `${selection.slice(0, 24)}…` : selection}
+          </span>
+        )}
         <input
           ref={input}
           value={text}
-          placeholder={selected.length ? "What should change in the selection?" : "Ask Claude to edit this canvas…"}
+          placeholder={selected.length || selection ? "What should change in the selection?" : `Ask Claude to edit this ${target.kind === "board" ? "canvas" : "doc"}…`}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             e.stopPropagation();
@@ -92,11 +125,11 @@ export function CanvasAssistant({ task, boardId, selected }: { task: Task; board
   );
 }
 
-function AssistantStatus({ sessionId, taskId, boardId, onReset }: { sessionId: string; taskId: string; boardId: string; onReset: () => void }) {
+function AssistantStatus({ sessionId, taskId, target, onReset }: { sessionId: string; taskId: string; target: AssistantTarget; onReset: () => void }) {
   const [undoNote, setUndoNote] = useState<string | null>(null);
   const undo = async () => {
     try {
-      const { remaining } = await api.undoBoard(taskId, boardId);
+      const { remaining } = target.kind === "board" ? await api.undoBoard(taskId, target.id) : await api.undoDoc(taskId, target.id);
       setUndoNote(remaining ? `Undone · ${remaining} ${remaining === 1 ? "version" : "versions"} left` : "Undone");
     } catch (e) {
       setUndoNote((e as Error).message);

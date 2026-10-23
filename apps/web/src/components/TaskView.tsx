@@ -1,54 +1,38 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, Bot, ChevronRight, Maximize2, Loader2, Sparkles, ExternalLink, Film, GitBranch, GitPullRequest, Image as ImageIcon, LayoutDashboard, Link2, MessagesSquare, Plus, Target, Wrench, X } from "lucide-react";
+import { AlertTriangle, Bot, ChevronRight, Maximize2, Loader2, Sparkles, ExternalLink, Film, GitBranch, GitPullRequest, Image as ImageIcon, Link2, Plus, Target, Wrench, X } from "lucide-react";
 import { api, fileUrl } from "../api";
 import { useApp } from "../app-context";
-import { BoardIcon, DocIcon, RISK_META, RiskIcon, STATUS_META, STATUS_MENU_ORDER, STATUS_ORDER, StatusIcon, type Risk } from "../icons";
+import { BoardIcon, RISK_META, RiskIcon, STATUS_META, STATUS_MENU_ORDER, STATUS_ORDER, StatusIcon, type Risk } from "../icons";
 import { href, navigate } from "../router";
 import { BOARD_KIND, type BoardKind, type Task } from "../types";
 import { formatDate, Menu, slugify, timeAgo } from "../ui";
-import { lastSessionId, sessionsApi, useRefreshJob } from "../sessions";
+import { sessionsApi, useRefreshJob } from "../sessions";
 import { SessionRow, StatusDot } from "./Agents";
 import { BoardView } from "./BoardView";
 import { isVideo, StatusStrip } from "./Evidence";
 import { Markdown } from "./Markdown";
+import { ProjectTile } from "./Home";
 import { ProjectIcon } from "./Projects";
 
-/** On phones the tabs scroll sideways; keep the current one visible. */
-function scrollActiveTabIntoView(nav: HTMLElement | null) {
-  const tab = nav?.querySelector<HTMLElement>("a.active");
-  if (nav && tab) nav.scrollLeft = tab.offsetLeft - nav.clientWidth / 2 + tab.offsetWidth / 2;
-}
-
-export function TaskTopBar({ task, active }: { task: Task; active: string }) {
+/** Projects › project › page, plus who is working on it right now. Overview, sessions and pages live in the sidebar. */
+export function TaskTopBar({ task, crumb }: { task: Task; crumb?: string }) {
   const { sessions } = useApp();
   const working = sessions.filter((s) => s.status === "working" && s.taskIds?.includes(task.id));
-  const linkedCount = sessions.filter((s) => s.taskIds?.includes(task.id)).length;
-  const last = lastSessionId(task.id);
-  const resume = active !== "sessions" && last && sessions.some((s) => s.id === last && s.taskIds?.includes(task.id)) ? last : undefined;
   return (
     <header className="topbar task-topbar">
       <nav className="breadcrumb">
-        <a href={href.home()}>Tasks</a>
+        <a href={href.home()}>Projects</a>
         <ChevronRight size={13} />
         <a href={href.task(task.id)} className="crumb-task">
-          <StatusIcon status={task.status} size={13} />
-          <span className="mono">{task.id}</span>
+          <ProjectTile task={task} size={16} />
+          <span>{task.title}</span>
         </a>
-      </nav>
-      <nav className="view-tabs" ref={scrollActiveTabIntoView}>
-        <a className={active === "overview" ? "active" : ""} href={href.task(task.id)}>
-          <LayoutDashboard size={13} /> Overview
-        </a>
-        <a className={active === "sessions" ? "active" : ""} href={href.taskSession(task.id, resume)}>
-          <MessagesSquare size={13} /> Sessions
-          {linkedCount > 0 && <span className="tab-count">{linkedCount}</span>}
-          {working.length > 0 && <StatusDot status="working" size={6} />}
-        </a>
-        {task.docs.map((d) => (
-          <a key={d} className={active === `d:${d}` ? "active" : ""} href={href.doc(task.id, d)}>
-            <DocIcon size={13} /> {d.replace(/\.md$/, "")}
-          </a>
-        ))}
+        {crumb && (
+          <>
+            <ChevronRight size={13} />
+            <span className="crumb-page">{crumb}</span>
+          </>
+        )}
       </nav>
       <span className="spacer" />
       {working.length > 0 && (
@@ -192,18 +176,6 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
       },
     });
 
-  const createDoc = () =>
-    openDialog({
-      title: "New doc",
-      fields: [{ name: "name", label: "Name" }],
-      onSubmit: async ({ name }) => {
-        if (!name.trim()) throw new Error("Name is required");
-        const file = `${slugify(name.replace(/\.md$/, ""))}.md`;
-        await api.saveDoc(task.id, file, `# ${name.replace(/\.md$/, "")}\n\n`);
-        navigate(href.doc(task.id, file));
-      },
-    });
-
   const addTag = () =>
     openDialog({
       title: "Add tag",
@@ -272,20 +244,6 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
             </Section>
           )}
 
-          <Section title="Docs" count={task.docs.length} onAdd={createDoc}>
-            {task.docs.map((d) => (
-              <a key={d} className="sub-row" href={href.doc(task.id, d)}>
-                <span className="sub-icon">
-                  <DocIcon size={14} />
-                </span>
-                <span className="sub-title">{d.replace(/\.md$/, "")}</span>
-                <span className="spacer" />
-                <ChevronRight size={14} className="sub-chevron" />
-              </a>
-            ))}
-            {!task.docs.length && <EmptyRow onClick={createDoc}>New doc</EmptyRow>}
-          </Section>
-
           {task.assets.length > 0 && (
             <Section title="Files" count={task.assets.length}>
               <div className="gallery">
@@ -316,6 +274,21 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
         <RefreshButton task={task} onDone={onChange} onAuto={(autoRefresh) => save({ autoRefresh })} />
         <div className="prop-group">
           <div className="prop-title">Properties</div>
+          <Prop label="Icon">
+            <button
+              className="prop-value"
+              onClick={() =>
+                openDialog({
+                  title: "Project icon",
+                  submitLabel: "Save",
+                  fields: [{ name: "icon", label: "An emoji (empty for the initial)", defaultValue: task.icon ?? "" }],
+                  onSubmit: ({ icon }) => save({ icon: [...icon.trim()].slice(0, 2).join("") || undefined }),
+                })
+              }
+            >
+              <ProjectTile task={task} size={18} /> {task.icon ? "Change" : "Add emoji"}
+            </button>
+          </Prop>
           <Prop label="Status">
             <Menu
               value={task.status}
@@ -336,7 +309,7 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
               <RiskIcon risk={task.risk as Risk | undefined} /> {task.risk ? RISK_META[task.risk as Risk].label : "Not set"}
             </Menu>
           </Prop>
-          <Prop label="Projects">
+          <Prop label="Repos">
             <div className="prop-tags">
               {(task.projectIds ?? []).map((id) => {
                 const project = projects.find((p) => p.id === id);
@@ -348,7 +321,7 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
               })}
               <Menu
                 options={projects.map((p) => ({ value: p.id, label: p.title, icon: <ProjectIcon project={p} size={14} /> }))}
-                placeholder="Add or remove project…"
+                placeholder="Add or remove repo…"
                 onChange={(id) => {
                   const current = task.projectIds ?? [];
                   save({ projects: current.includes(id) ? current.filter((x) => x !== id) : [...current, id] });

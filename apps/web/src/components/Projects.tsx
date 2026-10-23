@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, type SyntheticEvent } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Folder, Search, Settings } from "lucide-react";
 import { api } from "../api";
@@ -9,6 +9,14 @@ import type { Project, Task } from "../types";
 export const ALL_PROJECTS = "all";
 const COLORS = ["#eb5757", "#f2994a", "#d9a23b", "#4cb782", "#26b5ce", "#5e6ad2", "#bb87fc", "#e15a97"];
 
+/** Before the server restarts onto the new name, only /api/projects/:id/icon answers. */
+function iconFallback(e: SyntheticEvent<HTMLImageElement>) {
+  const img = e.currentTarget;
+  if (img.dataset.fallback) return;
+  img.dataset.fallback = "1";
+  img.src = img.src.replace("/api/repos/", "/api/projects/");
+}
+
 export function ProjectIcon({ project, size = 18 }: { project?: Project; size?: number }) {
   if (!project) {
     return (
@@ -18,7 +26,7 @@ export function ProjectIcon({ project, size = 18 }: { project?: Project; size?: 
     );
   }
   if (project.hasIcon) {
-    return <img className="project-icon img" src={`/api/projects/${encodeURIComponent(project.id)}/icon`} alt="" style={{ width: size, height: size }} />;
+    return <img className="project-icon img" src={`/api/repos/${encodeURIComponent(project.id)}/icon`} alt="" style={{ width: size, height: size }} onError={iconFallback} />;
   }
   return (
     <span className="project-icon" style={{ width: size, height: size, color: project.color, background: `${project.color}26`, fontSize: Math.round(size * 0.48) }}>
@@ -74,7 +82,7 @@ export function ProjectSwitcher() {
 
   const tree = projectTree(projects);
   const depthOf = (p: Project | null) => (p ? tree.find((t) => t.project.id === p.id)?.depth ?? 0 : 0);
-  const options: (Project | null)[] = [null, ...tree.map((t) => t.project)].filter((p) => !query || (p?.title ?? "All projects").toLowerCase().includes(query.toLowerCase()));
+  const options: (Project | null)[] = [null, ...tree.map((t) => t.project)].filter((p) => !query || (p?.title ?? "All repos").toLowerCase().includes(query.toLowerCase()));
 
   useLayoutEffect(() => {
     if (!open || !trigger.current) return;
@@ -113,10 +121,10 @@ export function ProjectSwitcher() {
           setOpen((o) => !o);
           setActive(Math.max(0, [null, ...projectTree(projects).map((t) => t.project)].findIndex((p) => (p?.id ?? ALL_PROJECTS) === project)));
         }}
-        title="Switch project"
+        title="Switch repo"
       >
         <ProjectIcon project={current} size={20} />
-        <span className="project-switch-name">{current?.title ?? "All projects"}</span>
+        <span className="project-switch-name">{current?.title ?? "All repos"}</span>
         <ChevronDown size={13} className="project-switch-chevron" />
       </button>
       {open &&
@@ -127,7 +135,7 @@ export function ProjectSwitcher() {
                 <Search size={14} />
                 <input
                   autoFocus
-                  placeholder="Search projects…"
+                  placeholder="Search repos…"
                   value={query}
                   onChange={(e) => {
                     setQuery(e.target.value);
@@ -158,7 +166,7 @@ export function ProjectSwitcher() {
                     title={p?.root}
                   >
                     <ProjectIcon project={p ?? undefined} size={20} />
-                    <span className="project-item-name">{p?.title ?? "All projects"}</span>
+                    <span className="project-item-name">{p?.title ?? "All repos"}</span>
                     {p && (
                       <button
                         className="icon-btn tiny project-gear"

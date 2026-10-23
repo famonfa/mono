@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
-import { ChevronRight, GitPullRequest, Kanban, List, Plus } from "lucide-react";
+import { ChevronRight, Kanban, List, Plus, Star } from "lucide-react";
 import { useApp } from "../app-context";
-import { BoardIcon, RISK_META, RiskIcon, STATUS_META, STATUS_MENU_ORDER, STATUS_ORDER, StatusIcon, type Risk } from "../icons";
+import { STATUS_META, STATUS_MENU_ORDER, STATUS_ORDER, StatusIcon } from "../icons";
 import { href, navigate, type HomeFilter } from "../router";
 import type { Task, TaskStatus } from "../types";
-import { formatDate, Menu, useHotkey } from "../ui";
+import { Menu, timeAgo, useHotkey } from "../ui";
+import { flattenPages } from "../pages";
+import { viewedAt } from "../viewed";
 import { StatusDot } from "./Agents";
 import { KanbanCanvas } from "./KanbanCanvas";
 import { inProject, ProjectIcon, projectScope } from "./Projects";
 
 type Display = "list" | "board";
 
-const TITLES: Record<HomeFilter, string> = { todas: "All tasks", activas: "Active", hechas: "Done" };
+const TITLES: Record<HomeFilter, string> = { todas: "All projects", activas: "Active", hechas: "Done" };
 const TABS: Record<HomeFilter, string> = { todas: "All", activas: "Active", hechas: "Done" };
 
 export function Home({ filter }: { filter: HomeFilter }) {
@@ -57,7 +59,7 @@ export function Home({ filter }: { filter: HomeFilter }) {
       {!tasks.length ? (
         <EmptyState onCreate={() => newTask()} />
       ) : display === "list" ? (
-        <ListView tasks={visible} statuses={statuses} />
+        <ProjectList tasks={visible} />
       ) : (
         <KanbanCanvas tasks={visible} statuses={statuses} />
       )}
@@ -69,7 +71,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="empty-state">
       <div className="empty-icon">🐒</div>
-      <h2>No tasks yet</h2>
+      <h2>No projects yet</h2>
       <p>
         Run <code>/workspace</code> in Claude Code to document a task.
       </p>
@@ -81,7 +83,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
           Agents
         </a>
         <button className="btn" onClick={onCreate}>
-          New task <kbd className="kbd">C</kbd>
+          New project <kbd className="kbd">C</kbd>
         </button>
       </div>
     </div>
@@ -96,44 +98,39 @@ function StatusMenu({ task }: { task: Task }) {
       placeholder="Change status…"
       options={STATUS_MENU_ORDER.map((s) => ({ value: s, label: STATUS_META[s].label, icon: <StatusIcon status={s} />, hint: STATUS_META[s].key }))}
       onChange={(status) => void updateTask(task.id, { status })}
-      className="status-trigger"
+      className="proj-status"
     >
-      <StatusIcon status={task.status} />
+      <StatusIcon status={task.status} size={13} /> {STATUS_META[task.status]?.label}
     </Menu>
   );
 }
 
-function TaskMeta({ task }: { task: Task }) {
+const TILE_COLORS = ["#eb5757", "#f2994a", "#d9a23b", "#4cb782", "#26b5ce", "#5e6ad2", "#bb87fc", "#e15a97"];
+
+/** The project's emoji, or its initial on a color picked from the id so it stays put. */
+export function ProjectTile({ task, size = 40 }: { task: Task; size?: number }) {
+  let h = 0;
+  for (const ch of task.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const color = TILE_COLORS[h % TILE_COLORS.length];
   return (
-    <>
-      {task.tags?.slice(0, 3).map((t) => (
-        <span key={t} className="label-pill">
-          <i />
-          {t}
-        </span>
-      ))}
-      {!!task.repos?.length && (
-        <span className="meta-repos" title={task.repos.map((r) => r.name).join(", ")}>
-          <GitPullRequest size={12} />
-          {task.repos.length}
-        </span>
-      )}
-      {!!task.boards.length && (
-        <span className="meta-boards">
-          {task.boards.slice(0, 4).map((b) => (
-            <BoardIcon key={b.id} kind={b.kind} size={13} />
-          ))}
-        </span>
-      )}
-    </>
+    <span className="proj-tile" style={{ width: size, height: size, fontSize: Math.round(size * (task.icon ? 0.5 : 0.42)), ...(task.icon ? {} : { color, background: `${color}1f` }) }}>
+      {task.icon || task.title.trim().charAt(0).toUpperCase() || "·"}
+    </span>
   );
 }
 
-function ListView({ tasks, statuses }: { tasks: Task[]; statuses: TaskStatus[] }) {
-  const { newTask, sessions } = useApp();
+type Sort = "viewed" | "updated" | "title";
+const SORTS: Record<Sort, string> = { viewed: "Sort by viewed", updated: "Sort by updated", title: "Sort by name" };
+
+function ProjectList({ tasks }: { tasks: Task[] }) {
+  const { sessions, projects, updateTask } = useApp();
+  const [sort, setSort] = useState<Sort>(() => (localStorage.getItem("ws-sort") as Sort) ?? "viewed");
+  useEffect(() => localStorage.setItem("ws-sort", sort), [sort]);
+  const viewed = viewedAt();
   const workingTasks = new Set(sessions.filter((s) => s.status === "working").flatMap((s) => s.taskIds ?? []));
-  const groups = statuses.map((s) => ({ status: s, items: tasks.filter((t) => t.status === s) })).filter((g) => g.items.length);
-  const ordered = groups.flatMap((g) => g.items);
+  const key = (t: Task) => (sort === "viewed" ? viewed[t.id] ?? t.updatedAt ?? "" : t.updatedAt ?? "");
+  // Starred first, like pinned docs; then the chosen order.
+  const ordered = [...tasks].sort((a, b) => Number(Boolean(b.starred)) - Number(Boolean(a.starred)) || (sort === "title" ? a.title.localeCompare(b.title) : key(b).localeCompare(key(a))));
   const [cursor, setCursor] = useState(-1);
 
   useHotkey("j", () => setCursor((c) => Math.min(ordered.length - 1, c + 1)));
@@ -143,51 +140,65 @@ function ListView({ tasks, statuses }: { tasks: Task[]; statuses: TaskStatus[] }
   useHotkey("enter", () => ordered[cursor] && navigate(href.task(ordered[cursor].id)));
 
   return (
-    <div className="list">
-      {groups.map((g) => (
-        <section key={g.status}>
-          <div className="group-header">
-            <StatusIcon status={g.status} />
-            <span className="group-label">{STATUS_META[g.status].label}</span>
-            <span className="group-count">{g.items.length}</span>
-            <span className="spacer" />
-            <button className="icon-btn" onClick={() => newTask(g.status)} title="New task">
-              <Plus size={14} />
-            </button>
-          </div>
-          {g.items.map((t) => {
-            const index = ordered.indexOf(t);
-            return (
-              <div
-                key={t.id}
-                className={`row ${index === cursor ? "cursor" : ""}`}
-                onClick={() => navigate(href.task(t.id))}
-                onMouseEnter={() => setCursor(index)}
-              >
-                <span className="row-risk" title={t.risk ? RISK_META[t.risk as Risk]?.label ?? `Risk: ${t.risk}` : "No risk"}>
-                  <RiskIcon risk={t.risk as Risk | undefined} />
-                </span>
-                <span className="row-id">{t.id}</span>
-                <span className="row-status" onClick={(e) => e.stopPropagation()}>
-                  <StatusMenu task={t} />
-                </span>
-                <span className="row-title">{t.title}</span>
+    <div className="list proj-list">
+      <div className="proj-hero">
+        <div>
+          <h1>Projects</h1>
+          <p>Everything you're working on, across your repos.</p>
+        </div>
+        <span className="spacer" />
+        <Menu value={sort} options={(Object.keys(SORTS) as Sort[]).map((s) => ({ value: s, label: SORTS[s] }))} onChange={setSort} className="btn proj-sort">
+          {SORTS[sort]} <ChevronRight size={12} className="proj-sort-chevron" />
+        </Menu>
+      </div>
+      {ordered.map((t, index) => {
+        const pages = flattenPages(t.pages ?? []).length;
+        const seen = viewed[t.id];
+        return (
+          <div key={t.id} className={`proj-row ${index === cursor ? "cursor" : ""}`} onClick={() => navigate(href.task(t.id))} onMouseEnter={() => setCursor(index)}>
+            <ProjectTile task={t} />
+            <div className="proj-main">
+              <div className="proj-title">
+                <span className="proj-name">{t.title}</span>
+                {t.starred && <Star size={13} className="proj-star-mark" />}
                 {workingTasks.has(t.id) && (
                   <span className="row-live" title="Agents working">
                     <StatusDot status="working" size={6} /> live
                   </span>
                 )}
-                <span className="row-tldr">{t.tldr?.solucion}</span>
-                <span className="row-meta">
-                  <TaskMeta task={t} />
-                </span>
-                <span className="row-date">{formatDate(t.updatedAt)}</span>
               </div>
-            );
-          })}
-        </section>
-      ))}
-      {!groups.length && <div className="empty">No tasks.</div>}
+              <div className="proj-sub">
+                <span onClick={(e) => e.stopPropagation()}>
+                  <StatusMenu task={t} />
+                </span>
+                {(t.projectIds ?? []).slice(0, 3).map((id) => {
+                  const repo = projects.find((p) => p.id === id);
+                  return (
+                    <span key={id} className="proj-chip" title={repo?.root}>
+                      <ProjectIcon project={repo} size={13} /> {repo?.title ?? id}
+                    </span>
+                  );
+                })}
+                <span className="proj-when">
+                  {seen ? `Viewed ${timeAgo(seen)}` : `Updated ${timeAgo(t.updatedAt)}`}
+                  {pages > 0 && ` · ${pages} ${pages === 1 ? "page" : "pages"}`}
+                </span>
+              </div>
+            </div>
+            <button
+              className={`icon-btn proj-star ${t.starred ? "on" : ""}`}
+              title={t.starred ? "Unstar" : "Star"}
+              onClick={(e) => {
+                e.stopPropagation();
+                void updateTask(t.id, { starred: !t.starred });
+              }}
+            >
+              <Star size={15} />
+            </button>
+          </div>
+        );
+      })}
+      {!ordered.length && <div className="empty">No projects.</div>}
     </div>
   );
 }

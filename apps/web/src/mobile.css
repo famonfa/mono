@@ -484,3 +484,17 @@
     transform: translateX(-100%);
   }
 }
+
+@media (max-width: 760px) {
+  .proj-hero {
+    padding: 20px 16px 10px;
+  }
+
+  .proj-row {
+    margin: 0 8px;
+  }
+
+  .proj-chip {
+    display: none;
+  }
+}

@@ -5,6 +5,7 @@ import path from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { defaultCwd } from "./paths.mjs";
 import * as store from "./store.mjs";
+import { projectContext } from "./brain.mjs";
 import { sessionCwd } from "./sessions.mjs";
 import { allProjects, descendantIds, launchRootFor } from "./projects.mjs";
 
@@ -158,17 +159,6 @@ function focusContext(launchCwd, focusCwd) {
   return `Working folder for this session: ${focusCwd}\nThe session starts in ${launchCwd} to load its skills and CLAUDE.md, but make changes, builds and tests in the working folder (use absolute paths or \`cd\` into it in every command).`;
 }
 
-function taskContext(task) {
-  const lines = [
-    `You are working on Mono task ${task.id} — "${task.title}" (http://localhost:4600/#/t/${task.id}).`,
-    task.tldr?.problema && `Problem: ${task.tldr.problema}`,
-    task.tldr?.solucion && `Solution: ${task.tldr.solucion}`,
-    task.repos?.length && `Repos/PRs: ${task.repos.map((r) => `${r.name}${r.branch ? ` (${r.branch})` : ""}${r.pr ? ` ${r.pr}` : ""}`).join(", ")}`,
-    task.boards?.length && `Boards: ${task.boards.map((b) => b.id).join(", ")} — read them with \`ws get ${task.id} <board>\`.`,
-    `When you finish a meaningful block of work (tests, fixes, findings), update the workspace with the workspace skill using \`ws board ... --patch\`.`,
-  ];
-  return lines.filter(Boolean).join("\n");
-}
 
 /** Worktrees that belong to a task: matching branch names or `.worktrees/<task>/`, plus the avocado root as fallback. */
 /** The project's own folder plus every git worktree of it, for sessions started without a task. */
@@ -338,7 +328,7 @@ export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort
   // a reassigned folder only changes where it works.
   const focus = resume && focusCwd && isDir(focusCwd) ? focusCwd : launch;
   const workdir = resume ? launch : launchRootFor(focus);
-  const append = [task && taskContext(task), focusContext(workdir, focus), context].filter(Boolean).join("\n\n");
+  const append = [task && projectContext(task), focusContext(workdir, focus), context].filter(Boolean).join("\n\n");
 
   const input = new InputQueue();
   input.push(userMessage(prompt, attachments));

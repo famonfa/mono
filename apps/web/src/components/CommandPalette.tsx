@@ -1,14 +1,61 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Bot, CornerDownLeft, Home, MessageSquarePlus, Moon, Palette, Plus, Search, Sparkles, Sun, Trash2 } from "lucide-react";
+import { Bot, CornerDownLeft, FolderOpen, Home, LayoutDashboard, MessageSquarePlus, Moon, Palette, Plus, Search, Sparkles, Sun, Trash2 } from "lucide-react";
 import { PALETTES, TINT_LABELS, type TintLevel } from "../appearance";
 import { api } from "../api";
 import { ALL_PROJECTS, ProjectIcon } from "./Projects";
 import { useApp } from "../app-context";
 import { BoardIcon, DocIcon, STATUS_META, STATUS_ORDER, StatusIcon } from "../icons";
 import { href, navigate, type Route } from "../router";
+import type { SearchHit } from "../types";
 
-type Command = { id: string; group: string; label: string; sublabel?: string; icon: ReactNode; shortcut?: string; run: () => void };
+type Command = { id: string; group: string; label: string; sublabel?: string; snippet?: string; icon: ReactNode; shortcut?: string; run: () => void };
+
+const NOTES = "In your notes";
+
+/** Lowercase without accents, one character in → one out, so match positions line up with the original text. */
+const foldChar = (c: string) => c.normalize("NFD")[0].toLowerCase();
+const fold = (text: string) => [...text].map(foldChar).join("");
+
+/** The snippet with each searched word in bold, accents and case ignored. */
+function Highlight({ text, words }: { text: string; words: string[] }) {
+  const chars = [...text];
+  const folded = chars.map(foldChar).join("");
+  const marked = new Array(chars.length).fill(false);
+  for (const w of words.map(fold)) {
+    for (let at = folded.indexOf(w); at >= 0 && w; at = folded.indexOf(w, at + w.length)) for (let i = at; i < at + w.length; i++) marked[i] = true;
+  }
+  const parts: { text: string; on: boolean }[] = [];
+  chars.forEach((c, i) => (parts.at(-1)?.on === marked[i] ? (parts.at(-1)!.text += c) : parts.push({ text: c, on: marked[i] })));
+  return <>{parts.map((p, i) => (p.on ? <mark key={i}>{p.text}</mark> : p.text))}</>;
+}
+
+function hitCommand(hit: SearchHit): Command {
+  const to = !hit.page ? href.task(hit.project) : hit.kind === "board" ? href.board(hit.project, hit.page) : hit.kind === "doc" ? href.doc(hit.project, `${hit.page}.md`) : href.folder(hit.project, hit.page);
+  const icon = !hit.page ? <LayoutDashboard size={14} /> : hit.kind === "board" ? <BoardIcon kind="free" /> : hit.kind === "doc" ? <DocIcon /> : <FolderOpen size={14} />;
+  return { id: `hit:${hit.project}/${hit.page ?? ""}`, group: NOTES, label: hit.title, sublabel: hit.page ? hit.projectTitle : "Project summary", snippet: hit.snippet, icon, run: () => navigate(to) };
+}
+
+/** Full-text search over every project's notes, canvases and summaries, as you type. */
+function useNoteSearch(query: string) {
+  const [hits, setHits] = useState<SearchHit[]>([]);
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) return setHits([]);
+    let stale = false;
+    const timer = window.setTimeout(() => {
+      api.search(q).then(
+        (found) => !stale && setHits(found),
+        () => !stale && setHits([]),
+      );
+    }, 150);
+    return () => {
+      stale = true;
+      window.clearTimeout(timer);
+    };
+  }, [query]);
+  return hits;
+}
 
 export function CommandPalette({ route, onClose }: { route: Route; onClose: () => void }) {
   const { tasks, sessions, projects, project, setProject, newTask, updateTask, theme, toggleTheme, appearance, setAppearance, openDialog, reloadTasks } = useApp();
@@ -32,7 +79,7 @@ export function CommandPalette({ route, onClose }: { route: Route; onClose: () =
       list.push({
         id: "trash",
         group: currentTask.id,
-        label: "Delete task",
+        label: "Delete project",
         icon: <Trash2 size={14} />,
         run: () =>
           openDialog({
@@ -47,11 +94,11 @@ export function CommandPalette({ route, onClose }: { route: Route; onClose: () =
           }),
       });
     }
-    list.push({ id: "new", group: "Actions", label: "New task", icon: <Plus size={14} />, shortcut: "C", run: () => newTask() });
-    list.push({ id: "home", group: "Actions", label: "Go to all tasks", icon: <Home size={14} />, shortcut: "G H", run: () => navigate(href.home()) });
+    list.push({ id: "new", group: "Actions", label: "New project", icon: <Plus size={14} />, shortcut: "C", run: () => newTask() });
+    list.push({ id: "home", group: "Actions", label: "Go to all projects", icon: <Home size={14} />, shortcut: "G H", run: () => navigate(href.home()) });
     for (const p of [null, ...projects]) {
       if ((p?.id ?? ALL_PROJECTS) === project) continue;
-      list.push({ id: `project:${p?.id ?? ALL_PROJECTS}`, group: "Projects", label: `Switch to ${p?.title ?? "All projects"}`, icon: <ProjectIcon project={p ?? undefined} size={16} />, run: () => setProject(p?.id ?? ALL_PROJECTS) });
+      list.push({ id: `project:${p?.id ?? ALL_PROJECTS}`, group: "Repos", label: `Switch to ${p?.title ?? "All repos"}`, icon: <ProjectIcon project={p ?? undefined} size={16} />, run: () => setProject(p?.id ?? ALL_PROJECTS) });
     }
     list.push({ id: "new-session", group: "Actions", label: "New session", icon: <MessageSquarePlus size={14} />, shortcut: "S", run: () => navigate(href.newSession()) });
     list.push({ id: "agents", group: "Actions", label: "Agents", icon: <Bot size={14} />, shortcut: "G A", run: () => navigate(href.agents()) });
@@ -69,14 +116,21 @@ export function CommandPalette({ route, onClose }: { route: Route; onClose: () =
       list.push({ id: `tint:${level}`, group: "Appearance", label: `Background: ${TINT_LABELS[level]}`, icon: <Palette size={14} />, run: () => setAppearance({ tint: level }) });
     }
     for (const t of tasks) {
-      list.push({ id: `t:${t.id}`, group: "Tasks", label: t.title, sublabel: t.id, icon: <StatusIcon status={t.status} />, run: () => navigate(href.task(t.id)) });
+      list.push({ id: `t:${t.id}`, group: "Projects", label: t.title, sublabel: t.id, icon: <StatusIcon status={t.status} />, run: () => navigate(href.task(t.id)) });
     }
     return list;
   }, [tasks, sessions, projects, project, setProject, currentTask, newTask, updateTask, theme, toggleTheme, appearance, setAppearance, openDialog, reloadTasks]);
 
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const filtered = commands.filter((c) => words.every((w) => `${c.label} ${c.sublabel ?? ""} ${c.group}`.toLowerCase().includes(w)));
-  const groups = [...new Set(filtered.map((c) => c.group))];
+  const hits = useNoteSearch(query);
+  const matched = commands.filter((c) => words.every((w) => `${c.label} ${c.sublabel ?? ""} ${c.group}`.toLowerCase().includes(w)));
+  // Note hits already matched on the server; they come right after the projects, before actions and settings.
+  const filtered = [...matched, ...hits.map(hitCommand)];
+  const first = [currentTask?.id, "Projects", NOTES];
+  const groups = [...new Set(filtered.map((c) => c.group))].sort((a, b) => {
+    const rank = (g: string) => (first.includes(g) ? first.indexOf(g) : first.length);
+    return rank(a) - rank(b);
+  });
   const ordered = groups.flatMap((g) => filtered.filter((c) => c.group === g));
 
   const run = (c?: Command) => {
@@ -92,7 +146,7 @@ export function CommandPalette({ route, onClose }: { route: Route; onClose: () =
           <Search size={16} />
           <input
             autoFocus
-            placeholder="Search tasks or commands…"
+            placeholder="Search projects, notes or commands…"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -131,8 +185,24 @@ export function CommandPalette({ route, onClose }: { route: Route; onClose: () =
                       }}
                     >
                       <span className="palette-icon">{c.icon}</span>
-                      <span className="palette-label">{c.label}</span>
-                      {c.sublabel && <span className="palette-sub">{c.sublabel}</span>}
+                      {c.snippet !== undefined ? (
+                        <span className="palette-hit">
+                          <span className="palette-hit-head">
+                            <span className="palette-label">{c.label}</span>
+                            <span className="palette-sub">{c.sublabel}</span>
+                          </span>
+                          {c.snippet && (
+                            <span className="palette-snippet">
+                              <Highlight text={c.snippet} words={words} />
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <>
+                          <span className="palette-label">{c.label}</span>
+                          {c.sublabel && <span className="palette-sub">{c.sublabel}</span>}
+                        </>
+                      )}
                       <span className="spacer" />
                       {c.shortcut && <span className="palette-shortcut">{c.shortcut.split(" ").map((k) => <kbd key={k} className="kbd">{k}</kbd>)}</span>}
                       {index === active && <CornerDownLeft size={13} className="palette-enter" />}

@@ -540,7 +540,7 @@ export function SessionView({ sessionId, agentId, sessions }: { sessionId: strin
                 <Prop label="Context">
                   <ContextMeter session={summary} label />
                 </Prop>
-                <Prop label="Project">
+                <Prop label="Repo">
                   <Folder size={12} /> {summary.project}
                 </Prop>
                 {summary.focusCwd && (
@@ -563,7 +563,7 @@ export function SessionView({ sessionId, agentId, sessions }: { sessionId: strin
                 <div className="prop-title prop-title-row">
                   Tasks
                   <Menu
-                    placeholder="Link to task…"
+                    placeholder="Link to project…"
                     options={tasks.map((t) => ({ value: t.id, label: `${t.id} · ${t.title}`, icon: <StatusIcon status={t.status} /> }))}
                     onChange={(taskId) => {
                       const task = tasks.find((t) => t.id === taskId);
@@ -574,7 +574,7 @@ export function SessionView({ sessionId, agentId, sessions }: { sessionId: strin
                     <Plus size={13} />
                   </Menu>
                 </div>
-                {!summary.taskIds?.length && <span className="hint">No linked task</span>}
+                {!summary.taskIds?.length && <span className="hint">No linked project</span>}
                 {summary.taskIds?.map((id) => {
                   const task = tasks.find((t) => t.id === id);
                   return (

@@ -83,7 +83,7 @@ const ColumnNode = memo(({ data }: NodeProps<Node<ColumnData, "column">>) => {
         <span className="group-label">{STATUS_META[data.status].label}</span>
         <span className="group-count">{data.count}</span>
         <span className="spacer" />
-        <button className="icon-btn nodrag" onClick={() => newTask(data.status)} title="New task">
+        <button className="icon-btn nodrag" onClick={() => newTask(data.status)} title="New project">
           <Plus size={14} />
         </button>
       </div>

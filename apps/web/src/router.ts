@@ -12,6 +12,7 @@ export type Route =
   | { view: "task"; taskId: string }
   | { view: "board"; taskId: string; boardId: string }
   | { view: "doc"; taskId: string; doc: string }
+  | { view: "folder"; taskId: string; path: string }
   | { view: "sessions"; taskId: string; sessionId?: string };
 
 function parse(hash: string): Route {
@@ -24,6 +25,7 @@ function parse(hash: string): Route {
   if (kind !== "t" || !taskId) return { view: "home", filter: "todas" };
   if (sub === "b" && name) return { view: "board", taskId, boardId: name };
   if (sub === "d" && name) return { view: "doc", taskId, doc: name };
+  if (sub === "f" && name) return { view: "folder", taskId, path: name };
   if (sub === "s") return { view: "sessions", taskId, sessionId: name || undefined };
   return { view: "task", taskId };
 }
@@ -38,6 +40,7 @@ export const href = {
   session: (id: string, agentId?: string) => `#/agentes/${encodeURIComponent(id)}${agentId ? `/${encodeURIComponent(agentId)}` : ""}`,
   group: (id: string) => `#/g/${encodeURIComponent(id)}`,
   board: (id: string, boardId: string) => `#/t/${encodeURIComponent(id)}/b/${encodeURIComponent(boardId)}`,
+  folder: (id: string, path: string) => `#/t/${encodeURIComponent(id)}/f/${encodeURIComponent(path)}`,
   doc: (id: string, doc: string) => `#/t/${encodeURIComponent(id)}/d/${encodeURIComponent(doc)}`,
   taskSession: (id: string, sessionId?: string) => `#/t/${encodeURIComponent(id)}/s${sessionId ? `/${encodeURIComponent(sessionId)}` : ""}`,
 };

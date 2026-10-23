@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { readConfig, writeConfig } from "./paths.mjs";
-import { TASKS_DIR, assertSafe } from "./store.mjs";
+import { PROJECTS_DIR, assertSafe } from "./store.mjs";
 
 /**
  * Design imports: Figma frames become PNG snapshots in the task's assets/ plus the data a `design`
@@ -71,7 +71,7 @@ export async function importFigma(taskId, rawUrl, { token: given } = {}) {
   // Only remember a token once Figma has accepted it.
   if (given && given !== readConfig().figmaToken) writeConfig({ figmaToken: given });
 
-  const dir = path.join(TASKS_DIR, taskId, "assets");
+  const dir = path.join(PROJECTS_DIR, taskId, "assets");
   fs.mkdirSync(dir, { recursive: true });
   const syncedAt = new Date().toISOString();
   const out = [];

@@ -5065,3 +5065,515 @@ a.status-tile.link:hover {
   height: 10px;
   border-radius: 50%;
 }
+
+/* ── Projects home (a docs-app list: icon, name, where it lives, when you last looked) ── */
+.proj-list {
+  padding: 0 0 48px;
+}
+
+.proj-hero {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 28px 32px 14px;
+}
+
+.proj-hero h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.proj-hero p {
+  margin: 4px 0 0;
+  color: var(--text-3);
+}
+
+.proj-sort {
+  font-size: 12px;
+}
+
+.proj-sort-chevron {
+  transform: rotate(90deg);
+  color: var(--text-3);
+}
+
+.proj-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0 20px;
+  padding: 12px;
+  border-radius: 10px;
+  cursor: default;
+}
+
+.proj-row.cursor {
+  background: var(--bg-hover);
+}
+
+.proj-tile {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elev);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.proj-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.proj-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.proj-name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.proj-star-mark {
+  color: #d9a23b;
+  fill: #d9a23b;
+  flex-shrink: 0;
+}
+
+.proj-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.menu-trigger.proj-status {
+  display: inline-flex;
+  white-space: nowrap;
+  background: none;
+  cursor: pointer;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-2);
+  font-size: 11.5px;
+}
+
+.menu-trigger.proj-status:hover {
+  background: var(--bg-hover);
+}
+
+.proj-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-2);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.proj-when {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.proj-star {
+  opacity: 0;
+  color: var(--text-3);
+}
+
+.proj-row:hover .proj-star,
+.proj-star.on {
+  opacity: 1;
+}
+
+.proj-star.on svg {
+  color: #d9a23b;
+  fill: #d9a23b;
+}
+
+/* ── Sidebar projects: one row per project that opens into its sessions and pages ── */
+.sidebar-projects {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.sidebar-groups {
+  flex-shrink: 0;
+  max-height: 28%;
+  overflow: auto;
+}
+
+.page-count {
+  margin-left: auto;
+  padding-right: 4px;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.page-row .live-dot {
+  margin: 0 6px 0 4px;
+  flex-shrink: 0;
+}
+
+.page-new {
+  width: 100%;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font: inherit;
+  cursor: pointer;
+}
+
+.page-new:hover {
+  color: var(--text-2);
+}
+
+.crumb-task {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.crumb-task .proj-tile {
+  border-radius: 4px;
+}
+
+.crumb-page {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.page-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+  padding-right: 4px;
+  border-radius: 6px;
+  color: var(--text-2);
+}
+
+.page-row:hover {
+  background: var(--bg-hover);
+}
+
+.page-row.active {
+  background: var(--bg-active);
+  color: var(--text);
+}
+
+.page-toggle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-right: 7px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-3);
+}
+
+button.page-toggle {
+  cursor: pointer;
+}
+
+.page-toggle-icon,
+.page-toggle-chevron {
+  grid-area: 1 / 1;
+}
+
+.page-toggle-chevron {
+  opacity: 0;
+  transition: transform 0.12s;
+}
+
+.page-toggle.open .page-toggle-chevron {
+  transform: rotate(90deg);
+}
+
+.page-row:hover button.page-toggle .page-toggle-icon {
+  opacity: 0;
+}
+
+.page-row:hover button.page-toggle .page-toggle-chevron {
+  opacity: 1;
+}
+
+button.page-toggle:hover {
+  background: var(--bg-active);
+}
+
+.page-link {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 100%;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.page-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.page-actions {
+  display: none;
+  align-items: center;
+}
+
+.page-row:hover .page-actions,
+.page-actions:focus-within {
+  display: flex;
+}
+
+.folder-view {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 32px;
+  overflow: auto;
+  height: 100%;
+}
+
+.folder-view h1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 18px;
+  font-size: 22px;
+  font-weight: 650;
+}
+
+.folder-view h1 svg {
+  color: var(--text-3);
+}
+
+.folder-kind {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+/* ── Doc pages: a Notion-like page (BlockNote) ── */
+.notion-doc {
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.doc-page {
+  position: relative;
+  flex: 1 0 auto;
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 56px 0 160px;
+}
+
+.doc-corner {
+  position: absolute;
+  top: 14px;
+  right: 46px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.doc-state {
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.doc-state.error {
+  color: #eb5757;
+}
+
+.doc-title {
+  display: block;
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 0 54px;
+  border: 0;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  background: none;
+  color: var(--text);
+  font: 700 38px/1.2 var(--font-sans);
+  letter-spacing: -0.02em;
+}
+
+.doc-title::placeholder {
+  color: var(--text-4);
+}
+
+/* BlockNote paints its own background and font; let the app's theme show through. */
+.doc-editor-blocks .bn-editor,
+.doc-editor-blocks.bn-container[data-color-scheme] {
+  --bn-colors-editor-background: transparent;
+  --bn-colors-editor-text: var(--text);
+  --bn-font-family: var(--font-sans);
+  background: transparent;
+}
+
+.doc-editor-blocks .bn-editor {
+  padding-inline: 54px;
+  font-size: 15px;
+}
+
+.bn-container[data-color-scheme] {
+  --bn-colors-menu-background: var(--bg-elev);
+  --bn-colors-menu-text: var(--text);
+  --bn-colors-tooltip-background: var(--bg-elev);
+  --bn-colors-tooltip-text: var(--text);
+  --bn-colors-hovered-background: var(--bg-hover);
+  --bn-colors-selected-background: var(--bg-active);
+  --bn-colors-border: var(--border-strong);
+  --bn-colors-shadow: rgb(0 0 0 / 0.25);
+  --bn-font-family: var(--font-sans);
+}
+
+/* Notion's scale: section headings well below the page title. */
+.doc-editor-blocks [data-content-type="heading"][data-level="1"] {
+  --level: 1.875em;
+}
+
+.doc-editor-blocks [data-content-type="heading"][data-level="2"] {
+  --level: 1.5em;
+}
+
+.doc-editor-blocks [data-content-type="heading"][data-level="3"] {
+  --level: 1.25em;
+}
+
+.doc-editor-blocks table th,
+.doc-editor-blocks table td {
+  border-color: var(--border-strong) !important;
+}
+
+.doc-editor-blocks table th {
+  background: var(--bg-hover);
+}
+
+.doc-editor-blocks code {
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+  background: var(--bg-active);
+  color: #eb5757;
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+
+/* Drag & drop in the page tree: a line between pages, a ring around the one it goes into. */
+.page-row.drop-before {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.page-row.drop-after {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.page-row.drop-inside {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.page-row[draggable="true"] {
+  cursor: default;
+}
+
+/* The AI bar floats at the bottom of the doc while it scrolls, as it does over canvases. */
+.doc-assistant {
+  position: sticky;
+  bottom: 0;
+  height: 0;
+  z-index: 6;
+}
+
+/* ⌘K note hits: title + project on one line, the matching line under it. */
+.palette-item:has(.palette-hit) {
+  height: auto;
+  min-height: 38px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  align-items: flex-start;
+}
+
+.palette-hit {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.palette-hit-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.palette-hit-head .palette-sub {
+  font-family: var(--font-sans);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.palette-snippet {
+  color: var(--text-3);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.palette-snippet mark {
+  background: none;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.palette-hit-head .palette-label {
+  flex-shrink: 0;
+  max-width: 65%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-item:has(.palette-hit) .spacer {
+  display: none;
+}

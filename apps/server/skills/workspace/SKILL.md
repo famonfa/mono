@@ -7,7 +7,7 @@ description: Document a task visually in Mono (http://localhost:4600) — TL;DR,
 
 Turn a task into a visual, editable workspace entry. The user reviews work by **looking at flows**, not by reading the conversation. Optimize for: understood in 30 seconds, then explore by clicking.
 
-Mono runs locally on this machine. Data: `ws path <TASK>` prints the task folder. The UI refreshes live when you write.
+Mono runs locally on this machine. Data: `ws path <TASK>` prints the project folder (`project.json`, `pages/`, `assets/`). The UI refreshes live when you write.
 
 CLI: `mono` or its alias `ws` (on PATH) — run `ws` with no args for usage. Don't store it in a shell variable: zsh won't word-split `$WS`.
 
@@ -28,6 +28,7 @@ curl -s -o /dev/null localhost:4600/api/health || mono serve > /tmp/mono.log 2>&
 
 Read only what you need; never paste big outputs into context.
 
+- **The project's brain:** `ws context <TASK>` (summary, page tree, uploaded files) and `ws search <words>` across all projects — the user's own notes and decisions outrank your assumptions.
 - **Existing entry:** `ws show <TASK>` — if it exists you are *updating*: keep node ids stable so the user's layout survives.
 - **Conversation:** the work you just did is the best source. Use it.
 - **Other agents:** `ws sessions <TASK>` prints what every linked Claude Code session and subagent did recently (sessions link by PR, branch, worktree or a mention of the task id). Use it as evidence for test results and new findings — e.g. QA agents running in another session.
@@ -41,7 +42,7 @@ Read only what you need; never paste big outputs into context.
 
 Write JSON/MD to `/tmp/ws-<TASK>/` and load each with the CLI. Write everything in the user's language.
 
-### task.json → `ws task <TASK> /tmp/ws-<TASK>/task.json`
+### project.json → `ws project <TASK> /tmp/ws-<TASK>/project.json`
 
 ```json
 {
@@ -57,7 +58,7 @@ Write JSON/MD to `/tmp/ws-<TASK>/` and load each with the CLI. Write everything 
 }
 ```
 
-`status`: `planificado | en-curso | en-review | hecho | bloqueado`. `relatedPrs`: superseded or companion PR numbers, so agent sessions that worked on them link to this task. `projects`: optional list of project ids (the directories Mono shows: `curl -s localhost:4600/api/projects | jq -r '.[].id'`); if omitted, repos are matched to projects by name. `risk`: `bajo | medio | alto`. Each TL;DR field ≤ 2 sentences.
+`status`: `planificado | en-curso | en-review | hecho | bloqueado`. `relatedPrs`: superseded or companion PR numbers, so agent sessions that worked on them link to this task. `projects`: optional list of repo ids (the directories Mono shows: `curl -s localhost:4600/api/repos | jq -r '.[].id'`); if omitted, repos are matched by name. `risk`: `bajo | medio | alto`. Each TL;DR field ≤ 2 sentences.
 
 ### Boards → `ws board <TASK> <board-id> /tmp/ws-<TASK>/<board>.json`
 
@@ -70,6 +71,10 @@ Default set (skip a board when it adds nothing, e.g. no tech map for a one-file 
 | `testeo` | tests | lanes | One lane per test path; last node carries the result (`test`) and screenshot (`image`). |
 | `mapa-tecnico` | tech | lanes | One lane per repo; nodes = modules/files touched; edges = data flow between them. |
 | `ui` | ui | lanes | **Only if the change touched UI.** One lane per screen/state; `image` nodes with real screenshots (`status` new/changed). Skip entirely for backend-only work. |
+
+### Pages (bigger projects)
+
+A project holds a tree of pages. The boards above and `decisiones` live in the project's **Workspace** folder: keep using their bare ids (`ws board <TASK> testeo …`), the CLI files them under `workspace/` so they don't crowd the user's own pages. When the work outgrows them, group pages under folders, any depth: `ws folder <TASK> discovery "Discovery"`, then `ws board <TASK> discovery/entrevistas …` or `ws doc <TASK> discovery/notas …`. `ws pages <TASK>` prints the tree and `ws get <TASK> <path>` reads any page; `ws mv` / `ws rm` reorganize.
 
 Board file shape (flat nodes — the CLI normalizes them):
 
@@ -91,7 +96,7 @@ Node fields: `id` (stable, short), `type` (`card` default | `actor` | `activity`
 
 Storymap specifics: `actor` nodes go in a left column; `activity` nodes become columns in array order (prefix labels with `1.`, `2.`…); steps reference their column with `activity`. Use a `note` (color `#fee2e2`) for pending items or risks outside scope.
 
-### Docs → `ws doc <TASK> <name>.md /tmp/ws-<TASK>/<name>.md`
+### Docs → `ws doc <TASK> <page> /tmp/ws-<TASK>/<name>.md`
 
 Only when they add value; usually just `decisions.md` (table: decision | why, plus rollout risks). No essays.
 

@@ -608,7 +608,7 @@ export function NewSession({ task }: { task?: Task }) {
           <Bot size={22} />
         </div>
         <h2>{task ? `New session in ${task.id}` : "New session"}</h2>
-        {task && <p>Starts with the task's summary, PRs, and boards as context.</p>}
+        {task && <p>Starts with the project's summary, PRs, and pages as context.</p>}
         <Composer
           autoFocus
           draftKey={`new-${task?.id ?? "free"}`}
@@ -630,7 +630,7 @@ export function NewSession({ task }: { task?: Task }) {
               {!task && (
                 <Menu
                   value={projectId}
-                  placeholder="Search projects…"
+                  placeholder="Search repos…"
                   options={projects.map((p) => ({ value: p.id, label: p.title, icon: <ProjectIcon project={p} size={14} /> }))}
                   onChange={setProjectId}
                   className="mode-trigger"
@@ -682,7 +682,7 @@ export function FolderPicker({ value, onChange }: { value: string; onChange: (cw
     <>
       <Menu
         value={projectId}
-        placeholder="Search projects…"
+        placeholder="Search repos…"
         options={projects.map((p) => ({ value: p.id, label: p.title, icon: <ProjectIcon project={p} size={14} /> }))}
         onChange={setProjectId}
         className="mode-trigger"

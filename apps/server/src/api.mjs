@@ -9,6 +9,7 @@ import * as chats from "./chats.mjs";
 import * as groups from "./groups.mjs";
 import * as projects from "./projects.mjs";
 import * as designs from "./designs.mjs";
+import * as brain from "./brain.mjs";
 import { listCommands, readCommand } from "./commands.mjs";
 import { refreshStatus, startRefresh } from "./refresh.mjs";
 import { prStatus } from "./prs.mjs";
@@ -179,11 +180,11 @@ function handleGroups(res, method, parts, body) {
 
 /** Creates the request handler plus file watchers that broadcast `ws:data`, `ws:sessions`, `ws:groups` and `ws:chat` events. */
 export function createApi(broadcast) {
-  fs.mkdirSync(store.TASKS_DIR, { recursive: true });
+  fs.mkdirSync(store.PROJECTS_DIR, { recursive: true });
 
   let timer;
   const pending = new Set();
-  fs.watch(store.TASKS_DIR, { recursive: true }, (_event, filename) => {
+  fs.watch(store.PROJECTS_DIR, { recursive: true }, (_event, filename) => {
     if (!filename || filename.endsWith(".tmp")) return;
     pending.add(filename.split(path.sep)[0]);
     clearTimeout(timer);
@@ -222,7 +223,7 @@ export function createApi(broadcast) {
     if (!isTrusted(req)) return send(res, 403, { error: "forbidden" });
     if (req.url.startsWith("/files/")) {
       const rel = decodeURIComponent(req.url.replace(/^\/files\//, "").split("?")[0]);
-      return serveStatic(res, store.TASKS_DIR, rel, req) || next();
+      return serveStatic(res, store.PROJECTS_DIR, rel, req) || next();
     }
     if (!req.url.startsWith("/api/")) return next();
 
@@ -237,6 +238,7 @@ export function createApi(broadcast) {
       if (resource === "me" && method === "GET") return send(res, 200, localAccount());
       if (resource === "chats") return await handleChats(res, method, parts, body);
       if (resource === "groups") return await handleGroups(res, method, parts, body);
+      if (resource === "search" && method === "GET") return send(res, 200, brain.search(url.searchParams.get("q") ?? "", { projectId: url.searchParams.get("project") || undefined }));
       if (resource === "models" && method === "GET") return send(res, 200, chats.listModels());
       if (resource === "commands" && method === "GET" && url.searchParams.get("name")) {
         const found = readCommand(url.searchParams.get("cwd") ? chats.expandHome(url.searchParams.get("cwd")) : null, url.searchParams.get("name"));
@@ -248,7 +250,8 @@ export function createApi(broadcast) {
         const file = path.resolve(url.searchParams.get("path") ?? "");
         return file.startsWith(chats.UPLOADS_DIR + path.sep) && serveStatic(res, path.dirname(file), path.basename(file)) ? undefined : send(res, 404, { error: "not found" });
       }
-      if (resource === "projects") {
+      // Folders/repos Mono knows about. Still answers /api/projects, their name before tasks became projects.
+      if (resource === "repos" || resource === "projects") {
         if (!id && method === "GET") return send(res, 200, projects.listProjects({ fresh: url.searchParams.has("fresh") }).map(({ favicon, ...p }) => ({ ...p, hasIcon: Boolean(favicon) })));
         if (id && sub === "icon" && method === "GET") {
           const icon = projects.projectIcon(id);
@@ -341,6 +344,32 @@ export function createApi(broadcast) {
         }
       }
 
+      if (sub === "order" && !subId && method === "PUT") {
+        store.setPageOrder(id, body.parent || null, Array.isArray(body.order) ? body.order : []);
+        return send(res, 200, { ok: true });
+      }
+      if (sub === "assets" && !subId && method === "POST") return send(res, 200, { path: store.saveAsset(id, String(body.name ?? "file"), String(body.data ?? "")) });
+
+      if (sub === "pages" && subId) {
+        if (parts[4] === "move" && method === "POST") return send(res, 200, { id: store.movePage(id, subId, String(body.to ?? "")) });
+        if (method === "GET") {
+          const page = store.getPage(id, subId);
+          return page ? send(res, 200, page) : send(res, 404, { error: "not found" });
+        }
+        if (method === "PUT") {
+          store.saveFolder(id, subId, body.title);
+          return send(res, 200, store.getPage(id, subId));
+        }
+        if (method === "DELETE") {
+          store.trashPage(id, subId);
+          return send(res, 200, { ok: true });
+        }
+      }
+
+      if (sub === "docs" && subId && parts[4] === "undo" && method === "POST") {
+        const restored = store.restoreDoc(id, subId);
+        return send(res, 200, { restored, remaining: store.docHistory(id, subId).length });
+      }
       if (sub === "docs" && subId) {
         if (method === "GET") {
           const doc = store.getDoc(id, subId);

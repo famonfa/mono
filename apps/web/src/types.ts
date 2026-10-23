@@ -52,9 +52,32 @@ export type RepoRef = { name: string; branch?: string; pr?: string; worktree?: s
 
 export type PrStatus = { url: string; error?: boolean; state?: "OPEN" | "MERGED" | "CLOSED" | "DRAFT"; title?: string; review?: string | null; checks?: { total: number; failing: number; pending: number } };
 
+/** A page in a project's tree: a board, a doc or a plain folder; any of them can hold child pages. Its id is its path. */
+export type Page = {
+  id: string;
+  title: string;
+  kind: "board" | "doc" | "folder";
+  boardKind?: BoardKind;
+  order?: number;
+  nodeCount?: number;
+  children: Page[];
+};
+
+/** A page (or a project's summary, when `page` is null) matching every word of a search. */
+export type SearchHit = { project: string; projectTitle: string; page: string | null; kind: Page["kind"] | null; title: string; snippet: string; score: number };
+
+/** What GET /api/tasks/:id/pages/:path returns. */
+export type PageContent =
+  | { kind: "board"; id: string; board: Board }
+  | { kind: "doc"; id: string; content: string }
+  | { kind: "folder"; id: string; title: string; children: Page[] };
+
 export type Task = {
   id: string;
   title: string;
+  /** An emoji shown as the project's icon; a colored initial otherwise. */
+  icon?: string;
+  starred?: boolean;
   status: TaskStatus;
   risk?: "bajo" | "medio" | "alto";
   tldr?: { problema?: string; solucion?: string; impacto?: string };
@@ -73,6 +96,8 @@ export type Task = {
   cwd?: string;
   sessionIds?: string[];
   boardOrder?: number;
+  pages: Page[];
+  /** `pages` flattened: every board and every doc (as `<path>.md`), wherever it sits in the tree. */
   boards: BoardSummary[];
   docs: string[];
   assets: string[];

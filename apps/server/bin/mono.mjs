@@ -7,6 +7,7 @@ import * as sessions from "../src/sessions.mjs";
 import * as groups from "../src/groups.mjs";
 import * as launcher from "../src/launcher.mjs";
 import * as designs from "../src/designs.mjs";
+import * as brain from "../src/brain.mjs";
 
 launcher.runFromRuntime();
 
@@ -19,24 +20,35 @@ const USAGE = `mono (alias: ws) — Mono CLI (http://localhost:4600)
   mono disconnect                          Drop the remote connection
   mono service install|uninstall           Start Mono at login (launchd) and put mono/ws on PATH
 
-  ws list                                  List tasks
-  ws show <task>                           Show task.json + boards/docs/assets
-  ws get <task> <board>                    Print a board (nodes and edges) for editing
-  ws task <task> <file.json|->             Create/update metadata (shallow merge)
-  ws board <task> <board> <file.json|-> [--relayout | --patch]
+  A project holds a tree of pages. A page is a board (canvas) or a doc and can hold child pages;
+  its id is its path: \`flujo\`, \`implementacion/tests/e2e\` (letters, digits, . _ -).
+  Generated pages (story-map, flujo, testeo, mapa-tecnico, ui, decisiones) live in the project's
+  Workspace folder: their bare names resolve to \`workspace/<name>\`.
+
+  ws list                                  List projects
+  ws show <project>                        Show project.json + page tree + assets
+  ws pages <project>                       Print the page tree
+  ws get <project> <page>                  Print a page: a board (nodes and edges), a doc, or a folder
+  ws project <project> <file.json|->       Create/update metadata (shallow merge). Alias: ws task
+  ws board <project> <page> <file.json|-> [--relayout | --patch]
                                            Create/update a board, keeping the user's layout.
                                            --patch only adds/updates nodes, never deletes.
-  ws undo <task> <board>                   Revert the board to before its last write
-  ws doc <task> <name.md> <file.md|->      Write a doc
-  ws asset <task> <image...>               Copy images to assets/
-  ws figma <task> <board> <figma-url> [--lane <name>]
+  ws doc <project> <page> <file.md|->      Write a doc (\`notas\` or \`notas.md\`)
+  ws folder <project> <page> [title]       Create a folder page, or retitle it
+  ws mv <project> <page> <new-path>        Move or rename a page with its children
+  ws rm <project> <page>                   Send a page and its children to the trash
+  ws undo <project> <page>                 Revert a board or doc to before its last write
+  ws asset <project> <image...>            Copy images to assets/
+  ws figma <project> <board> <figma-url> [--lane <name>]
                                            Import Figma frames as design nodes (re-run to refresh).
                                            Token: FIGMA_TOKEN or figmaToken in ~/.mono/config.json
-  ws sessions [task] [--since ISO]         Recent agent activity (one task or all)
+  ws context <project>                     What an agent should know: summary, page tree, files
+  ws search <words...> [--project <id>]    Search every project's notes, canvases and summaries
+  ws sessions [project] [--since ISO]      Recent agent activity (one project or all)
   ws groups                                List session groups (chat canvases)
   ws group <group> <session-id...>         Add sessions to a group's canvas (creates it if missing)
-  ws open [task]                           Open the app in the browser
-  ws path [task]                           Print the data folder`;
+  ws open [project]                        Open the app in the browser
+  ws path [project]                        Print the data folder`;
 
 const [, , command, ...args] = process.argv;
 
@@ -79,22 +91,41 @@ switch (command === "--web" ? "launch" : (command ?? (invokedAs === "ws" ? "help
     else fail(USAGE);
     break;
   case "list": {
-    for (const t of store.listTasks()) {
-      console.log(`${t.id.padEnd(14)} ${String(t.status).padEnd(10)} ${t.title}  [${t.boards.map((b) => b.id).join(", ")}]`);
+    for (const p of store.listProjects()) {
+      const count = store.flattenPages(p.pages).length;
+      console.log(`${p.id.padEnd(14)} ${String(p.status).padEnd(10)} ${p.title}  [${count} page${count === 1 ? "" : "s"}]`);
     }
+    break;
+  }
+  case "pages": {
+    requireArgs(1);
+    const project = store.getProject(args[0]);
+    if (!project) fail(`Project not found: ${args[0]}`);
+    printPages(project.pages);
     break;
   }
   case "show": {
     requireArgs(1);
-    const task = store.getTask(args[0]);
-    if (!task) fail(`Task not found: ${args[0]}`);
-    console.log(JSON.stringify(task, null, 2));
+    const project = store.getProject(args[0]);
+    if (!project) fail(`Project not found: ${args[0]}`);
+    const { boards, docs, ...rest } = project;
+    console.log(JSON.stringify(rest, null, 2));
     break;
   }
   case "get": {
     requireArgs(2);
-    const board = store.getBoard(args[0], args[1]);
-    if (!board) fail(`Board not found: ${args[0]}/${args[1]}`);
+    const page = store.getPage(args[0], store.resolvePageId(args[0], args[1]));
+    if (!page) fail(`Page not found: ${args[0]}/${args[1]}`);
+    if (page.kind === "doc") {
+      process.stdout.write(page.content);
+      break;
+    }
+    if (page.kind === "folder") {
+      console.log(`${page.title} (folder)`);
+      printPages(page.children, "  ");
+      break;
+    }
+    const { board } = page;
     const compact = {
       ...board,
       // Lanes, parents and positions are the app's layout; agents place nodes with the \`lane\` name.
@@ -103,17 +134,19 @@ switch (command === "--web" ? "launch" : (command ?? (invokedAs === "ws" ? "help
     console.log(JSON.stringify(compact, null, 2));
     break;
   }
+  case "project":
   case "task": {
     requireArgs(2);
     const [id, source] = args;
     store.assertSafe(id);
-    const task = store.saveTask(id, JSON.parse(readInput(source)));
-    console.log(`✓ task ${task.id} updated`);
+    const project = store.saveProject(id, JSON.parse(readInput(source)));
+    console.log(`✓ project ${project.id} updated`);
     break;
   }
   case "board": {
     requireArgs(3);
-    const [id, boardId, source] = args.filter((a) => !a.startsWith("--"));
+    const [id, name, source] = args.filter((a) => !a.startsWith("--"));
+    const boardId = store.resolvePageId(id, name);
     const incoming = JSON.parse(readInput(source));
     const existing = store.getBoard(id, boardId);
     const merged = store.mergeBoard(existing, incoming, { relayout: args.includes("--relayout"), patch: args.includes("--patch") });
@@ -125,22 +158,45 @@ switch (command === "--web" ? "launch" : (command ?? (invokedAs === "ws" ? "help
   }
   case "undo": {
     requireArgs(2);
-    const restored = store.restoreBoard(args[0], args[1]);
-    console.log(`✓ board ${args[0]}/${args[1]} restored to ${restored.replace(".json", "")}`);
+    const pageId = store.resolvePageId(args[0], args[1]);
+    const isDoc = store.getDoc(args[0], pageId) !== null;
+    const restored = isDoc ? store.restoreDoc(args[0], pageId) : store.restoreBoard(args[0], pageId);
+    console.log(`✓ ${isDoc ? "doc" : "board"} ${args[0]}/${pageId} restored to ${restored.replace(/\.(json|md)$/, "")}`);
     break;
   }
   case "doc": {
     requireArgs(3);
     const [id, name, source] = args;
-    store.saveDoc(id, name, readInput(source));
-    console.log(`✓ doc ${id}/docs/${name}`);
+    const pageId = store.resolvePageId(id, name);
+    store.snapshotDoc(id, pageId);
+    store.saveDoc(id, pageId, readInput(source));
+    console.log(`✓ doc ${id}/${pageId}`);
+    break;
+  }
+  case "folder": {
+    requireArgs(2);
+    const [id, pageId, ...title] = args;
+    store.saveFolder(id, pageId, title.join(" ") || undefined);
+    console.log(`✓ folder ${id}/${pageId}`);
+    break;
+  }
+  case "mv": {
+    requireArgs(3);
+    const [id, from, to] = args;
+    console.log(`✓ ${id}/${from} → ${id}/${store.movePage(id, store.resolvePageId(id, from), to)}`);
+    break;
+  }
+  case "rm": {
+    requireArgs(2);
+    store.trashPage(args[0], store.resolvePageId(args[0], args[1]));
+    console.log(`✓ ${args[0]}/${args[1]} moved to the trash`);
     break;
   }
   case "asset": {
     requireArgs(2);
     const [id, ...files] = args;
     store.assertSafe(id);
-    const dir = path.join(store.TASKS_DIR, id, "assets");
+    const dir = path.join(store.PROJECTS_DIR, id, "assets");
     fs.mkdirSync(dir, { recursive: true });
     for (const file of files) {
       const name = path.basename(file).replace(/[^A-Za-z0-9._-]/g, "-");
@@ -153,7 +209,8 @@ switch (command === "--web" ? "launch" : (command ?? (invokedAs === "ws" ? "help
     requireArgs(3);
     const laneAt = args.indexOf("--lane");
     const lane = laneAt >= 0 ? args[laneAt + 1] : undefined;
-    const [id, boardId, url] = args.filter((a, i) => !a.startsWith("--") && i !== laneAt + 1);
+    const [id, name, url] = args.filter((a, i) => !a.startsWith("--") && i !== laneAt + 1);
+    const boardId = store.resolvePageId(id, name);
     const frames = await designs.importFigma(id, url).catch((e) => fail(e.message));
     const existing = store.getBoard(id, boardId);
     // Same frame → same node id, so re-importing refreshes the node in place.
@@ -163,13 +220,33 @@ switch (command === "--web" ? "launch" : (command ?? (invokedAs === "ws" ? "help
     for (const n of nodes) console.log(`✓ ${n.id}  ${n.label}  → ${n.image}`);
     break;
   }
+  case "context": {
+    requireArgs(1);
+    const project = store.getProject(args[0]);
+    if (!project) fail(`Project not found: ${args[0]}`);
+    console.log(brain.projectContext(project));
+    break;
+  }
+  case "search": {
+    const at = args.indexOf("--project");
+    const projectId = at >= 0 ? args[at + 1] : undefined;
+    const query = args.filter((a, i) => !a.startsWith("--") && !(at >= 0 && i === at + 1)).join(" ");
+    if (!query) fail(USAGE);
+    const hits = brain.search(query, { projectId });
+    if (!hits.length) console.log("No matches.");
+    for (const h of hits) {
+      console.log(`${h.project}${h.page ? ` / ${h.page}` : ""} — ${h.title}${h.page ? "" : " (project summary)"}`);
+      if (h.snippet) console.log(`   ${h.snippet}`);
+    }
+    break;
+  }
   case "sessions": {
     const [id] = args.filter((a) => !a.startsWith("--"));
     const sinceArg = args.indexOf("--since");
     const since = sinceArg >= 0 ? args[sinceArg + 1] : undefined;
     const all = sessions.listSessions({ days: 7 });
-    const task = id ? store.getTask(id) : null;
-    if (id && !task) fail(`Task not found: ${id}`);
+    const task = id ? store.getProject(id) : null;
+    if (id && !task) fail(`Project not found: ${id}`);
     const list = task ? sessions.sessionsForTask(task, all) : all.filter((x) => x.status !== "inactive");
     if (!list.length) console.log("No linked sessions.");
     for (const session of list) printSessionDigest(session, since);
@@ -196,11 +273,19 @@ switch (command === "--web" ? "launch" : (command ?? (invokedAs === "ws" ? "help
     break;
   }
   case "path": {
-    console.log(args[0] ? path.join(store.TASKS_DIR, args[0]) : store.TASKS_DIR);
+    console.log(args[0] ? path.join(store.PROJECTS_DIR, args[0]) : store.PROJECTS_DIR);
     break;
   }
   default:
     console.log(USAGE);
+}
+
+function printPages(pages, indent = "") {
+  const icon = { board: "▦", doc: "¶", folder: "▸" };
+  for (const p of pages) {
+    console.log(`${indent}${icon[p.kind]} ${p.id}${p.title !== p.id.split("/").pop() ? `  — ${p.title}` : ""}${p.kind === "board" ? `  (${p.boardKind}, ${p.nodeCount} nodes)` : ""}`);
+    printPages(p.children, indent + "  ");
+  }
 }
 
 function printSessionDigest(session, since) {
