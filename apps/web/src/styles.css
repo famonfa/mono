@@ -4447,38 +4447,139 @@ a.status-tile.link:hover {
   opacity: 1;
 }
 
-.group-canvas .group-wire {
+.group-canvas .react-flow__edge-energy {
   cursor: pointer;
 }
 
-.group-canvas .group-wire .react-flow__edge-path {
+/* Energy wires: a parent feeds its children. Sparks run down while the child works; the wire stays charged after. */
+.group-canvas .energy-line {
   stroke: var(--border-strong);
   stroke-width: 2;
+  transition: stroke 0.4s;
 }
 
-.group-canvas .group-wire.animated .react-flow__edge-path {
-  stroke: var(--text-3);
+.group-canvas .energy.charged .energy-line {
+  stroke: var(--energy);
+  stroke-opacity: 0.45;
 }
 
-.group-canvas .group-wire.after .react-flow__edge-path {
-  stroke-width: 2.5;
+.group-canvas .energy.flowing .energy-line {
+  stroke: var(--energy);
+  stroke-opacity: 0.7;
 }
 
-.group-canvas .group-wire.done .react-flow__edge-path {
-  stroke: var(--text-3);
+.group-canvas .energy.waiting .energy-line {
+  stroke-dasharray: 3 7;
+  animation: energy-wait 2s linear infinite;
 }
 
-.group-canvas .group-wire.waiting .react-flow__edge-path {
-  stroke-dasharray: 6 6;
+.group-canvas .energy.selected .energy-line {
+  stroke: var(--text-2);
 }
 
-.group-wire-label {
-  font-size: 11px;
-  fill: var(--text-3);
+.group-canvas .energy:hover .energy-line {
+  stroke-width: 3;
 }
 
-.group-canvas .react-flow__edge-textbg {
+.energy-glow {
+  fill: none;
+  stroke: var(--energy);
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke-opacity: 0.1;
+  filter: blur(4px);
+  pointer-events: none;
+}
+
+.energy.flowing .energy-glow {
+  animation: energy-breathe 3s ease-in-out infinite;
+}
+
+.energy-current {
+  fill: none;
+  stroke: var(--energy-core);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 1.2 5;
+  animation: energy-run 1.5s linear infinite;
+  filter: drop-shadow(0 0 3px var(--energy));
+  pointer-events: none;
+}
+
+.energy-spark {
+  fill: var(--energy-core);
+  filter: drop-shadow(0 0 3px var(--energy)) drop-shadow(0 0 9px var(--energy));
+  pointer-events: none;
+}
+
+.energy-socket {
   fill: var(--bg-canvas);
+  stroke: var(--border-strong);
+  stroke-width: 2;
+  pointer-events: none;
+  transition: fill 0.4s, stroke 0.4s;
+}
+
+.energy.charged .energy-socket {
+  stroke: var(--energy);
+  stroke-opacity: 0.6;
+}
+
+.energy.flowing .energy-socket {
+  fill: var(--energy);
+  stroke: var(--energy-core);
+  filter: drop-shadow(0 0 6px var(--energy));
+}
+
+.energy-tag {
+  position: absolute;
+  padding: 2px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg-canvas);
+  font-size: 11px;
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.energy-tag.flowing,
+.energy-tag.charged {
+  border-color: var(--energy);
+  color: var(--energy);
+}
+
+@keyframes energy-run {
+  to {
+    stroke-dashoffset: -6.2;
+  }
+}
+
+@keyframes energy-wait {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+@keyframes energy-breathe {
+  50% {
+    stroke-opacity: 0.32;
+  }
+}
+
+/* A working session glows with the energy reaching it. */
+.group-canvas .group-pane.working {
+  border-color: var(--energy);
+  animation: energy-halo 3.4s ease-in-out infinite;
+}
+
+@keyframes energy-halo {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px var(--energy-soft), 0 0 24px var(--energy-soft), 0 10px 30px rgb(0 0 0 / 0.22);
+  }
+  50% {
+    box-shadow: 0 0 0 1px var(--energy), 0 0 56px var(--energy-soft), 0 10px 30px rgb(0 0 0 / 0.22);
+  }
 }
 
 .group-queued {

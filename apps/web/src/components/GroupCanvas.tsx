@@ -5,7 +5,9 @@ import {
   BackgroundVariant,
   Controls,
   Handle,
-  MarkerType,
+  BaseEdge,
+  EdgeLabelRenderer,
+  getSmoothStepPath,
   MiniMap,
   Position,
   NodeResizer,
@@ -17,6 +19,7 @@ import {
   type Connection,
   type FinalConnectionState,
   type Edge,
+  type EdgeProps,
   type Node,
   type NodeChange,
   type NodeProps,
@@ -133,6 +136,47 @@ function QueuedCard({ data }: NodeProps<QueuedNode>) {
 }
 
 const nodeTypes = { pane: SessionPane, queued: QueuedCard };
+
+/**
+ * How much energy a wire carries: `flowing` while the child works (sparks run from parent to child),
+ * `charged` once it has worked, `waiting` toward a card that hasn't started, `idle` otherwise.
+ */
+type EnergyState = "flowing" | "charged" | "waiting" | "idle";
+type EnergyEdge = Edge<{ state: EnergyState; tag?: string }, "energy">;
+
+const SPARKS = 3;
+
+function EnergyWire({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, selected }: EdgeProps<EnergyEdge>) {
+  const [path, labelX, labelY] = getSmoothStepPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, borderRadius: 18 });
+  const state = data?.state ?? "idle";
+  // Sparks keep a steady speed whatever the wire's length.
+  const seconds = Math.min(6, Math.max(2.2, (Math.abs(targetX - sourceX) + Math.abs(targetY - sourceY)) / 190));
+  return (
+    <g className={`energy ${state} ${selected ? "selected" : ""}`}>
+      {state !== "idle" && state !== "waiting" && <path d={path} className="energy-glow" />}
+      <BaseEdge id={id} path={path} className="energy-line" interactionWidth={18} />
+      {state === "flowing" && <path d={path} className="energy-current" pathLength={100} />}
+      {state === "flowing" &&
+        Array.from({ length: SPARKS }, (_, i) => (
+          <circle key={i} r={3.5} className="energy-spark">
+            {/* Negative begins put every spark on the wire from the first frame. */}
+            <animateMotion dur={`${seconds}s`} begin={`${(-seconds * i) / SPARKS}s`} repeatCount="indefinite" path={path} />
+          </circle>
+        ))}
+      <circle cx={sourceX} cy={sourceY} r={4.5} className="energy-socket" />
+      <circle cx={targetX} cy={targetY} r={4.5} className="energy-socket" />
+      {data?.tag && (
+        <EdgeLabelRenderer>
+          <span className={`energy-tag ${state}`} style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}>
+            {data.tag}
+          </span>
+        </EdgeLabelRenderer>
+      )}
+    </g>
+  );
+}
+
+const edgeTypes = { energy: EnergyWire };
 
 const asQueued = (q: string | QueuedPane, i: number): QueuedPane => (typeof q === "string" ? { key: `legacy-${i}`, title: q } : q);
 
@@ -390,9 +434,10 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
   const doneIds = new Set(live.filter((s) => s.status !== "working" && s.turns > 0).map((s) => s.id));
 
   // The circuit: each launched session hangs from its planner, a stacked one from the session it waited on.
-  // Wires pulse while the session they feed works; waiting cards hang by dashed wires.
-  const wire = { type: "smoothstep", selectable: false, focusable: false, markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 } } as const;
-  const edges: Edge[] = [
+  // Energy runs down a wire while the session it feeds works; waiting cards hang by dashed wires.
+  const wire = { type: "energy", selectable: false, focusable: false } as const;
+  const energy = (sessionId: string): EnergyState => (workingIds.has(sessionId) ? "flowing" : doneIds.has(sessionId) ? "charged" : "idle");
+  const edges: EnergyEdge[] = [
     ...group.panes
       .filter((p) => p.parent && inGroup.has(p.parent) && inGroup.has(p.sessionId))
       .map((p) => ({
@@ -403,15 +448,13 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
         interactionWidth: 16,
         source: p.parent!,
         target: p.sessionId,
-        className: `group-wire ${p.link === "after" ? "after" : ""} ${doneIds.has(p.sessionId) ? "done" : ""}`,
-        animated: workingIds.has(p.sessionId),
-        ...(p.link === "after" ? { label: "base branch", labelClassName: "group-wire-label" } : {}),
+        data: { state: energy(p.sessionId), tag: p.link === "after" ? "base branch" : undefined },
       })),
     ...waiting.flatMap((n) => {
       const q = queued.find((o) => `queued:${o.key}` === n.id);
       const source = q?.parent;
       if (!source || !(inGroup.has(source) || waiting.some((o) => o.id === source))) return [];
-      return [{ ...wire, id: `${source}->${n.id}`, source, target: n.id, className: "group-wire waiting" }];
+      return [{ ...wire, id: `${source}->${n.id}`, source, target: n.id, data: { state: "waiting" as const } }];
     }),
   ];
 
@@ -511,6 +554,7 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
             edges={edges}
             onNodesChange={handleNodesChange}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
             onConnect={connect}
             onConnectEnd={connectEnd}
             onEdgeDoubleClick={unlink}
