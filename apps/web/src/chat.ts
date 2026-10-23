@@ -55,7 +55,7 @@ export const chatApi = {
       reader.onerror = () => reject(reader.error);
       reader.readAsDataURL(file);
     });
-    return call<Attachment>("/api/uploads", { name: file.name || "pegado.png", type: file.type, data });
+    return call<Attachment>("/api/uploads", { name: file.name || "pasted.png", type: file.type, data });
   },
   setCwd: (sessionId: string, cwd: string) => call<{ sessionId: string; cwd: string }>(`/api/chats/${enc(sessionId)}/cwd`, { cwd }),
   interrupt: (sessionId: string) => call<ChatState>(`/api/chats/${enc(sessionId)}/interrupt`, {}),
@@ -90,10 +90,10 @@ const EFFORT_KEY = "ws-chat-effort";
 const MODE_KEY = "ws-chat-mode";
 
 export const PERMISSION_MODES: { id: PermissionMode; label: string; description: string }[] = [
-  { id: "bypassPermissions", label: "Full access", description: "No pide permisos" },
-  { id: "acceptEdits", label: "Aceptar ediciones", description: "Edita solo; pregunta antes de comandos" },
-  { id: "default", label: "Pedir permiso", description: "Pregunta antes de editar o ejecutar" },
-  { id: "plan", label: "Solo planear", description: "Analiza y propone, no cambia nada" },
+  { id: "bypassPermissions", label: "Full access", description: "Never asks" },
+  { id: "acceptEdits", label: "Accept edits", description: "Edits freely; asks before commands" },
+  { id: "default", label: "Ask first", description: "Asks before editing or running" },
+  { id: "plan", label: "Plan only", description: "Proposes, changes nothing" },
 ];
 
 /** Last model/effort picked in a composer, reused as the default for new sessions. */

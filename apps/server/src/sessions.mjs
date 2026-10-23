@@ -187,7 +187,7 @@ function statusFor(meta, now = Date.now()) {
 function projectLabel(cwd, dir) {
   const source = cwd ?? dir;
   const refresh = source.match(/ws-refresh\/([^/]+?)-\d+$/);
-  if (refresh) return `Refresco IA · ${refresh[1]}`;
+  if (refresh) return `AI refresh · ${refresh[1]}`;
   const worktree = source.match(/\.worktrees\/([^/]+)\/([^/]+)/);
   if (worktree) return `${worktree[1]} · ${worktree[2]}`;
   return path.basename(source);
@@ -258,7 +258,7 @@ function summarize({ id, dir, file }, withSubagents = true) {
   const status = anySubWorking ? "working" : statusFor(meta);
   return {
     id,
-    title: meta.customTitle ?? meta.title ?? meta.firstPrompt ?? "Sesión sin título",
+    title: meta.customTitle ?? meta.title ?? meta.firstPrompt ?? "Untitled session",
     project: projectLabel(meta.cwd, dir),
     cwd: meta.cwd,
     firstCwd: meta.firstCwd,
@@ -297,7 +297,7 @@ function findSessionFile(id) {
 
 /** A slash command the user typed (`/pr-plan foo`), which Claude Code records as tagged text. */
 function commandEvent(text, ts) {
-  const name = text.match(/<command-name>\/?([^<]+)<\/command-name>/)?.[1]?.trim() ?? "comando";
+  const name = text.match(/<command-name>\/?([^<]+)<\/command-name>/)?.[1]?.trim() ?? "command";
   const args = text.match(/<command-args>([\s\S]*?)<\/command-args>/)?.[1]?.trim() ?? "";
   return { kind: "command", ts, name, text: args };
 }
@@ -310,7 +310,7 @@ function toEvents(rec, agentsByToolUse) {
     if (typeof content === "string") {
       if (content.startsWith("<task-notification")) {
         const summary = content.match(/<summary>([\s\S]*?)<\/summary>/)?.[1];
-        events.push({ kind: "notice", ts, text: truncate(summary ?? "Notificación de tarea en background", 300) });
+        events.push({ kind: "notice", ts, text: truncate(summary ?? "Background task notification", 300) });
       } else if (content.includes("<command-name>")) {
         events.push(commandEvent(content, ts));
       } else if (!isSystemText(content)) {
@@ -321,7 +321,7 @@ function toEvents(rec, agentsByToolUse) {
       let images = 0;
       for (const block of content) {
         if (block.type === "tool_result") {
-          const text = Array.isArray(block.content) ? block.content.map((c) => (c.type === "text" ? c.text : c.type === "image" ? "[imagen]" : "")).join("\n") : String(block.content ?? "");
+          const text = Array.isArray(block.content) ? block.content.map((c) => (c.type === "text" ? c.text : c.type === "image" ? "[image]" : "")).join("\n") : String(block.content ?? "");
           events.push({ kind: "result", ts, toolUseId: block.tool_use_id, isError: Boolean(block.is_error), text: truncate(text, 4000) });
         } else if (block.type === "text" && block.text?.includes("<command-name>")) {
           events.push(commandEvent(block.text, ts));
@@ -349,7 +349,7 @@ function toEvents(rec, agentsByToolUse) {
       }
     }
   } else if (rec.type === "system" && rec.subtype === "compact_boundary") {
-    events.push({ kind: "notice", ts, text: "Contexto compactado" });
+    events.push({ kind: "notice", ts, text: "Context compacted" });
   }
   return events;
 }

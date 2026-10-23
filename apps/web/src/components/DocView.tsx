@@ -29,7 +29,7 @@ export function DocView({ task, doc }: { task: Task; doc: string }) {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  if (error) return <div className="empty">No se pudo abrir {doc}: {error}</div>;
+  if (error) return <div className="empty">Couldn't open {doc}: {error}</div>;
   if (!data) return null;
 
   return (
@@ -42,15 +42,15 @@ export function DocView({ task, doc }: { task: Task; doc: string }) {
         {editing ? (
           <>
             <button className="btn ghost" onClick={() => setDraft(null)}>
-              Cancelar
+              Cancel
             </button>
             <button className="btn primary" onClick={save}>
-              Guardar <kbd className="kbd on-primary">⌘S</kbd>
+              Save <kbd className="kbd on-primary">⌘S</kbd>
             </button>
           </>
         ) : (
           <button className="btn ghost" onClick={() => setDraft(data.content)}>
-            <Pencil size={13} /> Editar
+            <Pencil size={13} /> Edit
           </button>
         )}
       </div>

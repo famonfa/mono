@@ -41,7 +41,7 @@ const slug = (text) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
-    .slice(0, 40) || "sesion";
+    .slice(0, 40) || "session";
 
 /** A detached worktree under `<repo>/.worktrees/` so parallel children never share a checkout. */
 function makeWorktree(top, cwd, name) {
@@ -56,12 +56,12 @@ function makeWorktree(top, cwd, name) {
 
 function childContext({ group, title, total, cwd, worktree, original }) {
   return [
-    `Sos una de ${total} sesiones lanzadas en paralelo en el grupo "${group.name}". Tu parte: ${title}.`,
-    `- Trabajá solo en ${cwd}. Las otras sesiones trabajan al mismo tiempo en otras carpetas: no toques las suyas.`,
-    worktree && `- Si el pedido menciona ${original}, usá ${cwd} en su lugar: es una copia del mismo repo solo para vos.`,
-    worktree && "- Esa carpeta es un git worktree propio, en HEAD detached. Hacé checkout de la rama que necesites ahí (por ejemplo `gh pr checkout <n>`). No lo borres al terminar.",
-    "- Si tenés que reescribir una rama remota (rebase, amend), usá `git push --force-with-lease`, nunca `--force` a secas.",
-    "- Terminá con un resumen de 2-3 líneas: qué hiciste y qué quedó pendiente.",
+    `You are one of ${total} sessions launched in parallel in group "${group.name}". Your part: ${title}.`,
+    `- Work only in ${cwd}. The other sessions work at the same time in other folders: don't touch theirs.`,
+    worktree && `- If the request mentions ${original}, use ${cwd} instead: it's a copy of the same repo just for you.`,
+    worktree && "- That folder is your own git worktree, on a detached HEAD. Check out the branch you need there (e.g. `gh pr checkout <n>`). Don't delete it when you finish.",
+    "- If you need to rewrite a remote branch (rebase, amend), use `git push --force-with-lease`, never plain `--force`.",
+    "- Finish with a 2-3 line summary: what you did and what's still pending.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -100,15 +100,15 @@ function pump() {
  */
 export function spawnSessions({ group: groupId, sessions = [], taskId, model, effort, parent }) {
   const group = groups.findGroup(groupId);
-  if (!group) throw new Error(`No existe el grupo ${groupId}`);
-  if (!Array.isArray(sessions) || !sessions.length) throw new Error("Pasá al menos una sesión para lanzar");
-  if (sessions.length > MAX_PER_CALL) throw new Error(`Máximo ${MAX_PER_CALL} sesiones por pedido`);
+  if (!group) throw new Error(`Group not found: ${groupId}`);
+  if (!Array.isArray(sessions) || !sessions.length) throw new Error("Pass at least one session to launch");
+  if (sessions.length > MAX_PER_CALL) throw new Error(`Max ${MAX_PER_CALL} sessions per request`);
   const specs = sessions.map((s, i) => {
-    const title = String(s?.title ?? "").trim() || `Sesión ${i + 1}`;
+    const title = String(s?.title ?? "").trim() || `Session ${i + 1}`;
     const prompt = String(s?.prompt ?? "").trim();
-    if (!prompt) throw new Error(`Falta el prompt de "${title}"`);
+    if (!prompt) throw new Error(`Missing prompt for "${title}"`);
     const cwd = path.resolve(chats.expandHome(String(s.cwd ?? "")));
-    if (!s.cwd || !fs.statSync(cwd, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`No existe la carpeta de "${title}": ${s.cwd ?? "(vacía)"}`);
+    if (!s.cwd || !fs.statSync(cwd, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`Folder not found for "${title}": ${s.cwd ?? "(empty)"}`);
     return { title, prompt, cwd, top: repoTop(cwd), taskId: s.taskId ?? taskId, worktree: s.worktree };
   });
 
@@ -128,12 +128,12 @@ export function spawnSessions({ group: groupId, sessions = [], taskId, model, ef
 
 function plannerContext({ group, cwd }) {
   return [
-    `Sos el planificador del grupo "${group.name}" de Mono. Tu trabajo es decidir qué sesiones de Claude Code hay que lanzar en paralelo para cumplir el pedido, no hacerlo vos.`,
-    "1. Investigá lo necesario para armar el plan (por ejemplo `gh pr list`, leer el repo). No modifiques archivos, ramas ni PRs.",
-    "2. Partí el trabajo en sesiones independientes que puedan correr al mismo tiempo sin pisarse (por ejemplo una por PR). Si es un solo trabajo, una sola sesión está bien. Sin tope: Mono corre hasta 6 a la vez y encola el resto.",
-    "3. Cada prompt tiene que ser autosuficiente: la sesión no ve esta conversación. Incluí el objetivo, el PR/rama/archivos concretos y qué entregar al final. No escribas rutas absolutas del repo en el prompt: cada sesión ya arranca parada en su carpeta (o en un worktree propio) y usa rutas relativas a ella.",
-    `4. Terminá con el plan en una lista corta y, al final, un bloque \`\`\`json con {"sessions": [{"title": "...", "prompt": "...", "cwd": "/ruta/absoluta"}]}. title: corto (va en el canvas). cwd: la carpeta del repo; si no hace falta otra, usá ${cwd}.`,
-    "Mono lanza las sesiones apenas termina tu respuesta. Las que comparten repo trabajan cada una en su propio worktree.",
+    `You are the planner for Mono group "${group.name}". Your job is to decide which Claude Code sessions to launch in parallel to fulfill the request, not to do it yourself.`,
+    "1. Investigate what you need to build the plan (e.g. `gh pr list`, reading the repo). Don't modify files, branches or PRs.",
+    "2. Split the work into independent sessions that can run at the same time without stepping on each other (e.g. one per PR). If it's a single job, one session is fine. No cap: Mono runs up to 6 at a time and queues the rest.",
+    "3. Each prompt must be self-contained: the session can't see this conversation. Include the goal, the specific PR/branch/files, and what to deliver at the end. Don't write absolute repo paths in the prompt: each session already starts in its folder (or its own worktree) and uses paths relative to it.",
+    `4. Finish with the plan as a short list and, at the end, a \`\`\`json block with {"sessions": [{"title": "...", "prompt": "...", "cwd": "/absolute/path"}]}. title: short (shown on the canvas). cwd: the repo folder; if no other is needed, use ${cwd}.`,
+    "Mono launches the sessions as soon as your answer ends. Sessions sharing a repo each work in their own worktree.",
   ].join("\n");
 }
 
@@ -156,18 +156,18 @@ function parsePlan(text) {
  */
 export async function planSessions({ group: groupId, goal, cwd, taskId, model, effort }) {
   const group = groups.findGroup(groupId);
-  if (!group) throw new Error(`No existe el grupo ${groupId}`);
+  if (!group) throw new Error(`Group not found: ${groupId}`);
   const prompt = String(goal ?? "").trim();
-  if (!prompt) throw new Error("Escribí qué hay que hacer");
+  if (!prompt) throw new Error("Describe what needs doing");
   const dir = path.resolve(chats.expandHome(String(cwd ?? "")));
-  if (!cwd || !fs.statSync(dir, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`No existe la carpeta ${cwd ?? ""}`);
+  if (!cwd || !fs.statSync(dir, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`Folder not found: ${cwd ?? ""}`);
 
   let launched = false;
   const onResult = (msg) => {
     if (launched || msg.subtype !== "success") return;
     const sessions = parsePlan(msg.result);
     if (!sessions) {
-      groups.setSpawnState(group.id, { failed: [{ title: "Plan", error: "La respuesta no terminó con un bloque ```json de sesiones. Pedile al planificador que lo agregue." }] });
+      groups.setSpawnState(group.id, { failed: [{ title: "Plan", error: "The answer didn't end with a ```json block of sessions. Ask the planner to add it." }] });
       return;
     }
     launched = true;

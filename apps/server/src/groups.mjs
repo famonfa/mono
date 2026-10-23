@@ -23,7 +23,7 @@ export function findGroup(ref) {
 function mutate(id, change) {
   const groups = readAll();
   const group = groups.find((g) => g.id === id);
-  if (!group) throw new Error(`No existe el grupo ${id}`);
+  if (!group) throw new Error(`Group not found: ${id}`);
   change(group);
   group.updatedAt = new Date().toISOString();
   writeAll(groups);
@@ -63,9 +63,9 @@ function addPane(group, sessionId, title, child) {
 
 export function createGroup({ name, sessions = [] }) {
   const clean = String(name ?? "").trim();
-  if (!clean) throw new Error("Poné un nombre para el grupo");
+  if (!clean) throw new Error("Group name is required");
   const groups = readAll();
-  if (groups.some((g) => g.name.toLowerCase() === clean.toLowerCase())) throw new Error(`Ya existe el grupo "${clean}"`);
+  if (groups.some((g) => g.name.toLowerCase() === clean.toLowerCase())) throw new Error(`Group "${clean}" already exists`);
   const now = new Date().toISOString();
   const group = { id: crypto.randomUUID().slice(0, 8), name: clean, createdAt: now, updatedAt: now, panes: [] };
   for (const s of sessions) addPane(group, s.sessionId, s.title);
@@ -91,7 +91,7 @@ export function deleteGroup(id) {
 }
 
 export function addSession(id, sessionId, title, child) {
-  if (!sessionId) throw new Error("Falta la sesión");
+  if (!sessionId) throw new Error("Missing session");
   return mutate(id, (group) => addPane(group, sessionId, title, child));
 }
 

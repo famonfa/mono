@@ -32,7 +32,7 @@ export async function isUp() {
 
 /**
  * Lets the desktop app find the server without hardcoding a path, and gives Claude Code the
- * `/workspace` skill that "Actualizar con IA" relies on (never overwriting one you already have).
+ * `/workspace` skill that "Update with AI" relies on (never overwriting one you already have).
  */
 function setup() {
   if (!EPHEMERAL) writeConfig({ server: SERVER_MAIN, node: process.execPath });
@@ -50,7 +50,7 @@ export async function ensureServer() {
     await new Promise((r) => setTimeout(r, 250));
     if (await isUp()) return;
   }
-  throw new Error(`El server no arrancó; mirá ${LOG}`);
+  throw new Error(`Server failed to start; see ${LOG}`);
 }
 
 const USER_APP = path.join(HOME, "Applications", "Mono.app");
@@ -74,7 +74,7 @@ async function installDesktop() {
 
   const url = `${DEFAULT_RELAY}/_mono/download/Mono-${process.arch === "arm64" ? "arm64" : "x64"}.zip`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`no pude bajar la app (${res.status})`);
+  if (!res.ok) throw new Error(`couldn't download the app (${res.status})`);
   const total = Number(res.headers.get("content-length")) || 0;
   const work = fs.mkdtempSync(path.join(os.tmpdir(), "mono-app-"));
   const zip = path.join(work, "Mono.zip");
@@ -83,7 +83,7 @@ async function installDesktop() {
   for await (const chunk of res.body) {
     out.write(chunk);
     done += chunk.length;
-    if (total && process.stdout.isTTY) process.stdout.write(`\r${existing ? "Actualizando" : "Bajando"} la app de Mono… ${Math.round((done / total) * 100)}%`);
+    if (total && process.stdout.isTTY) process.stdout.write(`\r${existing ? "Updating" : "Downloading"} the Mono app… ${Math.round((done / total) * 100)}%`);
   }
   await new Promise((resolve) => out.end(resolve));
   if (process.stdout.isTTY) process.stdout.write("\n");
@@ -95,7 +95,7 @@ async function installDesktop() {
     try {
       execFileSync("osascript", ["-e", `tell application "Finder" to delete (POSIX file "${existing}" as alias)`], { stdio: "ignore" });
     } catch {
-      throw new Error(`no pude reemplazar ${existing}: tiralo a la papelera y volvé a correr el comando`);
+      throw new Error(`couldn't replace ${existing}: move it to the Trash and run the command again`);
     }
   }
   fs.renameSync(path.join(work, "Mono.app"), USER_APP);
@@ -124,7 +124,7 @@ export async function openApp({ hash = "", web = false } = {}) {
       execFileSync("open", ["-a", app], { env });
       return "desktop";
     } catch (error) {
-      console.log(`No pude abrir la app de escritorio (${error.message}); la abro en el navegador.`);
+      console.log(`Couldn't open the desktop app (${error.message}); opening in the browser.`);
     }
   }
   execFileSync("open", [`${APP_URL}/${hash}`]);
@@ -134,7 +134,7 @@ export async function openApp({ hash = "", web = false } = {}) {
 export async function launch({ hash, web } = {}) {
   await ensureServer();
   const where = await openApp({ hash, web });
-  console.log(where === "desktop" ? "🐒 Mono abierto" : `🐒 Mono en ${APP_URL}`);
+  console.log(where === "desktop" ? "🐒 Mono opened" : `🐒 Mono at ${APP_URL}`);
 }
 
 /**
@@ -152,7 +152,7 @@ export function runFromRuntime() {
     current = JSON.parse(fs.readFileSync(path.join(installed, "package.json"), "utf8")).version;
   } catch {}
   if (current !== pkg.version) {
-    console.log(current ? `Actualizando Mono ${current} → ${pkg.version}…` : `Instalando Mono ${pkg.version}…`);
+    console.log(current ? `Updating Mono ${current} → ${pkg.version}…` : `Installing Mono ${pkg.version}…`);
     fs.mkdirSync(runtime, { recursive: true });
     if (!fs.existsSync(path.join(runtime, "package.json"))) fs.writeFileSync(path.join(runtime, "package.json"), '{ "private": true }\n');
     execFileSync("npm", ["install", "--prefix", runtime, "--no-audit", "--no-fund", "--omit=dev", "--loglevel=error", process.env.MONO_RUNTIME_SPEC ?? `${pkg.name}@${pkg.version}`], { stdio: "inherit" });
@@ -175,7 +175,7 @@ export async function connect(relayArg, name = os.hostname().replace(/\.local$/,
     return json;
   };
   const { code, pollToken, url } = await post("/_mono/pair/start", { name });
-  console.log(`\nAbrí este link y entrá con Google para conectar "${name}":\n\n  ${url}\n\nCódigo: ${code}\n`);
+  console.log(`\nOpen this link and sign in with Google to connect "${name}":\n\n  ${url}\n\nCode: ${code}\n`);
   try {
     execFileSync("open", [url]);
   } catch {}
@@ -188,17 +188,17 @@ export async function connect(relayArg, name = os.hostname().replace(/\.local$/,
       // Remote access only helps if the server is still up after a reboot.
       if (!fs.existsSync(PLIST) && !REPO_ROOT) installService();
       await ensureServer();
-      console.log(`✓ ${name} conectado a ${relay} como ${result.email}. Abrí ${relay} desde el celular.`);
+      console.log(`✓ ${name} connected to ${relay} as ${result.email}. Open ${relay} on your phone.`);
       return;
     }
-    if (result.status !== "pending") throw new Error("El código expiró o fue rechazado");
+    if (result.status !== "pending") throw new Error("Code expired or was rejected");
   }
-  throw new Error("Se venció el tiempo para aprobar el código");
+  throw new Error("Timed out waiting for code approval");
 }
 
 export function disconnect() {
   writeRemote(null);
-  console.log("✓ Desconectado del relay");
+  console.log("✓ Disconnected from relay");
 }
 
 /** How to spell commands back to the user: npx users don't have `mono` on their PATH. */
@@ -210,17 +210,17 @@ export async function status() {
   try {
     live = JSON.parse(fs.readFileSync(STATUS_FILE, "utf8"));
   } catch {}
-  console.log(`Server:  ${(await isUp()) ? `✓ ${APP_URL}` : `✗ apagado (corré \`${CMD}\`)`}`);
-  console.log(`Servicio: ${fs.existsSync(PLIST) ? "instalado (arranca solo al iniciar sesión)" : `no instalado (\`${CMD} service install\`)`}`);
-  if (!remote) return console.log(`Remoto:  sin conectar (\`${CMD} connect\`)`);
-  console.log(`Remoto:  ${remote.relay} · ${remote.email} · ${live?.state ?? "?"}${live?.reason ? ` (${live.reason})` : ""}`);
+  console.log(`Server:  ${(await isUp()) ? `✓ ${APP_URL}` : `✗ stopped (run \`${CMD}\`)`}`);
+  console.log(`Service: ${fs.existsSync(PLIST) ? "installed (starts at login)" : `not installed (\`${CMD} service install\`)`}`);
+  if (!remote) return console.log(`Remote:  not connected (\`${CMD} connect\`)`);
+  console.log(`Remote:  ${remote.relay} · ${remote.email} · ${live?.state ?? "?"}${live?.reason ? ` (${live.reason})` : ""}`);
 }
 
 /** Runs the server at login via launchd and puts `mono`/`ws` on PATH. */
 export function installService({ ifMissing = false } = {}) {
   // The desktop app asks with ifMissing so it never replaces a service someone set up from a checkout.
-  if (ifMissing && fs.existsSync(PLIST)) return console.log(`✓ Servicio ${SERVICE} ya instalado`);
-  if (EPHEMERAL) throw new Error("Corré `npx @famonfa/mono service install`");
+  if (ifMissing && fs.existsSync(PLIST)) return console.log(`✓ Service ${SERVICE} already installed`);
+  if (EPHEMERAL) throw new Error("Run `npx @famonfa/mono service install`");
   setup();
   // npm's global install already puts mono/ws on PATH; a checkout links them into ~/.local/bin.
   if (REPO_ROOT) {
@@ -264,7 +264,7 @@ export function installService({ ifMissing = false } = {}) {
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300);
     }
   }
-  console.log(`✓ Servicio ${SERVICE} → ${SERVER_MAIN}`);
+  console.log(`✓ Service ${SERVICE} → ${SERVER_MAIN}`);
 }
 
 export function uninstallService() {
@@ -272,5 +272,5 @@ export function uninstallService() {
     execFileSync("launchctl", ["bootout", `gui/${process.getuid()}/${SERVICE}`], { stdio: "ignore" });
   } catch {}
   fs.rmSync(PLIST, { force: true });
-  console.log(`✓ Servicio ${SERVICE} desinstalado`);
+  console.log(`✓ Service ${SERVICE} uninstalled`);
 }

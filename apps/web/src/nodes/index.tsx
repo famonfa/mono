@@ -67,7 +67,7 @@ const CardNode = memo(({ data, selected }: NodeProps<WsNode>) => {
       )}
       {!!data.files?.length && (
         <div className="card-files" title={data.files.join("\n")}>
-          {data.files.length === 1 ? data.files[0].split("/").pop() : `${data.files.length} archivos`}
+          {data.files.length === 1 ? data.files[0].split("/").pop() : `${data.files.length} files`}
         </div>
       )}
     </div>
@@ -108,7 +108,7 @@ const ImageNode = memo(({ data, selected }: NodeProps<WsNode>) => {
     <div className={`node image-node ${selected ? "selected" : ""}`}>
       <NodeResizer isVisible={selected} minWidth={160} minHeight={120} keepAspectRatio />
       <Handles />
-      {src ? <img src={src} alt={data.label} onDoubleClick={() => openImage(src)} draggable={false} /> : <div className="image-empty">Sin imagen</div>}
+      {src ? <img src={src} alt={data.label} onDoubleClick={() => openImage(src)} draggable={false} /> : <div className="image-empty">No image</div>}
       <div className="image-caption">
         <TestBadge test={data.test} /> {data.label}
       </div>
@@ -133,10 +133,10 @@ export const nodeTypes: NodeTypes = {
 };
 
 export const NODE_TYPE_LABEL: Record<string, string> = {
-  card: "Tarjeta",
+  card: "Card",
   actor: "Actor",
-  activity: "Actividad",
-  note: "Nota",
-  image: "Imagen",
-  lane: "Carril",
+  activity: "Activity",
+  note: "Note",
+  image: "Image",
+  lane: "Lane",
 };

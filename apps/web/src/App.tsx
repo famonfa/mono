@@ -59,17 +59,17 @@ export function App() {
   const newTask = useCallback(
     (status: TaskStatus = "en-curso") =>
       setDialog({
-        title: "Nueva tarea",
-        submitLabel: "Crear tarea",
+        title: "New task",
+        submitLabel: "Create task",
         fields: [
-          { name: "title", label: "Título de la tarea" },
-          { name: "id", label: "ID (ej: IME-3001)", mono: true },
-          { name: "status", label: "Estado", defaultValue: status, options: STATUS_ORDER.map((s) => ({ value: s, label: STATUS_META[s].label, icon: <StatusIcon status={s} /> })) },
+          { name: "title", label: "Title" },
+          { name: "id", label: "ID (e.g. IME-3001)", mono: true },
+          { name: "status", label: "Status", defaultValue: status, options: STATUS_ORDER.map((s) => ({ value: s, label: STATUS_META[s].label, icon: <StatusIcon status={s} /> })) },
         ],
         onSubmit: async ({ title, id, status: chosen }) => {
           const taskId = id.trim().toUpperCase().replace(/\s+/g, "-") || `T-${Date.now().toString(36).toUpperCase()}`;
-          if (!title.trim()) throw new Error("Poné un título");
-          if (tasks.some((t) => t.id === taskId)) throw new Error(`${taskId} ya existe`);
+          if (!title.trim()) throw new Error("Title is required");
+          if (tasks.some((t) => t.id === taskId)) throw new Error(`${taskId} already exists`);
           await api.createTask({ id: taskId, title: title.trim(), status: chosen as TaskStatus, ...(project !== ALL_PROJECTS ? { projects: [project] } : {}) });
           reloadTasks();
           navigate(href.task(taskId));
@@ -123,7 +123,7 @@ export function App() {
         {!collapsed && <div className="drawer-backdrop" onClick={() => setCollapsed(true)} />}
         <main className="panel">
           {collapsed && (
-            <button className="icon-btn sidebar-reopen" onClick={() => setCollapsed(false)} title="Mostrar barra lateral ([)">
+            <button className="icon-btn sidebar-reopen" onClick={() => setCollapsed(false)} title="Show sidebar ([)">
               <PanelLeft size={15} />
             </button>
           )}
@@ -174,9 +174,9 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
   const workingIds = new Set(allSessions.filter((s) => s.status === "working").map((s) => s.id));
   const newGroup = () =>
     openDialog({
-      title: "Nuevo grupo",
-      submitLabel: "Crear grupo",
-      fields: [{ name: "name", label: "Nombre del grupo" }],
+      title: "New group",
+      submitLabel: "Create group",
+      fields: [{ name: "name", label: "Name" }],
       onSubmit: async ({ name }) => {
         const group = await groupsApi.create(name);
         reloadGroups();
@@ -185,22 +185,22 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
     });
 
   const nav = [
-    { filter: "todas" as const, label: "Todas las tareas", icon: <Layers size={15} /> },
-    { filter: "activas" as const, label: "Activas", icon: <CircleDot size={15} /> },
-    { filter: "hechas" as const, label: "Hechas", icon: <CheckCircle2 size={15} /> },
+    { filter: "todas" as const, label: "All tasks", icon: <Layers size={15} /> },
+    { filter: "activas" as const, label: "Active", icon: <CircleDot size={15} /> },
+    { filter: "hechas" as const, label: "Done", icon: <CheckCircle2 size={15} /> },
   ];
 
   return (
     <aside className="sidebar">
       <div className="sidebar-top">
         <ProjectSwitcher />
-        <button className="icon-btn" onClick={openPalette} title="Buscar (⌘K)">
+        <button className="icon-btn" onClick={openPalette} title="Search (⌘K)">
           <Search size={15} />
         </button>
-        <a className="icon-btn" href={href.newSession()} title="Nueva sesión sin tarea (S)">
+        <a className="icon-btn" href={href.newSession()} title="New session (S)">
           <MessageSquarePlus size={15} />
         </a>
-        <button className="icon-btn new-btn" onClick={() => newTask()} title="Nueva tarea (C)">
+        <button className="icon-btn new-btn" onClick={() => newTask()} title="New task (C)">
           <SquarePen size={15} />
         </button>
       </div>
@@ -215,7 +215,7 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
         ))}
         <a href={agentsHref} className={inAgents ? "active" : ""}>
           <Bot size={15} />
-          <span>Agentes</span>
+          <span>Agents</span>
           <span className="nav-count">
             <LiveCounts working={working.length} unread={unread.length} />
           </span>
@@ -223,8 +223,8 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
       </nav>
 
       <div className="sidebar-section sidebar-section-row">
-        Grupos
-        <button className="icon-btn tiny" onClick={newGroup} title="Nuevo grupo de sesiones">
+        Groups
+        <button className="icon-btn tiny" onClick={newGroup} title="New group">
           <Plus size={13} />
         </button>
       </div>
@@ -233,7 +233,7 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
           const live = g.panes.filter((p) => workingIds.has(p.sessionId)).length;
           const toSee = g.panes.filter((p) => unreadIds.has(p.sessionId)).length;
           return (
-            <a key={g.id} href={href.group(g.id)} className={route.view === "group" && route.groupId === g.id ? "active" : ""} title={`${g.name} · ${g.panes.length} sesiones`}>
+            <a key={g.id} href={href.group(g.id)} className={route.view === "group" && route.groupId === g.id ? "active" : ""} title={`${g.name} · ${g.panes.length} ${g.panes.length === 1 ? "session" : "sessions"}`}>
               <LayoutGrid size={14} />
               <span className="recent-title">{g.name}</span>
               <span className="nav-count">
@@ -242,10 +242,10 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
             </a>
           );
         })}
-        {!groups.length && <span className="sidebar-empty">Juntá sesiones para verlas lado a lado</span>}
+        {!groups.length && <span className="sidebar-empty">No groups</span>}
       </nav>
 
-      <div className="sidebar-section">Recientes</div>
+      <div className="sidebar-section">Recent</div>
       <nav className="sidebar-nav recent">
         {recent.map((t) => (
           <a key={t.id} href={href.task(t.id)} className={t.id === activeTaskId ? "active" : ""} title={`${t.id} · ${t.title}`}>
@@ -254,15 +254,15 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
             {workingTasks.has(t.id) ? <StatusDot status="working" size={6} /> : unreadTasks.has(t.id) && <StatusDot status="unread" size={6} />}
           </a>
         ))}
-        {!recent.length && <span className="sidebar-empty">Sin tareas todavía</span>}
+        {!recent.length && <span className="sidebar-empty">No tasks yet</span>}
       </nav>
 
       <UserWidget />
       <div className="sidebar-bottom">
-        <button className="icon-btn" onClick={toggleTheme} title="Cambiar tema">
+        <button className="icon-btn" onClick={toggleTheme} title="Toggle theme">
           {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
         </button>
-        <button className="icon-btn" onClick={onToggle} title="Ocultar barra lateral ([)">
+        <button className="icon-btn" onClick={onToggle} title="Hide sidebar ([)">
           <PanelLeft size={15} />
         </button>
         <span className="spacer" />
@@ -279,12 +279,12 @@ function LiveCounts({ working, unread }: { working: number; unread: number }) {
   return (
     <span className="live-counts">
       {working > 0 && (
-        <span className="nav-live" title="Trabajando">
+        <span className="nav-live" title="Working">
           <StatusDot status="working" size={6} /> {working}
         </span>
       )}
       {unread > 0 && (
-        <span className="nav-live unread" title="Terminaron y no las viste">
+        <span className="nav-live unread" title="Unread">
           <StatusDot status="unread" size={6} /> {unread}
         </span>
       )}
@@ -298,7 +298,7 @@ function TaskShell({ route }: { route: TaskRoute }) {
   const { reloadTasks } = useApp();
   const { data: task, error, reload } = useLiveData<Task>(() => api.getTask(route.taskId), [route.taskId], route.taskId);
 
-  if (error) return <div className="empty">No existe la tarea {route.taskId}.</div>;
+  if (error) return <div className="empty">Task {route.taskId} not found.</div>;
   if (!task) return null;
 
   const active = route.view === "board" ? `b:${route.boardId}` : route.view === "doc" ? `d:${route.doc}` : route.view === "sessions" ? "sessions" : "overview";

@@ -90,6 +90,6 @@ export function captureAllowedTools(id) {
 /** Copies the chosen capture skill into the headless session's own project so it loads without touching ~/.claude. */
 export function installCaptureSkill(id, cwd) {
   const src = captureSkillDir(id);
-  if (!src) throw new Error(`No existe la skill de captura ${id}`);
+  if (!src) throw new Error(`Unknown capture skill: ${id}`);
   fs.cpSync(src, path.join(cwd, ".claude", "skills", id), { recursive: true });
 }

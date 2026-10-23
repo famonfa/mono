@@ -43,7 +43,7 @@ let server = null;
 async function ensureServer() {
   if (await isUp()) return;
   server = spawn(process.execPath, [SERVER_MAIN], { cwd: HOME, stdio: "inherit", env: nodeEnv() });
-  if (!(await waitUntilUp())) throw new Error("El server de Mono no arrancó");
+  if (!(await waitUntilUp())) throw new Error("Mono server failed to start");
 }
 
 function runCli(args) {
@@ -65,9 +65,9 @@ async function connectPhone({ fromApp = false } = {}) {
   if (!fromApp) {
     const { response } = await dialog.showMessageBox({
       type: "info",
-      message: "Conectar con el celular",
-      detail: "Mono va a quedar corriendo en segundo plano (también al iniciar sesión) para que puedas usarlo desde el celu. Se abre el navegador: entrá con Google y aprobá el código.",
-      buttons: ["Conectar", "Cancelar"],
+      message: "Connect phone",
+      detail: "Mono will keep running in the background (and at login). Your browser will open: sign in with Google and approve the code.",
+      buttons: ["Connect", "Cancel"],
       defaultId: 0,
       cancelId: 1,
     });
@@ -82,10 +82,10 @@ async function connectPhone({ fromApp = false } = {}) {
     await runCli(["service", "install", "--if-missing"]);
     await waitUntilUp();
     await runCli(["connect"]);
-    if (!fromApp) notify("Listo: tu Mac quedó conectada. Entrá desde el celu con Google.");
+    if (!fromApp) notify("Mac connected. Sign in with Google on your phone.");
   } catch (error) {
     if (fromApp) throw error;
-    dialog.showErrorBox("No se pudo conectar", error.message);
+    dialog.showErrorBox("Couldn't connect", error.message);
   }
 }
 
@@ -96,8 +96,8 @@ async function installCommand() {
   fs.writeFileSync(tmp, wrapper, { mode: 0o755 });
   const script = `do shell script "mkdir -p /usr/local/bin && cp '${tmp}' /usr/local/bin/mono && cp '${tmp}' /usr/local/bin/ws && chmod 755 /usr/local/bin/mono /usr/local/bin/ws" with administrator privileges`;
   execFile("osascript", ["-e", script], (error) => {
-    if (error) return error.message.includes("-128") ? undefined : dialog.showErrorBox("No se pudo instalar", error.message);
-    notify("Listo: ya podés usar `mono` en la terminal.");
+    if (error) return error.message.includes("-128") ? undefined : dialog.showErrorBox("Couldn't install", error.message);
+    notify("`mono` is now available in the terminal.");
   });
 }
 
@@ -106,16 +106,16 @@ function buildMenu() {
     {
       label: "Mono",
       submenu: [
-        { role: "about", label: "Acerca de Mono" },
-        { label: "Buscar actualizaciones…", click: () => checkForUpdates() },
+        { role: "about", label: "About Mono" },
+        { label: "Check for updates…", click: () => checkForUpdates() },
         { type: "separator" },
-        { label: "Conectar con el celular…", click: () => connectPhone() },
-        { label: "Instalar el comando “mono” en la terminal…", click: installCommand },
+        { label: "Connect phone…", click: () => connectPhone() },
+        { label: "Install “mono” command in terminal…", click: installCommand },
         { type: "separator" },
-        { role: "hide", label: "Ocultar Mono" },
+        { role: "hide", label: "Hide Mono" },
         { role: "hideOthers" },
         { type: "separator" },
-        { role: "quit", label: "Salir de Mono" },
+        { role: "quit", label: "Quit Mono" },
       ],
     },
     { role: "editMenu" },

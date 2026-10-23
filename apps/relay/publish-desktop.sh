@@ -9,7 +9,7 @@ RELEASE="$ROOT/apps/desktop/release"
 VERSION=$(node -p "require('$ROOT/apps/desktop/package.json').version")
 for pair in "mac-arm64:arm64" "mac:x64"; do
   dir=${pair%%:*}; arch=${pair##*:}
-  test -d "$RELEASE/$dir/Mono.app" || { echo "Falta $RELEASE/$dir/Mono.app (npm run desktop:dist)" >&2; exit 1; }
+  test -d "$RELEASE/$dir/Mono.app" || { echo "Missing $RELEASE/$dir/Mono.app (npm run desktop:dist)" >&2; exit 1; }
   rm -f "$RELEASE/Mono-$arch.zip"
   ditto -c -k --keepParent "$RELEASE/$dir/Mono.app" "$RELEASE/Mono-$arch.zip"
 done
@@ -18,4 +18,4 @@ ssh "$HOST" "mkdir -p /srv/mono-relay/downloads"
 # Zips first, the version last: an app never sees a version whose files aren't there yet.
 rsync -az "$RELEASE/Mono-arm64.zip" "$RELEASE/Mono-x64.zip" "$HOST:/srv/mono-relay/downloads/"
 rsync -az "$RELEASE/latest.json" "$HOST:/srv/mono-relay/downloads/"
-echo "✓ App de escritorio $VERSION publicada"
+echo "✓ Desktop app $VERSION published"

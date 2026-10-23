@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronRight, GitPullRequest, Kanban, List, Plus } from "lucide-react";
 import { useApp } from "../app-context";
-import { BoardIcon, RiskIcon, STATUS_META, STATUS_MENU_ORDER, STATUS_ORDER, StatusIcon, type Risk } from "../icons";
+import { BoardIcon, RISK_META, RiskIcon, STATUS_META, STATUS_MENU_ORDER, STATUS_ORDER, StatusIcon, type Risk } from "../icons";
 import { href, navigate, type HomeFilter } from "../router";
 import type { Task, TaskStatus } from "../types";
 import { formatDate, Menu, useHotkey } from "../ui";
@@ -11,7 +11,8 @@ import { inProject, ProjectIcon, projectScope } from "./Projects";
 
 type Display = "list" | "board";
 
-const TITLES: Record<HomeFilter, string> = { todas: "Todas las tareas", activas: "Activas", hechas: "Hechas" };
+const TITLES: Record<HomeFilter, string> = { todas: "All tasks", activas: "Active", hechas: "Done" };
+const TABS: Record<HomeFilter, string> = { todas: "All", activas: "Active", hechas: "Done" };
 
 export function Home({ filter }: { filter: HomeFilter }) {
   const { tasks: allTasks, newTask, project, projects } = useApp();
@@ -38,16 +39,16 @@ export function Home({ filter }: { filter: HomeFilter }) {
         <div className="view-tabs">
           {(["todas", "activas", "hechas"] as const).map((f) => (
             <a key={f} href={href.home(f)} className={f === filter ? "active" : ""}>
-              {TITLES[f].replace(" las tareas", "")}
+              {TABS[f]}
             </a>
           ))}
         </div>
         <span className="spacer" />
         <div className="segmented small">
-          <button className={display === "list" ? "active" : ""} onClick={() => setDisplay("list")} title="Lista">
+          <button className={display === "list" ? "active" : ""} onClick={() => setDisplay("list")} title="List">
             <List size={14} />
           </button>
-          <button className={display === "board" ? "active" : ""} onClick={() => setDisplay("board")} title="Tablero">
+          <button className={display === "board" ? "active" : ""} onClick={() => setDisplay("board")} title="Board">
             <Kanban size={14} />
           </button>
         </div>
@@ -68,20 +69,19 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="empty-state">
       <div className="empty-icon">🐒</div>
-      <h2>Todavía no hay tareas</h2>
+      <h2>No tasks yet</h2>
       <p>
-        Pedile a un agente que documente lo que está haciendo: en Claude Code corré <code>/workspace</code> (o <code>/workspace TICKET-123</code>) y arma acá el
-        resumen, el story map y los flujos de testeo.
+        Run <code>/workspace</code> in Claude Code to document a task.
       </p>
       <div className="empty-actions">
         <a className="btn primary" href={href.newSession()}>
-          <Plus size={14} /> Nueva sesión
+          <Plus size={14} /> New session
         </a>
         <a className="btn" href={href.agents()}>
-          Ver mis agentes
+          Agents
         </a>
         <button className="btn" onClick={onCreate}>
-          Nueva tarea <kbd className="kbd">C</kbd>
+          New task <kbd className="kbd">C</kbd>
         </button>
       </div>
     </div>
@@ -93,7 +93,7 @@ function StatusMenu({ task }: { task: Task }) {
   return (
     <Menu
       value={task.status}
-      placeholder="Cambiar estado…"
+      placeholder="Change status…"
       options={STATUS_MENU_ORDER.map((s) => ({ value: s, label: STATUS_META[s].label, icon: <StatusIcon status={s} />, hint: STATUS_META[s].key }))}
       onChange={(status) => void updateTask(task.id, { status })}
       className="status-trigger"
@@ -151,7 +151,7 @@ function ListView({ tasks, statuses }: { tasks: Task[]; statuses: TaskStatus[] }
             <span className="group-label">{STATUS_META[g.status].label}</span>
             <span className="group-count">{g.items.length}</span>
             <span className="spacer" />
-            <button className="icon-btn" onClick={() => newTask(g.status)} title="Nueva tarea en este estado">
+            <button className="icon-btn" onClick={() => newTask(g.status)} title="New task">
               <Plus size={14} />
             </button>
           </div>
@@ -164,7 +164,7 @@ function ListView({ tasks, statuses }: { tasks: Task[]; statuses: TaskStatus[] }
                 onClick={() => navigate(href.task(t.id))}
                 onMouseEnter={() => setCursor(index)}
               >
-                <span className="row-risk" title={t.risk ? `Riesgo ${t.risk}` : "Sin riesgo"}>
+                <span className="row-risk" title={t.risk ? RISK_META[t.risk as Risk]?.label ?? `Risk: ${t.risk}` : "No risk"}>
                   <RiskIcon risk={t.risk as Risk | undefined} />
                 </span>
                 <span className="row-id">{t.id}</span>
@@ -173,8 +173,8 @@ function ListView({ tasks, statuses }: { tasks: Task[]; statuses: TaskStatus[] }
                 </span>
                 <span className="row-title">{t.title}</span>
                 {workingTasks.has(t.id) && (
-                  <span className="row-live" title="Hay agentes trabajando en esta tarea">
-                    <StatusDot status="working" size={6} /> en vivo
+                  <span className="row-live" title="Agents working">
+                    <StatusDot status="working" size={6} /> live
                   </span>
                 )}
                 <span className="row-tldr">{t.tldr?.solucion}</span>
@@ -187,7 +187,7 @@ function ListView({ tasks, statuses }: { tasks: Task[]; statuses: TaskStatus[] }
           })}
         </section>
       ))}
-      {!groups.length && <div className="empty">No hay tareas en esta vista.</div>}
+      {!groups.length && <div className="empty">No tasks.</div>}
     </div>
   );
 }

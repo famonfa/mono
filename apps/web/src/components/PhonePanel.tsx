@@ -51,20 +51,20 @@ export function PhonePanel({ account, onClose }: { account: LocalAccount; onClos
   return createPortal(
     <div className="overlay" onMouseDown={onClose} onKeyDown={(e) => e.key === "Escape" && onClose()}>
       <div className="dialog phone-panel" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="dialog-title">Usar Mono desde el celular</div>
+        <div className="dialog-title">Use Mono on your phone</div>
         {remote ? (
           <div className="phone-connected">
             {qr && <div className="phone-qr" dangerouslySetInnerHTML={{ __html: qr }} />}
             <ol className="phone-steps">
-              <li>Escaneá el código con la cámara del celu.</li>
+              <li>Scan the code with your phone's camera.</li>
               <li>
-                Entrá con Google como <b>{remote.email}</b>.
+                Sign in with Google as <b>{remote.email}</b>.
               </li>
               <li>
-                En Safari: <b>Compartir → Agregar a inicio</b>, y queda como una app más.
+                In Safari: <b>Share → Add to Home Screen</b>.
               </li>
             </ol>
-            <button className="user-command" onClick={() => copy(remote.relay)} title="Copiar">
+            <button className="user-command" onClick={() => copy(remote.relay)} title="Copy">
               <code>{remote.relay}</code>
               {copied === remote.relay ? <Check size={13} /> : <Copy size={13} />}
             </button>
@@ -74,17 +74,17 @@ export function PhonePanel({ account, onClose }: { account: LocalAccount; onClos
             <span className="phone-icon">
               <Smartphone size={20} />
             </span>
-            <p>Conectá esta Mac a tu cuenta de Google. Mono queda corriendo en segundo plano, así la usás desde el celu aunque cierres la ventana.</p>
+            <p>Connect this Mac to your Google account. Mono keeps running in the background, even with the window closed.</p>
             {desktop ? (
               busy ? (
                 <p className="hint phone-wait">
-                  <Loader2 size={13} className="spin" /> Se abrió el navegador: entrá con Google y aprobá el código. Esto se actualiza solo.
+                  <Loader2 size={13} className="spin" /> Sign in with Google in your browser and approve the code.
                 </p>
               ) : null
             ) : (
               <>
-                <p className="hint">Corré esto en la terminal y aprobá con Google. Esto se actualiza solo cuando termine.</p>
-                <button className="user-command" onClick={() => copy(account.connectCommand)} title="Copiar">
+                <p className="hint">Run this in a terminal and approve with Google.</p>
+                <button className="user-command" onClick={() => copy(account.connectCommand)} title="Copy">
                   <code>{account.connectCommand}</code>
                   {copied === account.connectCommand ? <Check size={13} /> : <Copy size={13} />}
                 </button>
@@ -95,12 +95,12 @@ export function PhonePanel({ account, onClose }: { account: LocalAccount; onClos
         )}
         <div className="dialog-actions">
           <button type="button" className="btn ghost" onClick={onClose}>
-            {remote ? "Listo" : "Cancelar"}
+            {remote ? "Done" : "Cancel"}
           </button>
           {!remote && desktop && (
             <button className="btn primary" onClick={() => void connect()} disabled={busy}>
               {busy ? <Loader2 size={13} className="spin" /> : null}
-              Conectar con Google
+              Connect with Google
             </button>
           )}
         </div>

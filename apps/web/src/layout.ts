@@ -94,7 +94,7 @@ function layoutLanes(board: Board): WsNode[] {
       id,
       type: "lane",
       position: direction === "LR" ? { x: columnX, y: offset } : { x: offset, y: 0 },
-      data: { label: lane || "Otros" },
+      data: { label: lane || "Other" },
       style: { width, height },
       width,
       height,

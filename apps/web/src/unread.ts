@@ -44,8 +44,9 @@ export function markSeen(sessions: Pick<SessionSummary, "id" | "lastTs">[]) {
   if (changed.length) save({ ...seen, ...Object.fromEntries(changed.map((s) => [s.id, s.lastTs!])) });
 }
 
-// "Actualizar con IA" runs land in the task's boards; nobody opens those transcripts.
-const isBackgroundRefresh = (session: SessionSummary) => session.project.startsWith("Refresco IA");
+// AI refresh runs land in the task's boards; nobody opens those transcripts.
+// The server labels them "Refresco IA · …" (older) or "AI refresh · …".
+const isBackgroundRefresh = (session: SessionSummary) => /^(Refresco IA|AI refresh)\b/.test(session.project);
 
 /** A session is unread when it stopped working after the last time it was on screen. */
 export function isUnread(session: SessionSummary, map = seen) {

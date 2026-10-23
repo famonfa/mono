@@ -43,7 +43,7 @@ export function Menu<T extends string>({
   options,
   onChange,
   children,
-  placeholder = "Filtrar…",
+  placeholder = "Filter…",
   className = "",
   custom,
 }: {
@@ -142,7 +142,7 @@ export function Menu<T extends string>({
                     {o.hint && <span className="menu-hint">{o.hint}</span>}
                   </button>
                 ))}
-                {!filtered.length && <div className="menu-empty">Sin resultados</div>}
+                {!filtered.length && <div className="menu-empty">No results</div>}
               </div>
             </div>
           </div>,
@@ -225,10 +225,10 @@ export function Dialog({ request, onClose }: { request: DialogRequest; onClose: 
         {error && <div className="dialog-error">{error}</div>}
         <div className="dialog-actions">
           <button type="button" className="btn ghost" onClick={onClose}>
-            Cancelar
+            Cancel
           </button>
           <button type="submit" className="btn primary">
-            {request.submitLabel ?? "Crear"} <kbd className="kbd on-primary">⌘↵</kbd>
+            {request.submitLabel ?? "Create"} <kbd className="kbd on-primary">⌘↵</kbd>
           </button>
         </div>
       </form>
@@ -241,11 +241,17 @@ export function formatDate(iso?: string) {
   if (!iso) return "";
   const date = new Date(iso);
   const minutes = Math.round((Date.now() - date.getTime()) / 60000);
-  if (minutes < 1) return "ahora";
+  if (minutes < 1) return "now";
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.round(minutes / 60);
   if (hours < 24) return `${hours} h`;
-  return date.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
+  return date.toLocaleDateString("en-US", { day: "numeric", month: "short" });
+}
+
+/** formatDate as a phrase: "now", "5 min ago", or a plain date. */
+export function timeAgo(iso?: string) {
+  const text = formatDate(iso);
+  return /^\d/.test(text) ? `${text} ago` : text;
 }
 
 export function slugify(text: string) {

@@ -62,8 +62,8 @@ export function acceptInvite(email) {
 
 export function createInvite(email, invitedBy) {
   const key = norm(email);
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(key)) throw new Error("Email inválido");
-  if (isAllowed(key)) throw new Error(`${key} ya tiene acceso`);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(key)) throw new Error("Invalid email");
+  if (isAllowed(key)) throw new Error(`${key} already has access`);
   const pending = db.prepare("select token from invites where email = ? and accepted_at is null").get(key);
   if (pending) return { token: pending.token, email: key };
   const token = crypto.randomBytes(18).toString("base64url");

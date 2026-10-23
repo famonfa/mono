@@ -11,7 +11,7 @@ const MEDIA_EXT = /\.(png|jpe?g|gif|webp|svg|mp4|webm)$/i;
 
 export function assertSafe(...parts) {
   for (const part of parts) {
-    if (!SAFE_ID.test(part)) throw new Error(`Nombre inválido: ${part}`);
+    if (!SAFE_ID.test(part)) throw new Error(`Invalid name: ${part}`);
   }
 }
 
@@ -139,7 +139,7 @@ export function boardHistory(id, boardId) {
 /** Puts back the most recent snapshot and removes it from the history (one step of undo). */
 export function restoreBoard(id, boardId) {
   const [latest] = boardHistory(id, boardId);
-  if (!latest) throw new Error("No hay versiones anteriores de este board");
+  if (!latest) throw new Error("No earlier versions of this board");
   const snapshot = path.join(historyDir(id, boardId), latest);
   writeJson(boardPath(id, boardId), JSON.parse(fs.readFileSync(snapshot, "utf8")));
   fs.rmSync(snapshot);

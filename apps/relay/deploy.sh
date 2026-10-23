@@ -59,7 +59,7 @@ if ! grep -q "$DOMAIN" /etc/caddy/Caddyfile; then
   BACKUP="/etc/caddy/Caddyfile.bak-$(date +%Y%m%d%H%M%S)"
   sudo cp /etc/caddy/Caddyfile "$BACKUP"
   printf '\n# Mono relay (apps/relay in famonfa/mono). No `encode`: it would buffer the live event stream.\n%s {\n\treverse_proxy 127.0.0.1:4700\n}\n' "$DOMAIN" | sudo tee -a /etc/caddy/Caddyfile > /dev/null
-  sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile > /dev/null 2>&1 || { sudo cp "$BACKUP" /etc/caddy/Caddyfile; echo "Caddyfile inválido; restaurado" >&2; exit 1; }
+  sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile > /dev/null 2>&1 || { sudo cp "$BACKUP" /etc/caddy/Caddyfile; echo "Invalid Caddyfile; restored" >&2; exit 1; }
   sudo systemctl reload caddy
 fi
 sleep 2

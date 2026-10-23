@@ -50,7 +50,7 @@ function ClaudeStatus({ account }: { account: Account }) {
   if (account.claude === undefined) return null;
   return (
     <div className="user-menu-section">
-      <div className="user-menu-caption">Agentes</div>
+      <div className="user-menu-caption">Agents</div>
       {account.claude ? (
         <div className="user-menu-host">
           <span className="user-dot" />
@@ -58,11 +58,11 @@ function ClaudeStatus({ account }: { account: Account }) {
         </div>
       ) : (
         <p className="user-menu-text">
-          <span className="user-warn">No encontré Claude Code en esta Mac.</span>{" "}
+          <span className="user-warn">Claude Code not found on this Mac.</span>{" "}
           <a href="https://docs.claude.com/en/docs/claude-code/setup" target="_blank" rel="noreferrer">
-            Instalalo
+            Install it
           </a>{" "}
-          y reiniciá Mono.
+          and restart Mono.
         </p>
       )}
     </div>
@@ -84,23 +84,23 @@ function MenuContent({ account, onPhone }: { account: Account; onPhone: () => vo
           <div className="user-menu-caption">Mac</div>
           <div className="user-menu-host">
             <span className="user-dot" />
-            {account.host?.name ?? "Ninguna conectada"}
+            {account.host?.name ?? "None connected"}
           </div>
         </div>
         <ClaudeStatus account={account} />
         <div className="user-menu-divider" />
         {account.hosts.length > 1 && (
           <Item icon={<ArrowLeftRight size={14} />} href="/_mono/hosts">
-            Cambiar de Mac
+            Switch Mac
           </Item>
         )}
         {account.admin && (
           <Item icon={<UserPlus size={14} />} href="/_mono/admin">
-            Invitar gente
+            Invite people
           </Item>
         )}
         <Item icon={<LogOut size={14} />} href="/_mono/logout">
-          Salir
+          Sign out
         </Item>
       </>
     );
@@ -111,22 +111,22 @@ function MenuContent({ account, onPhone }: { account: Account; onPhone: () => vo
         <Avatar account={account} />
         <div>
           <div className="user-menu-name">{account.hostname}</div>
-          <div className="user-menu-sub">Esta Mac · {account.user}</div>
+          <div className="user-menu-sub">This Mac · {account.user}</div>
         </div>
       </div>
       <ClaudeStatus account={account} />
       <div className="user-menu-divider" />
       {account.remote && (
         <div className="user-menu-section">
-          <div className="user-menu-caption">Celular y web</div>
+          <div className="user-menu-caption">Phone and web</div>
           <div className="user-menu-host">
             <span className="user-dot" />
-            Conectada como {account.remote.email}
+            Connected as {account.remote.email}
           </div>
         </div>
       )}
       <Item icon={<Smartphone size={14} />} onClick={onPhone}>
-        {account.remote ? "Abrir en el celular" : "Usar desde el celular"}
+        {account.remote ? "Open on phone" : "Use on phone"}
       </Item>
       <div className="user-menu-foot">Mono {account.version}</div>
     </>
@@ -151,7 +151,7 @@ export function UserWidget() {
 
   if (!account) return null;
   const title = account.mode === "remote" ? (account.name ?? account.email) : account.hostname;
-  const subtitle = account.mode === "remote" ? (account.host?.name ?? "Sin Mac") : account.remote ? "Conectada al celu" : "Solo en esta Mac";
+  const subtitle = account.mode === "remote" ? (account.host?.name ?? "No Mac") : account.remote ? "Phone connected" : "This Mac only";
 
   return (
     <>

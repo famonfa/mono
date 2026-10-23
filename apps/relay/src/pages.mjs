@@ -2,7 +2,7 @@ const escape = (text) => String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;"
 
 function layout(title, body) {
   return `<!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -57,7 +57,7 @@ const GOOGLE_G = `<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="t
 const PACKAGE = process.env.MONO_PACKAGE ?? "@famonfa/mono";
 
 const devLogin = (next) => `<form class="dev" method="get" action="/_mono/auth/dev"><input type="hidden" name="next" value="${escape(next)}" />
-  <input name="email" type="email" placeholder="email (modo desarrollo)" required /><button class="btn secondary">Entrar sin Google</button></form>`;
+  <input name="email" type="email" placeholder="Email (dev mode)" required /><button class="btn secondary">Sign in without Google</button></form>`;
 
 /**
  * Google refuses sign-in inside embedded web views, so inside the mobile app the button goes back to
@@ -66,10 +66,9 @@ const devLogin = (next) => `<form class="dev" method="get" action="/_mono/auth/d
 export function loginPage({ next, dev, app, ios }) {
   const googleHref = app ? `${ios ? "capacitor://localhost" : "https://localhost"}/#login` : `/_mono/auth/google?next=${encodeURIComponent(next)}`;
   return layout(
-    "Entrar",
+    "Sign in",
     `<h1>Mono</h1>
-    <p>Entrá con Google para usar tus agentes de Claude Code desde cualquier lado.</p>
-    <a class="btn" href="${escape(googleHref)}">${GOOGLE_G} Continuar con Google</a>
+    <a class="btn" href="${escape(googleHref)}">${GOOGLE_G} Continue with Google</a>
     ${dev ? devLogin(next) : ""}`,
   );
 }
@@ -77,79 +76,79 @@ export function loginPage({ next, dev, app, ios }) {
 export function invitePage({ invite, dev }) {
   const used = Boolean(invite.accepted_at);
   return layout(
-    "Invitación",
-    `<h1>Te invitaron a Mono</h1>
-    <p>${escape(invite.invited_by)} te invitó. Entrá con la cuenta de Google <b>${escape(invite.email)}</b>.</p>
-    <a class="btn" href="/_mono/auth/google?next=%2F_mono%2Fhosts">${GOOGLE_G} Continuar con Google</a>
-    ${used ? `<p class="foot">Esta invitación ya se usó: si sos vos, entrá igual.</p>` : ""}
+    "Invite",
+    `<h1>You're invited to Mono</h1>
+    <p>From ${escape(invite.invited_by)}. Sign in with the Google account <b>${escape(invite.email)}</b>.</p>
+    <a class="btn" href="/_mono/auth/google?next=%2F_mono%2Fhosts">${GOOGLE_G} Continue with Google</a>
+    ${used ? `<p class="foot">This invite was already used. If it was yours, sign in anyway.</p>` : ""}
     ${dev ? devLogin("/_mono/hosts") : ""}`,
   );
 }
 
 const installSteps = (relay) => `<ol class="steps">
-  <li>Tené <a href="https://docs.claude.com/en/docs/claude-code/setup">Claude Code</a> instalado y logueado en tu Mac.</li>
-  <li>En la terminal de esa Mac instalá la app:<pre>npx ${escape(PACKAGE)}</pre></li>
-  <li>En la app: menú <b>Mono → Conectar con el celular…</b>, aprobá el código con Google y volvé acá.</li>
+  <li>Install <a href="https://docs.claude.com/en/docs/claude-code/setup">Claude Code</a> on your Mac and sign in.</li>
+  <li>Install the app from Terminal:<pre>npx ${escape(PACKAGE)}</pre></li>
+  <li>In the app: <b>Mono → Connect phone…</b>, approve the code with Google, then come back here.</li>
 </ol>`;
 
 export function hostsPage({ email, hosts, current, admin, relay }) {
   const list = hosts.length
     ? `<div class="hosts">${hosts
         .map(
-          (h) => `<div class="host"><div><b><span class="dot"></span>${escape(h.name)}</b><small>${h.id === current ? "Seleccionada" : "Conectada"}</small></div>
-          <form method="post" action="/_mono/hosts/select"><input type="hidden" name="hostId" value="${escape(h.id)}" /><button class="btn">Abrir</button></form></div>`,
+          (h) => `<div class="host"><div><b><span class="dot"></span>${escape(h.name)}</b><small>${h.id === current ? "Selected" : "Connected"}</small></div>
+          <form method="post" action="/_mono/hosts/select"><input type="hidden" name="hostId" value="${escape(h.id)}" /><button class="btn">Open</button></form></div>`,
         )
-        .join("")}</div><details><summary>Conectar otra Mac</summary>${installSteps(relay)}</details>`
-    : `<p>Todavía no conectaste ninguna Mac. Mono corre los agentes en tu máquina:</p>${installSteps(relay)}`;
-  return layout("Tus máquinas", `<h1>Tus máquinas</h1>${list}<p class="foot">${escape(email)} · ${admin ? `<a href="/_mono/admin">Invitar gente</a> · ` : ""}<a href="/_mono/logout">Salir</a></p>`);
+        .join("")}</div><details><summary>Connect another Mac</summary>${installSteps(relay)}</details>`
+    : `<p>No Macs connected yet.</p>${installSteps(relay)}`;
+  return layout("Your Macs", `<h1>Your Macs</h1>${list}<p class="foot">${escape(email)} · ${admin ? `<a href="/_mono/admin">Invite</a> · ` : ""}<a href="/_mono/logout">Sign out</a></p>`);
 }
 
 export function adminPage({ email, admins, users, invites, online, notice, relay }) {
   const row = (main, sub, action) => `<div class="host"><div><b>${main}</b><small>${sub}</small></div>${action ?? ""}</div>`;
   const button = (route, name, value, label) =>
     `<form method="post" action="/_mono/admin/${route}"><input type="hidden" name="${name}" value="${escape(value)}" /><button class="btn secondary">${label}</button></form>`;
-  const machines = (e) => (online[e] ? `${online[e]} Mac${online[e] > 1 ? "s" : ""} conectada${online[e] > 1 ? "s" : ""}` : "sin Macs conectadas");
+  const machines = (e) => (online[e] ? `${online[e]} Mac${online[e] > 1 ? "s" : ""} connected` : "no Macs connected");
   return layout(
-    "Invitar",
-    `<h1>Invitar a Mono</h1>
+    "Invite",
+    `<h1>Invite to Mono</h1>
     ${notice?.error ? `<p class="error">${escape(notice.error)}</p>` : ""}
-    ${notice?.link ? `<p>Mandale este link a ${escape(notice.email)}:</p><pre class="copy">${escape(notice.link)}</pre>` : ""}
-    <form class="invite" method="post" action="/_mono/admin/invite"><input name="email" type="email" placeholder="email de Google" required /><button class="btn">Invitar</button></form>
-    <h2>Con acceso</h2>
+    ${notice?.link ? `<p>Send this link to ${escape(notice.email)}:</p><pre class="copy">${escape(notice.link)}</pre>` : ""}
+    <form class="invite" method="post" action="/_mono/admin/invite"><input name="email" type="email" placeholder="Google email" required /><button class="btn">Invite</button></form>
+    <h2>Members</h2>
     <div class="hosts">
       ${admins.map((a) => row(escape(a), `admin · ${machines(a)}`)).join("")}
-      ${users.map((u) => row(escape(u.email), `invitado por ${escape(u.invited_by ?? "?")} · ${machines(u.email)}`, button("remove", "email", u.email, "Quitar"))).join("")}
+      ${users.map((u) => row(escape(u.email), `invited by ${escape(u.invited_by ?? "?")} · ${machines(u.email)}`, button("remove", "email", u.email, "Remove"))).join("")}
     </div>
     ${
       invites.length
-        ? `<h2>Pendientes</h2><div class="hosts">${invites
-            .map((i) => row(escape(i.email), `<a href="${escape(`${relay}/_mono/invite/${i.token}`)}">link de invitación</a>`, button("revoke", "token", i.token, "Cancelar")))
+        ? `<h2>Pending</h2><div class="hosts">${invites
+            .map((i) => row(escape(i.email), `<a href="${escape(`${relay}/_mono/invite/${i.token}`)}">Invite link</a>`, button("revoke", "token", i.token, "Revoke")))
             .join("")}</div>`
         : ""
     }
-    <p class="foot"><a href="/_mono/hosts">Volver</a> · ${escape(email)}</p>`,
+    <p class="foot"><a href="/_mono/hosts">Back</a> · ${escape(email)}</p>`,
   );
 }
 
 export function pairPage({ code, name, email }) {
   return layout(
-    "Conectar máquina",
-    `<h1>¿Conectar “${escape(name)}”?</h1>
-    <p>Confirmá que la terminal muestra este código:</p>
+    "Connect Mac",
+    `<h1>Connect “${escape(name)}”?</h1>
+    <p>Check that the terminal shows this code:</p>
     <p><code>${escape(code)}</code></p>
-    <p>Vas a poder usar sus agentes de Claude Code desde cualquier lado con ${escape(email)}.</p>
-    <form method="post" action="/_mono/pair/approve"><input type="hidden" name="code" value="${escape(code)}" /><button class="btn">Conectar</button></form>`,
+    <p>It will be linked to ${escape(email)}.</p>
+    <form method="post" action="/_mono/pair/approve"><input type="hidden" name="code" value="${escape(code)}" /><button class="btn">Connect</button></form>`,
   );
 }
 
 export function privacyPage() {
   return layout(
-    "Privacidad",
-    `<h1>Privacidad</h1>
-    <p>Mono usa tu cuenta de Google solo para saber quién sos: guarda tu email para darte acceso y vincular tus máquinas. No pide ni guarda ningún otro dato de Google.</p>
-    <p>Tus agentes, tu código y tus tareas viven en tu propia Mac. El relay solo pasa mensajes entre tu Mac y tu navegador mientras los usás, y no los guarda.</p>
-    <p>Si querés que borremos tu cuenta, pedíselo a quien te invitó o escribí a monsegurfacundo@gmail.com.</p>
-    <a class="btn secondary" href="/">Volver</a>`,
+    "Privacy",
+    `<h1>Privacy</h1>
+    <p>Mono uses your Google account only to identify you: it stores your email to grant access and link your Macs. It doesn't request or store any other Google data.</p>
+    <p>Your agents, code and tasks stay on your Mac. The relay passes messages between your Mac and your browser while you use them, and doesn't store them.</p>
+    <p>To delete your account, ask whoever invited you or email monsegurfacundo@gmail.com.</p>
+    <a class="btn secondary" href="/">Back</a>`,
   );
 }
 

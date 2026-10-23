@@ -91,11 +91,11 @@ export function ProjectSwitcher() {
   const editProject = (p: Project) => {
     setOpen(false);
     openDialog({
-      title: `Proyecto · ${p.root}`,
-      submitLabel: "Guardar",
+      title: `Project · ${p.root}`,
+      submitLabel: "Save",
       fields: [
-        { name: "title", label: "Nombre", defaultValue: p.title },
-        { name: "color", label: "Color", defaultValue: p.hasIcon ? "" : p.color, options: [{ value: "", label: "Ícono del repo" }, ...COLORS.map((c) => ({ value: c, label: "", icon: <i className="dot" style={{ background: c, width: 12, height: 12 }} /> }))] },
+        { name: "title", label: "Name", defaultValue: p.title },
+        { name: "color", label: "Color", defaultValue: p.hasIcon ? "" : p.color, options: [{ value: "", label: "Repo icon" }, ...COLORS.map((c) => ({ value: c, label: "", icon: <i className="dot" style={{ background: c, width: 12, height: 12 }} /> }))] },
       ],
       onSubmit: async ({ title, color }) => {
         await api.saveProject(p.id, { title: title.trim() || undefined, color: color || undefined });
@@ -113,7 +113,7 @@ export function ProjectSwitcher() {
           setOpen((o) => !o);
           setActive(Math.max(0, [null, ...projectTree(projects).map((t) => t.project)].findIndex((p) => (p?.id ?? ALL_PROJECTS) === project)));
         }}
-        title="Cambiar de proyecto"
+        title="Switch project"
       >
         <ProjectIcon project={current} size={20} />
         <span className="project-switch-name">{current?.title ?? "All projects"}</span>
@@ -127,7 +127,7 @@ export function ProjectSwitcher() {
                 <Search size={14} />
                 <input
                   autoFocus
-                  placeholder="Search projects..."
+                  placeholder="Search projects…"
                   value={query}
                   onChange={(e) => {
                     setQuery(e.target.value);
@@ -166,14 +166,14 @@ export function ProjectSwitcher() {
                           e.stopPropagation();
                           editProject(p);
                         }}
-                        title="Configurar proyecto"
+                        title="Settings"
                       >
                         <Settings size={13} />
                       </button>
                     )}
                   </div>
                 ))}
-                {!options.length && <div className="menu-empty">Ningún proyecto coincide</div>}
+                {!options.length && <div className="menu-empty">No matching projects</div>}
               </div>
             </div>
           </div>,

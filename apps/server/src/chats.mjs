@@ -102,7 +102,7 @@ const MAX_INLINE_IMAGE_BYTES = 5 * 1024 * 1024;
 /** Only files the workspace itself stored can be attached, so a request can't smuggle arbitrary paths. */
 function resolveAttachment(file) {
   const real = path.resolve(file.path);
-  if (!real.startsWith(UPLOADS_DIR + path.sep) || !fs.existsSync(real)) throw new Error(`Adjunto inválido: ${file.name}`);
+  if (!real.startsWith(UPLOADS_DIR + path.sep) || !fs.existsSync(real)) throw new Error(`Invalid attachment: ${file.name}`);
   return { ...file, path: real, size: fs.statSync(real).size };
 }
 
@@ -113,7 +113,7 @@ function resolveAttachment(file) {
 function userMessage(text, attachments = []) {
   if (!attachments.length) return { type: "user", message: { role: "user", content: text }, parent_tool_use_id: null, origin: { kind: "human" } };
   const files = attachments.map(resolveAttachment);
-  const listing = `${text}\n\nArchivos adjuntos:\n${files.map((f) => `- ${f.path}`).join("\n")}`;
+  const listing = `${text}\n\nAttached files:\n${files.map((f) => `- ${f.path}`).join("\n")}`;
   const images = files
     .filter((f) => INLINE_IMAGE.test(f.type) && f.size <= MAX_INLINE_IMAGE_BYTES)
     .map((f) => ({ type: "image", source: { type: "base64", media_type: f.type, data: fs.readFileSync(f.path).toString("base64") } }));
@@ -121,10 +121,10 @@ function userMessage(text, attachments = []) {
 }
 
 export function saveUpload({ name, type, data }) {
-  if (!name || !data) throw new Error("Falta el archivo");
+  if (!name || !data) throw new Error("Missing file");
   const dir = path.join(UPLOADS_DIR, `${new Date().toISOString().slice(0, 10)}-${Math.random().toString(36).slice(2, 8)}`);
   fs.mkdirSync(dir, { recursive: true });
-  const safe = path.basename(name).replace(/[^\w.-]+/g, "-").slice(0, 120) || "archivo";
+  const safe = path.basename(name).replace(/[^\w.-]+/g, "-").slice(0, 120) || "file";
   const file = path.join(dir, safe);
   fs.writeFileSync(file, Buffer.from(data, "base64"));
   return { path: file, name, type: type || "application/octet-stream", size: fs.statSync(file).size };
@@ -155,17 +155,17 @@ const effortOptions = (effort) =>
 
 function focusContext(launchCwd, focusCwd) {
   if (!focusCwd || focusCwd === launchCwd) return null;
-  return `Carpeta de trabajo de esta sesión: ${focusCwd}\nLa sesión arranca en ${launchCwd} para cargar sus skills y su CLAUDE.md, pero hacé los cambios, builds y tests en la carpeta de trabajo (usá rutas absolutas o \`cd\` a ella en cada comando).`;
+  return `Working folder for this session: ${focusCwd}\nThe session starts in ${launchCwd} to load its skills and CLAUDE.md, but make changes, builds and tests in the working folder (use absolute paths or \`cd\` into it in every command).`;
 }
 
 function taskContext(task) {
   const lines = [
-    `Estás trabajando en la tarea ${task.id} — "${task.title}" de Mono (http://localhost:4600/#/t/${task.id}).`,
-    task.tldr?.problema && `Problema: ${task.tldr.problema}`,
-    task.tldr?.solucion && `Solución: ${task.tldr.solucion}`,
+    `You are working on Mono task ${task.id} — "${task.title}" (http://localhost:4600/#/t/${task.id}).`,
+    task.tldr?.problema && `Problem: ${task.tldr.problema}`,
+    task.tldr?.solucion && `Solution: ${task.tldr.solucion}`,
     task.repos?.length && `Repos/PRs: ${task.repos.map((r) => `${r.name}${r.branch ? ` (${r.branch})` : ""}${r.pr ? ` ${r.pr}` : ""}`).join(", ")}`,
-    task.boards?.length && `Boards: ${task.boards.map((b) => b.id).join(", ")} — leelos con \`ws get ${task.id} <board>\`.`,
-    `Cuando termines un bloque de trabajo relevante (tests, fixes, hallazgos), actualizá el workspace con el skill workspace usando \`ws board ... --patch\`.`,
+    task.boards?.length && `Boards: ${task.boards.map((b) => b.id).join(", ")} — read them with \`ws get ${task.id} <board>\`.`,
+    `When you finish a meaningful block of work (tests, fixes, findings), update the workspace with the workspace skill using \`ws board ... --patch\`.`,
   ];
   return lines.filter(Boolean).join("\n");
 }
@@ -303,11 +303,11 @@ function linkSessionToTask(taskId, sessionId) {
  */
 export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort, permissionMode, attachments = [], context, onResult }) {
   const mode = modeOrDefault(permissionMode);
-  if (!CLAUDE_BIN) throw new Error("No encontré Claude Code en esta Mac. Instalalo (https://docs.claude.com/en/docs/claude-code/setup) y reiniciá Mono.");
-  if (resume && chats.get(resume) && !chats.get(resume).closed) throw new Error("La sesión ya está abierta en el workspace");
+  if (!CLAUDE_BIN) throw new Error("Claude Code not found on this Mac. Install it (https://docs.claude.com/en/docs/claude-code/setup) and restart Mono.");
+  if (resume && chats.get(resume) && !chats.get(resume).closed) throw new Error("Session is already open in the workspace");
   const task = taskId ? store.getTask(taskId) : null;
   const launch = cwd ? expandHome(cwd) : defaultCwd();
-  if (!isDir(launch)) throw new Error(`No existe la carpeta ${launch}`);
+  if (!isDir(launch)) throw new Error(`Folder not found: ${launch}`);
   // A resumed session keeps launching from its original folder (that's where Claude Code stores the transcript);
   // a reassigned folder only changes where it works.
   const focus = resume && focusCwd && isDir(focusCwd) ? focusCwd : launch;
@@ -340,7 +340,7 @@ export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort
           setState(chat, "requires_action");
           signal.addEventListener("abort", () => {
             if (!chat.pending.delete(id)) return;
-            resolve({ behavior: "deny", message: "Cancelado" });
+            resolve({ behavior: "deny", message: "Cancelled" });
             notify(chat.sessionId);
           });
         }),
@@ -382,7 +382,7 @@ export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort
         chat.closed = true;
         chat.state = "idle";
         clearTimeout(chat.idleTimer);
-        for (const p of chat.pending.values()) p.resolve({ behavior: "deny", message: "Sesión cerrada" });
+        for (const p of chat.pending.values()) p.resolve({ behavior: "deny", message: "Session closed" });
         chat.pending.clear();
         notify(chat.sessionId);
       }
@@ -398,10 +398,10 @@ export function sendMessage(sessionId, text, { workingSessions = [], model, effo
     return Promise.resolve(publicState(chat));
   }
   if (workingSessions.includes(sessionId)) {
-    throw new Error("Esta sesión está trabajando en otra app. Esperá a que quede en pausa para escribirle desde acá.");
+    throw new Error("This session is running in another app. Wait until it pauses to message it from here.");
   }
   const cwd = sessionCwd(sessionId);
-  if (!cwd) throw new Error("No encontré la carpeta original de esta sesión");
+  if (!cwd) throw new Error("Original folder for this session not found");
   return startChat({ resume: sessionId, cwd, focusCwd: readSessionFocus()[sessionId], prompt: text, taskId: chat?.taskId, model, effort, permissionMode, attachments });
 }
 
@@ -412,8 +412,8 @@ export function chatState(sessionId) {
 
 export async function interrupt(sessionId) {
   const chat = chats.get(sessionId);
-  if (!chat || chat.closed) throw new Error("La sesión no está abierta en el workspace");
-  for (const p of chat.pending.values()) p.resolve({ behavior: "deny", message: "Interrumpido por el usuario", interrupt: true });
+  if (!chat || chat.closed) throw new Error("Session is not open in the workspace");
+  for (const p of chat.pending.values()) p.resolve({ behavior: "deny", message: "Interrupted by the user", interrupt: true });
   chat.pending.clear();
   await chat.q.interrupt();
   setState(chat, "idle");
@@ -424,12 +424,12 @@ export async function interrupt(sessionId) {
 export function answerPermission(sessionId, requestId, { allow, always, message, answers }) {
   const chat = chats.get(sessionId);
   const req = chat?.pending.get(requestId);
-  if (!req) throw new Error("El pedido de permiso ya no está pendiente");
+  if (!req) throw new Error("Permission request is no longer pending");
   chat.pending.delete(requestId);
   req.resolve(
     allow
       ? { behavior: "allow", updatedInput: answers ? { ...req.input, answers } : req.input, ...(always && req.suggestions ? { updatedPermissions: req.suggestions } : {}) }
-      : { behavior: "deny", message: message || "El usuario rechazó este paso" },
+      : { behavior: "deny", message: message || "The user rejected this step" },
   );
   setState(chat, chat.pending.size ? "requires_action" : "running");
   return publicState(chat);
@@ -458,10 +458,10 @@ export async function configure(sessionId, { model, effort, permissionMode }) {
 /** Reassigns the folder an existing session works in. Takes effect on the next message (a live idle chat is closed and resumed). */
 export function setSessionCwd(sessionId, cwd) {
   const focus = expandHome(String(cwd ?? "").trim());
-  if (!isDir(focus)) throw new Error(`No existe la carpeta ${focus}`);
+  if (!isDir(focus)) throw new Error(`Folder not found: ${focus}`);
   const chat = chats.get(sessionId);
   if (chat && !chat.closed) {
-    if (chat.state !== "idle") throw new Error("Esperá a que la sesión termine para cambiarle la carpeta");
+    if (chat.state !== "idle") throw new Error("Wait for the session to finish before changing its folder");
     chat.input.close();
     chat.closed = true;
   }

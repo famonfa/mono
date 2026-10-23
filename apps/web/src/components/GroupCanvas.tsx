@@ -79,9 +79,9 @@ function SessionPane({ id, data }: NodeProps<PaneNode>) {
       <Handle type="target" position={Position.Top} isConnectable={false} className="group-pane-port" />
       <Handle type="source" position={Position.Bottom} isConnectable={false} className="group-pane-port" />
       <div className={`group-pane ${status} ${unread ? "unread" : ""}`} onPointerDownCapture={() => unread && summary && markSeen([summary])}>
-        <header className="group-pane-head" onDoubleClick={() => focus(id)} title="Arrastrá para mover · doble click para acercar">
+        <header className="group-pane-head" onDoubleClick={() => focus(id)} title="Drag to move · double-click to zoom">
           <StatusDot status={unread ? "unread" : status} size={7} />
-          <span className="group-pane-title">{summary?.title ?? data.title ?? "Sesión"}</span>
+          <span className="group-pane-title">{summary?.title ?? data.title ?? "Session"}</span>
           {summary?.taskIds?.map((taskId) => {
             const task = tasks.find((t) => t.id === taskId);
             return (
@@ -93,10 +93,10 @@ function SessionPane({ id, data }: NodeProps<PaneNode>) {
           })}
           <span className="spacer" />
           {summary && <span className="group-pane-date">{formatDate(summary.lastTs)}</span>}
-          <a className="icon-btn tiny nodrag" href={href.session(data.sessionId)} title="Abrir la sesión">
+          <a className="icon-btn tiny nodrag" href={href.session(data.sessionId)} title="Open session">
             <ExternalLink size={13} />
           </a>
-          <button className="icon-btn tiny nodrag" onClick={() => remove(data.sessionId)} title="Quitar del grupo">
+          <button className="icon-btn tiny nodrag" onClick={() => remove(data.sessionId)} title="Remove from group">
             <X size={13} />
           </button>
         </header>
@@ -114,7 +114,7 @@ export function GroupView({ groupId }: { groupId: string }) {
   const groups = useGroups();
   const group = groups.find((g) => g.id === groupId);
   const mobile = useIsMobile();
-  if (!group) return <div className="empty">{groups.length ? "No existe este grupo." : null}</div>;
+  if (!group) return <div className="empty">{groups.length ? "Group not found." : null}</div>;
   if (mobile) return <GroupList group={group} />;
   return (
     <ReactFlowProvider>
@@ -131,13 +131,13 @@ function GroupList({ group }: { group: SessionGroup }) {
     <div className="group-mobile">
       <header className="topbar">
         <div className="topbar-title">{group.name}</div>
-        <span className="topbar-sub">{members.length} sesiones</span>
+        <span className="topbar-sub">{members.length} {members.length === 1 ? "session" : "sessions"}</span>
       </header>
       <div className="list">
         {members.map((s) => (
           <SessionRow key={s.id} session={s} compact />
         ))}
-        {!members.length && <div className="empty">Este grupo está vacío.</div>}
+        {!members.length && <div className="empty">Empty group.</div>}
       </div>
     </div>
   );
@@ -167,7 +167,7 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
   }, [group.panes, setNodes]);
 
   useEffect(() => {
-    document.title = `${group.name} · Grupos`;
+    document.title = `${group.name} · Groups`;
     return () => void (document.title = "Mono");
   }, [group.name]);
 
@@ -256,17 +256,17 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
 
   const rename = () =>
     openDialog({
-      title: "Renombrar grupo",
-      submitLabel: "Guardar",
-      fields: [{ name: "name", label: "Nombre", defaultValue: group.name }],
+      title: "Rename group",
+      submitLabel: "Save",
+      fields: [{ name: "name", label: "Name", defaultValue: group.name }],
       onSubmit: async ({ name }) => {
-        if (!name.trim()) throw new Error("Poné un nombre");
+        if (!name.trim()) throw new Error("Name is required");
         await groupsApi.update(group.id, { name: name.trim() });
       },
     });
 
   const destroy = async () => {
-    if (!window.confirm(`¿Borrar el grupo "${group.name}"? Las sesiones no se tocan.`)) return;
+    if (!window.confirm(`Delete group "${group.name}"? Sessions are kept.`)) return;
     await groupsApi.remove(group.id);
     localStorage.removeItem(viewportKey(group.id));
     reloadGroups();
@@ -312,9 +312,9 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
       <div className="task-shell group-shell">
         <header className="topbar task-topbar">
           <nav className="breadcrumb">
-            <span>Grupos</span>
+            <span>Groups</span>
             <ChevronRight size={13} />
-            <button className="crumb-task group-rename" onClick={rename} title="Renombrar">
+            <button className="crumb-task group-rename" onClick={rename} title="Rename">
               <span className="crumb-title">{group.name}</span>
               <Pencil size={11} />
             </button>
@@ -322,49 +322,49 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
           <span className="group-stats">
             {working > 0 && (
               <span className="status-pill-live working">
-                <StatusDot status="working" size={7} /> {working} trabajando
+                <StatusDot status="working" size={7} /> {working} working
               </span>
             )}
             {unreadIds.size > 0 && (
               <span className="status-pill-live unread">
-                <StatusDot status="unread" size={7} /> {unreadIds.size} sin ver
+                <StatusDot status="unread" size={7} /> {unreadIds.size} unread
               </span>
             )}
             {idle > 0 && (
               <span className="status-pill-live idle">
-                <StatusDot status="idle" size={7} /> {idle} en pausa
+                <StatusDot status="idle" size={7} /> {idle} idle
               </span>
             )}
             {group.queued?.length ? (
               <span className="status-pill-live idle" title={group.queued.join("\n")}>
-                {group.queued.length} en cola
+                {group.queued.length} queued
               </span>
             ) : null}
             {group.failed?.length ? (
               <span className="status-pill-live failed" title={group.failed.map((f) => `${f.title}: ${f.error}`).join("\n")}>
-                {group.failed.length} con error
+                {group.failed.length} failed
               </span>
             ) : null}
           </span>
           <span className="spacer" />
           <Menu
-            placeholder="Buscar sesión…"
+            placeholder="Search sessions…"
             options={candidates.map((s) => ({ value: s.id, label: `${s.title} · ${s.project}`, icon: <StatusDot status={s.status} size={7} /> }))}
             onChange={(id) => void add(id)}
             className="btn ghost"
           >
-            <Plus size={14} /> Agregar sesión
+            <Plus size={14} /> Add session
           </Menu>
           <button className="btn ghost" onClick={() => setLaunching(true)}>
-            <Layers size={14} /> Lanzar sesiones
+            <Layers size={14} /> Launch sessions
           </button>
-          <button className="icon-btn" onClick={tile} title="Ordenar en grilla" disabled={!nodes.length}>
+          <button className="icon-btn" onClick={tile} title="Tile" disabled={!nodes.length}>
             <LayoutGrid size={15} />
           </button>
-          <button className="icon-btn" onClick={fitAll} title="Ver todo (⇧1)" disabled={!nodes.length}>
+          <button className="icon-btn" onClick={fitAll} title="Fit all (⇧1)" disabled={!nodes.length}>
             <Maximize size={15} />
           </button>
-          <button className="icon-btn" onClick={() => void destroy()} title="Borrar grupo">
+          <button className="icon-btn" onClick={() => void destroy()} title="Delete group">
             <Trash2 size={15} />
           </button>
         </header>
@@ -404,9 +404,9 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
           </ReactFlow>
           {!nodes.length && (
             <div className="group-empty">
-              <p>Este grupo está vacío.</p>
+              <p>Empty group.</p>
               <p className="hint">
-                Agregá sesiones con <b>Agregar sesión</b>, pedile a Claude que planee y lance varias con <b>Lanzar sesiones</b>, o mandalas desde cualquier sesión con <b>Enviar a grupo</b>.
+                Or use <b>Send to group</b> from any session.
               </p>
             </div>
           )}
@@ -417,7 +417,7 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
   );
 }
 
-/** "Enviar a grupo" menu for a session: adds it to an existing group or creates a new one with it. */
+/** "Send to group" menu for a session: adds it to an existing group or creates a new one with it. */
 export function SendToGroup({ sessionId, title, className = "btn ghost" }: { sessionId: string; title?: string; className?: string }) {
   const { openDialog } = useApp();
   const groups = useGroups();
@@ -427,9 +427,9 @@ export function SendToGroup({ sessionId, title, className = "btn ghost" }: { ses
   const choose = async (value: string) => {
     if (value === NEW) {
       openDialog({
-        title: "Nuevo grupo",
-        submitLabel: "Crear y enviar",
-        fields: [{ name: "name", label: "Nombre del grupo" }],
+        title: "New group",
+        submitLabel: "Create and send",
+        fields: [{ name: "name", label: "Name" }],
         onSubmit: async ({ name }) => {
           await groupsApi.create(name, [{ sessionId, title }]);
           reloadGroups();
@@ -444,19 +444,19 @@ export function SendToGroup({ sessionId, title, className = "btn ghost" }: { ses
 
   return (
     <Menu
-      placeholder="Elegí un grupo…"
+      placeholder="Pick a group…"
       options={[
         ...groups.map((g) => ({
           value: g.id,
-          label: member.some((m) => m.id === g.id) ? `${g.name} · ya está (abrir)` : `${g.name} · ${g.panes.length} sesiones`,
+          label: member.some((m) => m.id === g.id) ? `${g.name} · already in (open)` : `${g.name} · ${g.panes.length} ${g.panes.length === 1 ? "session" : "sessions"}`,
           icon: <LayoutGrid size={13} />,
         })),
-        { value: NEW, label: "Nuevo grupo…", icon: <Plus size={13} /> },
+        { value: NEW, label: "New group…", icon: <Plus size={13} /> },
       ]}
       onChange={(v) => void choose(v)}
       className={className}
     >
-      <LayoutGrid size={14} /> {member.length ? `En ${member.length === 1 ? member[0].name : `${member.length} grupos`}` : "Enviar a grupo"}
+      <LayoutGrid size={14} /> {member.length ? `In ${member.length === 1 ? member[0].name : `${member.length} groups`}` : "Send to group"}
     </Menu>
   );
 }

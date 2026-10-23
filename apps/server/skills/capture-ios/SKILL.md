@@ -1,32 +1,32 @@
 ---
 name: capture-ios
-description: Captura screenshots y video del simulador de iOS (apps nativas o React Native) como evidencia de una tarea. Usala cuando el diff toque pantallas de una app iOS.
+description: Capture screenshots and video from the iOS simulator (native or React Native apps) as evidence for a task. Use it when the diff touches screens of an iOS app.
 targets: ios, react-native
 outputs: screenshot, video
-verified: "2026-10-22 (xcrun simctl, iOS 18.4 y 26.3, macOS arm64)"
+verified: "2026-10-22 (xcrun simctl, iOS 18.4 and 26.3, macOS arm64)"
 needs: xcode, ffmpeg
 allowed-tools: Bash(xcrun simctl:*), Bash(ffmpeg:*), Bash(ffprobe:*), Bash(mkdir:*), Bash(sleep:*), Bash(kill -INT:*), Bash(ls:*)
 ---
 
 # capture-ios
 
-Evidencia del simulador con `xcrun simctl` (viene con Xcode, sin dependencias extra). Mismo contrato de salida que `capture-web`: archivos en un directorio temporal y `ws asset <tarea> <archivos…>`.
+Simulator evidence with `xcrun simctl` (ships with Xcode, no extra dependencies). Same output contract as `capture-web`: files in a temp directory and `ws asset <task> <files…>`.
 
-## Pasos
+## Steps
 
 ```bash
-xcrun simctl list devices available | grep -E "Booted|iPhone"   # elegí uno; si hay Booted, usá "booted"
-xcrun simctl boot <UDID>                                          # si no hay ninguno booted
-xcrun simctl bootstatus <UDID> -b                                 # espera a que termine de arrancar
+xcrun simctl list devices available | grep -E "Booted|iPhone"   # pick one; if one is Booted, use "booted"
+xcrun simctl boot <UDID>                                          # if none is booted
+xcrun simctl bootstatus <UDID> -b                                 # waits until boot finishes
 OUT=$(mktemp -d)
 ```
 
-**Navegar a la pantalla**
-- App instalada: `xcrun simctl launch booted <bundle.id>`
-- Deep link / URL scheme: `xcrun simctl openurl booted "miapp://ruta"`
-- Instalar un build: `xcrun simctl install booted <ruta/App.app>` (en React Native: el `.app` que deja `npx react-native run-ios` / `expo run:ios` en DerivedData).
+**Navigate to the screen**
+- Installed app: `xcrun simctl launch booted <bundle.id>`
+- Deep link / URL scheme: `xcrun simctl openurl booted "myapp://path"`
+- Install a build: `xcrun simctl install booted <path/App.app>` (React Native: the `.app` that `npx react-native run-ios` / `expo run:ios` leaves in DerivedData).
 
-Limitación: `simctl` no hace taps ni gestos. Si la toma exige tocar elementos, llegá por deep link o dejá la toma como pendiente e indicá "requiere gestos (Maestro/argent)".
+Limitation: `simctl` can't tap or gesture. If the shot requires tapping elements, get there via deep link or leave the shot pending and note "needs gestures (Maestro/argent)".
 
 **Screenshot**
 ```bash
@@ -38,14 +38,14 @@ xcrun simctl io booted screenshot "$OUT/<label>.png"
 xcrun simctl io booted recordVideo --codec=h264 -f "$OUT/<label>.mov" &
 REC=$!
 sleep 1
-xcrun simctl launch booted <bundle.id>     # o openurl
-sleep 4                                     # duración de la acción
-kill -INT $REC; sleep 2                     # INT cierra el archivo correctamente
+xcrun simctl launch booted <bundle.id>     # or openurl
+sleep 4                                     # length of the action
+kill -INT $REC; sleep 2                     # INT closes the file properly
 ffmpeg -loglevel error -y -i "$OUT/<label>.mov" -c:v libx264 -pix_fmt yuv420p -movflags +faststart "$OUT/<label>.mp4"
 ffmpeg -loglevel error -y -i "$OUT/<label>.mp4" -vf "fps=8,scale=360:-1" "$OUT/<label>.gif"
 ```
 
-## Notas
+## Notes
 
-- Si el usuario ya tenía un simulador abierto, usalo y no lo apagues. Si lo arrancaste vos, dejalo como estaba al terminar (`xcrun simctl shutdown <UDID>`).
-- El simulador tiene el tamaño del dispositivo (p. ej. 1206×2622); el GIF se reduce a 360 px de ancho.
+- If the user already had a simulator open, use it and don't shut it down. If you booted it, leave it as it was when done (`xcrun simctl shutdown <UDID>`).
+- The simulator is device-sized (e.g. 1206×2622); the GIF is scaled down to 360 px wide.

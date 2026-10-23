@@ -68,14 +68,14 @@ class BoardErrorBoundary extends Component<Props & { children: ReactNode }, { er
     if (!this.state.error) return this.props.children;
     return (
       <div className="board-crash">
-        <strong>Este board tiene datos que el canvas no puede dibujar.</strong>
+        <strong>This board has data the canvas can't render.</strong>
         <code>{this.state.error}</code>
         <div className="board-crash-actions">
           <button className="btn primary" disabled={this.state.busy} onClick={() => this.recover(() => api.undoBoard(this.props.task.id, this.props.boardId))}>
-            Deshacer último cambio de IA
+            Undo last AI change
           </button>
           <button className="btn ghost" disabled={this.state.busy} onClick={this.repair}>
-            Reparar (re-ordenar todo)
+            Repair (re-layout all)
           </button>
         </div>
       </div>
@@ -194,7 +194,7 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
       note: { width: 240, height: 140 },
       image: { width: 300, height: 230 },
     };
-    const label = { card: "Nuevo paso", note: "Nota", lane: "Nuevo carril", actor: "Actor", activity: "Actividad", image: "Captura" }[type] ?? "Nuevo";
+    const label = { card: "New step", note: "Note", lane: "New lane", actor: "Actor", activity: "Activity", image: "Screenshot" }[type] ?? "New";
     const node: WsNode = { id: newId(type), type, position, data: { label, manual: true, ...extra }, selected: true, ...defaults[type] };
     setNodes((ns) => sortParentsFirst([...ns.map((n) => ({ ...n, selected: false })), node]));
   };
@@ -237,8 +237,8 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
   const relayout = () => {
     if (!board) return;
     openDialog({
-      title: "¿Re-ordenar todo automáticamente? Se pierde el acomodo manual de este board.",
-      submitLabel: "Re-ordenar",
+      title: "Auto-layout this board? Manual positions will be lost.",
+      submitLabel: "Re-layout",
       fields: [],
       onSubmit: () => {
         const content = nodes.filter((n) => n.type !== "lane").map((n) => ({ ...n, parentId: undefined }));
@@ -270,9 +270,9 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
   const renameBoard = () => {
     if (!board) return;
     openDialog({
-      title: "Renombrar board",
-      submitLabel: "Guardar",
-      fields: [{ name: "title", label: "Nombre", defaultValue: board.title }],
+      title: "Rename board",
+      submitLabel: "Save",
+      fields: [{ name: "title", label: "Name", defaultValue: board.title }],
       onSubmit: ({ title }) => {
         if (!title.trim()) return;
         const next = { ...board, title: title.trim() };
@@ -301,49 +301,49 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
 
   const contextValue = useMemo(() => ({ taskId: task.id, direction, openImage: setLightbox }), [task.id, direction]);
 
-  if (error) return <div className="empty">No se pudo abrir el board: {error}</div>;
+  if (error) return <div className="empty">Couldn't open board: {error}</div>;
 
   return (
     <div className={`board ${embedded ? "embedded" : ""}`}>
       <div className="board-toolbar">
-        <a className="tool" href={href.task(task.id)} title="Volver al resumen (Esc)">
-          <ArrowLeft size={14} /> Resumen
+        <a className="tool" href={href.task(task.id)} title="Back (Esc)">
+          <ArrowLeft size={14} /> Overview
         </a>
-        <button className="board-title" onClick={renameBoard} title="Renombrar">
+        <button className="board-title" onClick={renameBoard} title="Rename">
           {board?.title ?? "…"}
         </button>
         {board?.description && <span className="board-description">{board.description}</span>}
         <span className="spacer" />
-        <span className={`save-state ${saveState}`}>{saveState === "saved" ? "Guardado" : "Guardando…"}</span>
+        <span className={`save-state ${saveState}`}>{saveState === "saved" ? "Saved" : "Saving…"}</span>
         <div className="tool-group">
-          <button className="tool" onClick={() => addNode("card")} title="Tarjeta (o doble click en el lienzo)">
-            <Plus size={14} /> Tarjeta
+          <button className="tool" onClick={() => addNode("card")} title="Or double-click the canvas">
+            <Plus size={14} /> Card
           </button>
-          <button className="tool" onClick={() => addNode("note", { color: "#fef3c7" })} title="Nota">
+          <button className="tool" onClick={() => addNode("note", { color: "#fef3c7" })} title="Note">
             <StickyNote size={14} />
           </button>
-          <button className="tool" onClick={() => addNode("lane")} title="Carril">
+          <button className="tool" onClick={() => addNode("lane")} title="Lane">
             <Rows3 size={14} />
           </button>
           {board?.layout === "storymap" && (
-            <button className="tool" onClick={() => addNode("activity")} title="Actividad">
+            <button className="tool" onClick={() => addNode("activity")} title="Activity">
               <SquareStack size={14} />
             </button>
           )}
           {task.assets.length > 0 && (
-            <button className="tool" onClick={() => addNode("image", { image: `assets/${task.assets[0]}` })} title="Imagen">
+            <button className="tool" onClick={() => addNode("image", { image: `assets/${task.assets[0]}` })} title="Image">
               <ImageIcon size={14} />
             </button>
           )}
         </div>
         <div className="tool-group">
-          <button className="tool" onClick={relayout} title="Re-ordenar automáticamente">
+          <button className="tool" onClick={relayout} title="Auto-layout">
             <Sparkles size={14} />
           </button>
-          <button className="tool" onClick={() => flow.fitView({ padding: 0.15, duration: 300 })} title="Ajustar a la vista">
+          <button className="tool" onClick={() => flow.fitView({ padding: 0.15, duration: 300 })} title="Fit view">
             <Maximize size={14} />
           </button>
-          <button className="tool" onClick={exportPng} title="Exportar PNG">
+          <button className="tool" onClick={exportPng} title="Export PNG">
             <Download size={14} />
           </button>
         </div>

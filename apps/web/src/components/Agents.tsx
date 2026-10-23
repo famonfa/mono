@@ -32,7 +32,7 @@ import { SessionChat } from "./Chat";
 import { SendToGroup } from "./GroupCanvas";
 import { Markdown } from "./Markdown";
 
-const STATUS_LABEL: Record<SessionStatus, string> = { working: "Trabajando", idle: "En pausa", inactive: "Inactiva" };
+const STATUS_LABEL: Record<SessionStatus, string> = { working: "Working", idle: "Idle", inactive: "Inactive" };
 
 export function StatusDot({ status, size = 8 }: { status: SessionStatus | "unread"; size?: number }) {
   return <span className={`live-dot ${status}`} style={{ width: size, height: size }} />;
@@ -64,7 +64,7 @@ export function ContextMeter({ session, label = false }: { session: SessionSumma
   const pct = Math.min(100, Math.round((used / window) * 100));
   const level = pct >= 90 ? "full" : pct >= 70 ? "high" : "ok";
   return (
-    <span className={`ctx-meter ${level}`} title={`Contexto: ${used.toLocaleString()} de ~${tokensLabel(window)} tokens (${pct}%)${pct >= 90 ? " — casi lleno, conviene /compact" : ""}`}>
+    <span className={`ctx-meter ${level}`} title={`Context: ${used.toLocaleString()} of ~${tokensLabel(window)} tokens (${pct}%)${pct >= 90 ? " — almost full, consider /compact" : ""}`}>
       <span className="ctx-bar">
         <span style={{ width: `${pct}%` }} />
       </span>
@@ -78,7 +78,7 @@ export function SessionRow({ session, compact = false }: { session: SessionSumma
   const unread = useUnread()(session);
   const activeSubs = session.subagents.filter((s) => s.status === "working").length;
   return (
-    <a className={`agent-row ${compact ? "compact" : ""} ${unread ? "unread" : ""}`} href={href.session(session.id)} title={unread ? "Terminó y todavía no la viste" : undefined}>
+    <a className={`agent-row ${compact ? "compact" : ""} ${unread ? "unread" : ""}`} href={href.session(session.id)} title={unread ? "Unread" : undefined}>
       <StatusDot status={unread ? "unread" : session.status} />
       <span className="agent-title">{session.title}</span>
       {!compact && <span className="agent-project">{session.project}</span>}
@@ -103,7 +103,7 @@ export function SessionRow({ session, compact = false }: { session: SessionSumma
             );
           })}
         {session.subagents.length > 0 && (
-          <span className={`meta-repos ${activeSubs ? "active" : ""}`} title="Subagentes activos / total">
+          <span className={`meta-repos ${activeSubs ? "active" : ""}`} title="Active / total subagents">
             <Bot size={12} />
             {activeSubs ? `${activeSubs}/` : ""}
             {session.subagents.length}
@@ -119,19 +119,19 @@ export function AgentsPage({ sessions }: { sessions: SessionSummary[] }) {
   const isUnread = useUnread();
   const unread = sessions.filter((s) => isUnread(s));
   const groups: { status: SessionStatus | "unread"; label: string; items: SessionSummary[] }[] = [
-    { status: "unread", label: "Terminaron · sin ver", items: unread },
-    { status: "working", label: "Trabajando ahora", items: sessions.filter((s) => s.status === "working") },
-    { status: "idle", label: "En pausa (últimas 2 h)", items: sessions.filter((s) => s.status === "idle" && !isUnread(s)) },
-    { status: "inactive", label: "Anteriores", items: sessions.filter((s) => s.status === "inactive" && !isUnread(s)) },
+    { status: "unread", label: "Unread", items: unread },
+    { status: "working", label: "Working", items: sessions.filter((s) => s.status === "working") },
+    { status: "idle", label: "Idle (last 2h)", items: sessions.filter((s) => s.status === "idle" && !isUnread(s)) },
+    { status: "inactive", label: "Earlier", items: sessions.filter((s) => s.status === "inactive" && !isUnread(s)) },
   ];
   return (
     <div className="home">
       <header className="topbar">
-        <div className="topbar-title">Agentes</div>
-        <span className="topbar-sub">Sesiones de Claude Code de los últimos 3 días · en vivo</span>
+        <div className="topbar-title">Agents</div>
+        <span className="topbar-sub">Last 3 days</span>
         <span className="spacer" />
         <a className="btn primary" href={href.newSession()}>
-          <Plus size={14} /> Nueva sesión <kbd className="kbd on-primary">S</kbd>
+          <Plus size={14} /> New session <kbd className="kbd on-primary">S</kbd>
         </a>
       </header>
       <div className="list">
@@ -145,7 +145,7 @@ export function AgentsPage({ sessions }: { sessions: SessionSummary[] }) {
                 <span className="group-count">{items.length}</span>
                 {status === "unread" && (
                   <button className="link-btn group-header-action" onClick={() => markSeen(items)}>
-                    Marcar como vistas
+                    Mark all read
                   </button>
                 )}
               </div>
@@ -155,7 +155,7 @@ export function AgentsPage({ sessions }: { sessions: SessionSummary[] }) {
             </section>
           );
         })}
-        {!sessions.length && <div className="empty">No hay sesiones recientes.</div>}
+        {!sessions.length && <div className="empty">No recent sessions</div>}
       </div>
     </div>
   );
@@ -182,11 +182,12 @@ function buildFeed(events: SessionEvent[]): FeedItem[] {
   return items;
 }
 
-const ATTACHMENTS_MARK = "\n\nArchivos adjuntos:\n";
+// Written by the server (chats.mjs) after the prompt; older transcripts have the Spanish header.
+const ATTACHMENTS_MARK = /\n\n(?:Archivos adjuntos|Attached files):\n/;
 const IMAGE_FILE = /\.(png|jpe?g|gif|webp)$/i;
 
 function PromptBody({ text, images }: { text: string; images: number }) {
-  const [body, list] = text.includes(ATTACHMENTS_MARK) ? text.split(ATTACHMENTS_MARK) : [text, ""];
+  const [body, list] = ATTACHMENTS_MARK.test(text) ? text.split(ATTACHMENTS_MARK) : [text, ""];
   const files = list
     .split("\n")
     .map((l) => l.replace(/^- /, "").trim())
@@ -204,7 +205,7 @@ function PromptBody({ text, images }: { text: string; images: number }) {
           ))}
         </div>
       )}
-      {!files.length && images > 0 && <div className="attachments in-feed">🖼 {images} imagen{images > 1 ? "es" : ""}</div>}
+      {!files.length && images > 0 && <div className="attachments in-feed">🖼 {images} image{images > 1 ? "s" : ""}</div>}
     </div>
   );
 }
@@ -216,7 +217,7 @@ function Collapsible({ text, limit = 700 }: { text: string; limit?: number }) {
     <>
       {open ? text : `${text.slice(0, limit)}…`}
       <button className="link-btn" onClick={() => setOpen((o) => !o)}>
-        {open ? "Ver menos" : "Ver todo"}
+        {open ? "Show less" : "Show all"}
       </button>
     </>
   );
@@ -242,7 +243,7 @@ function ToolCallRow({ call, sessionId, live }: { call: ToolCall; sessionId: str
               navigate(href.session(sessionId, call.agentId));
             }}
           >
-            <Bot size={11} /> Ver subagente
+            <Bot size={11} /> Open subagent
           </span>
         )}
         {running ? <Loader2 size={13} className="spin" /> : call.result?.isError ? <X size={13} className="err" /> : call.result ? <Check size={13} className="ok" /> : null}
@@ -251,7 +252,7 @@ function ToolCallRow({ call, sessionId, live }: { call: ToolCall; sessionId: str
       {open && (
         <div className="tool-call-body">
           {call.detail && <pre className="code">{call.detail}</pre>}
-          {call.result && <pre className={`code output ${call.result.isError ? "error" : ""}`}>{call.result.text || "(sin salida)"}</pre>}
+          {call.result && <pre className={`code output ${call.result.isError ? "error" : ""}`}>{call.result.text || "(no output)"}</pre>}
         </div>
       )}
     </div>
@@ -315,14 +316,14 @@ export function Feed({ events, sessionId, live, isSubagent, pendingText }: { eve
             ) : item.event.kind === "prompt" ? (
               <div key={i} className={`msg prompt${enter(i)}`}>
                 <div className="msg-author">
-                  <MessageSquare size={12} /> {isSubagent && i === 0 ? "Instrucciones del orquestador" : "Vos"} <span className="msg-time">{formatDate(item.event.ts)}</span>
+                  <MessageSquare size={12} /> {isSubagent && i === 0 ? "Orchestrator instructions" : "You"} <span className="msg-time">{formatDate(item.event.ts)}</span>
                 </div>
                 <PromptBody text={item.event.text ?? ""} images={item.event.images ?? 0} />
               </div>
             ) : item.event.kind === "command" ? (
               <div key={i} className={`command-call${enter(i)}`}>
                 <div className="msg-author">
-                  <MessageSquare size={12} /> Vos <span className="msg-time">{formatDate(item.event.ts)}</span>
+                  <MessageSquare size={12} /> You <span className="msg-time">{formatDate(item.event.ts)}</span>
                 </div>
                 <div className="tool-group-feed">
                   <div className="tool-call-head static">
@@ -353,7 +354,7 @@ export function Feed({ events, sessionId, live, isSubagent, pendingText }: { eve
           {pendingText && (
             <div className="msg prompt pending feed-enter">
               <div className="msg-author">
-                <MessageSquare size={12} /> Vos <span className="msg-time">enviando…</span>
+                <MessageSquare size={12} /> You <span className="msg-time">sending…</span>
               </div>
               <div className="msg-body plain">{pendingText}</div>
             </div>
@@ -361,7 +362,7 @@ export function Feed({ events, sessionId, live, isSubagent, pendingText }: { eve
           {live && (
             <div className="typing feed-enter">
               <Sparkles size={12} className="typing-icon" />
-              <span className="live-tool-shine">Trabajando…</span>
+              <span className="live-tool-shine">Working…</span>
             </div>
           )}
         </div>
@@ -375,7 +376,7 @@ export function Feed({ events, sessionId, live, isSubagent, pendingText }: { eve
             setUnseen(0);
           }}
         >
-          <ArrowDown size={13} /> {unseen ? `${unseen} nuevos` : "Seguir en vivo"}
+          <ArrowDown size={13} /> {unseen ? `${unseen} new` : "Jump to latest"}
         </button>
       )}
     </div>
@@ -417,17 +418,17 @@ export function SessionView({ sessionId, agentId, sessions }: { sessionId: strin
   useMarkSeen(summary);
 
   useEffect(() => {
-    if (summary) document.title = `${summary.title} · Agentes`;
+    if (summary) document.title = `${summary.title} · Agents`;
     return () => void (document.title = "Mono");
   }, [summary]);
 
-  if (feed.error) return <div className="empty">No se pudo abrir la sesión: {feed.error}</div>;
+  if (feed.error) return <div className="empty">Couldn't open session: {feed.error}</div>;
 
   return (
     <div className="task-shell">
       <header className="topbar task-topbar">
         <nav className="breadcrumb">
-          <a href={href.agents()}>Agentes</a>
+          <a href={href.agents()}>Agents</a>
           <ChevronRight size={13} />
           <a href={href.session(sessionId)} className="crumb-task">
             <StatusDot status={summary?.status ?? "inactive"} size={7} />
@@ -451,7 +452,7 @@ export function SessionView({ sessionId, agentId, sessions }: { sessionId: strin
       <div className="task-content">
         <div className="issue">
           <div className="issue-main session-main">
-            {agentId && feed.truncated && <div className="msg-notice top">Mostrando la parte más reciente de la sesión</div>}
+            {agentId && feed.truncated && <div className="msg-notice top">Showing the most recent part of the session</div>}
             {agentId ? (
               <Feed events={feed.events} sessionId={sessionId} live={status === "working"} isSubagent />
             ) : (
@@ -461,37 +462,37 @@ export function SessionView({ sessionId, agentId, sessions }: { sessionId: strin
           <aside className="properties">
             {summary && (
               <div className="prop-group">
-                <div className="prop-title">Sesión</div>
-                <Prop label="Estado">
+                <div className="prop-title">Session</div>
+                <Prop label="Status">
                   <StatusDot status={summary.status} size={7} /> {STATUS_LABEL[summary.status]}
                 </Prop>
-                <Prop label="Contexto">
+                <Prop label="Context">
                   <ContextMeter session={summary} label />
                 </Prop>
-                <Prop label="Proyecto">
+                <Prop label="Project">
                   <Folder size={12} /> {summary.project}
                 </Prop>
                 {summary.focusCwd && (
-                  <Prop label="Trabaja en">
+                  <Prop label="Working in">
                     <FolderGit2 size={12} /> <span className="mono" title={summary.focusCwd}>{summary.focusCwd.split("/").slice(-2).join("/")}</span>
                   </Prop>
                 )}
                 {summary.gitBranch && (
-                  <Prop label="Rama">
+                  <Prop label="Branch">
                     <GitBranch size={12} /> <span className="mono">{summary.gitBranch}</span>
                   </Prop>
                 )}
-                {summary.model && <Prop label="Modelo">{summary.model}</Prop>}
-                <Prop label="Empezó">{formatDate(summary.firstTs)}</Prop>
-                <Prop label="Última">{formatDate(summary.lastTs)}</Prop>
+                {summary.model && <Prop label="Model">{summary.model}</Prop>}
+                <Prop label="Started">{formatDate(summary.firstTs)}</Prop>
+                <Prop label="Last active">{formatDate(summary.lastTs)}</Prop>
               </div>
             )}
             {summary && (
               <div className="prop-group">
                 <div className="prop-title prop-title-row">
-                  Tareas
+                  Tasks
                   <Menu
-                    placeholder="Vincular a una tarea…"
+                    placeholder="Link to task…"
                     options={tasks.map((t) => ({ value: t.id, label: `${t.id} · ${t.title}`, icon: <StatusIcon status={t.status} /> }))}
                     onChange={(taskId) => {
                       const task = tasks.find((t) => t.id === taskId);
@@ -502,7 +503,7 @@ export function SessionView({ sessionId, agentId, sessions }: { sessionId: strin
                     <Plus size={13} />
                   </Menu>
                 </div>
-                {!summary.taskIds?.length && <span className="hint">Sin tarea. Vinculala con +.</span>}
+                {!summary.taskIds?.length && <span className="hint">No linked task</span>}
                 {summary.taskIds?.map((id) => {
                   const task = tasks.find((t) => t.id === id);
                   return (
@@ -529,12 +530,12 @@ export function SessionView({ sessionId, agentId, sessions }: { sessionId: strin
             {!!summary?.subagents.length && (
               <div className="prop-group">
                 <div className="prop-title">
-                  Subagentes · {summary.subagents.filter((s) => s.status === "working").length} activos de {summary.subagents.length}
+                  Subagents · {summary.subagents.filter((s) => s.status === "working").length} of {summary.subagents.length} active
                 </div>
                 <a className={`sub-agent ${!agentId ? "active" : ""}`} href={href.session(sessionId)}>
                   <Sparkles size={12} />
                   <span className="sub-agent-body">
-                    <span className="sub-agent-title">Sesión principal</span>
+                    <span className="sub-agent-title">Main session</span>
                   </span>
                 </a>
                 {summary.subagents.map((a) => (

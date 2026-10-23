@@ -34,15 +34,15 @@ export function UpdateToast() {
         <Download size={15} />
       </span>
       <div className="toast-body">
-        <div className="toast-title">Mono {version} está lista</div>
-        <div className="toast-sub">{error ?? (busy ? "Bajando… Mono se cierra y se vuelve a abrir solo." : "Se instala en segundos y Mono se vuelve a abrir.")}</div>
+        <div className="toast-title">Mono {version} is available</div>
+        <div className="toast-sub">{error ?? (busy ? "Downloading… Mono will restart." : "Mono restarts to install.")}</div>
       </div>
       <button className="btn primary" onClick={() => void install()} disabled={busy}>
         {busy ? <Loader2 size={13} className="spin" /> : null}
-        {error ? "Reintentar" : "Actualizar"}
+        {error ? "Retry" : "Update"}
       </button>
       {!busy && (
-        <button className="icon-btn tiny" onClick={() => setDismissed(version)} title="Más tarde">
+        <button className="icon-btn tiny" onClick={() => setDismissed(version)} title="Later">
           <X size={13} />
         </button>
       )}

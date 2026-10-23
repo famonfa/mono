@@ -30,10 +30,10 @@ const DOWNLOADS_DIR = process.env.DOWNLOADS_DIR ?? path.resolve("downloads");
 const DOWNLOADS = new Set(["Mono-arm64.zip", "Mono-x64.zip"]);
 const STATIC_TYPES = { ".jpg": "image/jpeg", ".png": "image/png", ".svg": "image/svg+xml", ".webp": "image/webp" };
 
-if (SECRET.length < 32) throw new Error("SESSION_SECRET tiene que tener al menos 32 caracteres (openssl rand -hex 32)");
-if (!access.hasAdmins()) throw new Error("Falta ADMIN_EMAILS (tu email de Google; desde ahí invitás al resto)");
+if (SECRET.length < 32) throw new Error("SESSION_SECRET must be at least 32 characters (openssl rand -hex 32)");
+if (!access.hasAdmins()) throw new Error("Missing ADMIN_EMAILS (your Google email; you invite everyone else from there)");
 const GOOGLE_READY = Boolean(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET);
-if (!GOOGLE_READY) console.warn("Faltan GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET: el login con Google queda apagado");
+if (!GOOGLE_READY) console.warn("Missing GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET: Google sign-in is disabled");
 
 // ---------- signing & cookies ----------
 
@@ -111,7 +111,7 @@ function readBody(req, limit = 60 * 1024 * 1024) {
     let size = 0;
     req.on("data", (chunk) => {
       size += chunk.length;
-      if (size > limit) return reject(new Error("Body demasiado grande")), req.destroy();
+      if (size > limit) return reject(new Error("Body too large")), req.destroy();
       chunks.push(chunk);
     });
     req.on("end", () => resolve(Buffer.concat(chunks)));
@@ -151,11 +151,11 @@ const hostsFor = (email) => [...hosts.entries()].filter(([, h]) => h.email === e
 function forward(hostId, request) {
   const host = hosts.get(hostId);
   return new Promise((resolve, reject) => {
-    if (!host) return reject(new Error("La máquina no está conectada"));
+    if (!host) return reject(new Error("Mac not connected"));
     const id = randomId(9);
     const timer = setTimeout(() => {
       host.pending.delete(id);
-      reject(new Error("La máquina no respondió a tiempo"));
+      reject(new Error("Mac timed out"));
     }, REQUEST_TIMEOUT_MS);
     host.pending.set(id, { resolve, reject, timer });
     host.ws.send(JSON.stringify({ type: "req", id, ...request }));
@@ -178,14 +178,14 @@ wss.on("connection", (ws) => {
       clearTimeout(hello);
       const token = verify(msg.token);
       if (token?.t !== "host" || !allowed(token.email)) {
-        ws.send(JSON.stringify({ type: "rejected", reason: token ? "el email ya no está autorizado" : "token inválido" }));
+        ws.send(JSON.stringify({ type: "rejected", reason: token ? "email no longer authorized" : "invalid token" }));
         return ws.close();
       }
       hostId = token.hostId;
       hosts.get(hostId)?.ws.close();
       hosts.set(hostId, { ws, email: token.email, name: String(msg.name ?? token.name).slice(0, 60), connectedAt: new Date().toISOString(), pending: new Map() });
       ws.send(JSON.stringify({ type: "welcome", hostId, email: token.email }));
-      console.log(`host conectado: ${token.name} (${token.email})`);
+      console.log(`host connected: ${token.name} (${token.email})`);
       return;
     }
     const host = hostId && hosts.get(hostId);
@@ -204,7 +204,7 @@ wss.on("connection", (ws) => {
     const host = hostId && hosts.get(hostId);
     if (!host || host.ws !== ws) return;
     hosts.delete(hostId);
-    for (const { reject, timer } of host.pending.values()) clearTimeout(timer), reject(new Error("La máquina se desconectó"));
+    for (const { reject, timer } of host.pending.values()) clearTimeout(timer), reject(new Error("Mac disconnected"));
   });
 });
 
@@ -230,7 +230,7 @@ setInterval(() => {
 function finishLogin(res, rawEmail, next, profile) {
   const email = String(rawEmail).trim().toLowerCase();
   if (!allowed(email) && !access.acceptInvite(email)) {
-    return html(res, messagePage("Sin acceso", `${email || "Ese email"} no tiene invitación. Pedile a quien usa Mono que te invite.`, { href: "/_mono/logout", label: "Probar con otra cuenta" }), 403);
+    return html(res, messagePage("No access", `${email || "This email"} isn't invited to Mono.`, { href: "/_mono/logout", label: "Use another account" }), 403);
   }
   startSession(res, email, profile);
   return redirect(res, safeNext(next));
@@ -253,7 +253,7 @@ async function relayRoute(req, res, url) {
     try {
       return send(res, 200, JSON.parse(fs.readFileSync(path.join(DOWNLOADS_DIR, "latest.json"), "utf8")));
     } catch {
-      return send(res, 404, { error: "Todavía no hay versiones publicadas" });
+      return send(res, 404, { error: "No published versions yet" });
     }
   }
 
@@ -280,7 +280,7 @@ async function relayRoute(req, res, url) {
   if (route === "/login") return html(res, loginPage({ next: safeNext(url.searchParams.get("next")), dev: DEV_LOGIN, app: (req.headers["user-agent"] ?? "").includes("MonoApp"), ios: /iPhone|iPad/.test(req.headers["user-agent"] ?? "") }));
 
   if (route === "/auth/google") {
-    if (!GOOGLE_READY) return html(res, messagePage("Login no configurado", "Este relay todavía no tiene credenciales de Google."), 503);
+    if (!GOOGLE_READY) return html(res, messagePage("Sign-in not configured", "This relay has no Google credentials yet."), 503);
     const state = randomId();
     setCookie(res, "mono_oauth", sign({ t: "oauth", state, next: url.searchParams.get("next") ?? "/", exp: Date.now() + 10 * 60_000 }), 600);
     const google = new URL("https://accounts.google.com/o/oauth2/v2/auth");
@@ -290,7 +290,7 @@ async function relayRoute(req, res, url) {
 
   if (route === "/auth/callback") {
     const pending = verify(parseCookies(req).mono_oauth);
-    if (pending?.t !== "oauth" || pending.state !== url.searchParams.get("state")) return html(res, messagePage("No se pudo entrar", "El login venció. Probá de nuevo."), 400);
+    if (pending?.t !== "oauth" || pending.state !== url.searchParams.get("state")) return html(res, messagePage("Couldn't sign in", "Sign-in expired. Try again."), 400);
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -300,7 +300,7 @@ async function relayRoute(req, res, url) {
     // The id_token comes straight from Google over TLS, so its claims can be read without checking the signature.
     const claims = tokens.id_token ? JSON.parse(Buffer.from(tokens.id_token.split(".")[1], "base64url").toString()) : {};
     const validIssuer = ["accounts.google.com", "https://accounts.google.com"].includes(claims.iss);
-    if (!validIssuer || claims.aud !== GOOGLE_CLIENT_ID || !claims.email_verified) return html(res, messagePage("No se pudo entrar", "Google no confirmó tu email."), 403);
+    if (!validIssuer || claims.aud !== GOOGLE_CLIENT_ID || !claims.email_verified) return html(res, messagePage("Couldn't sign in", "Google didn't verify your email."), 403);
     setCookie(res, "mono_oauth", "", 0);
     return finishLogin(res, claims.email, pending.next, { name: claims.name, picture: claims.picture });
   }
@@ -309,7 +309,7 @@ async function relayRoute(req, res, url) {
 
   if (route.startsWith("/invite/")) {
     const invite = access.getInvite(route.slice("/invite/".length));
-    if (!invite) return html(res, messagePage("Invitación inválida", "Pedile a quien te invitó un link nuevo."), 404);
+    if (!invite) return html(res, messagePage("Invalid invite", "Ask for a new link."), 404);
     return html(res, invitePage({ invite, dev: DEV_LOGIN }));
   }
 
@@ -320,7 +320,7 @@ async function relayRoute(req, res, url) {
   }
 
   if (route === "/pair/start" && req.method === "POST") {
-    if (pairings.size > 50) return send(res, 429, { error: "Demasiados códigos pendientes" });
+    if (pairings.size > 50) return send(res, 429, { error: "Too many pending codes" });
     const body = await readForm(req);
     const code = shortCode();
     const pollToken = randomId(32);
@@ -347,7 +347,7 @@ async function relayRoute(req, res, url) {
   }
 
   // Everything below needs a signed-in user.
-  if (!email) return route === "/me" ? send(res, 401, { error: "Iniciá sesión" }) : redirect(res, `/_mono/login?next=${encodeURIComponent(url.pathname + url.search)}`);
+  if (!email) return route === "/me" ? send(res, 401, { error: "Not signed in" }) : redirect(res, `/_mono/login?next=${encodeURIComponent(url.pathname + url.search)}`);
 
   if (route === "/me") {
     const picked = pickedHost(req, email);
@@ -365,7 +365,7 @@ async function relayRoute(req, res, url) {
   if (route === "/pair" && req.method === "GET") {
     const code = String(url.searchParams.get("code") ?? "").toUpperCase();
     const pairing = pairings.get(code);
-    if (!pairing || pairing.status !== "pending") return html(res, messagePage("Código vencido", "Corré `mono connect` de nuevo en la terminal."), 404);
+    if (!pairing || pairing.status !== "pending") return html(res, messagePage("Code expired", "Run `mono connect` again in the terminal."), 404);
     return html(res, pairPage({ code, name: pairing.name, email }));
   }
 
@@ -373,17 +373,17 @@ async function relayRoute(req, res, url) {
     if (!sameOrigin(req)) return send(res, 403, { error: "forbidden" });
     const { code } = await readForm(req);
     const pairing = pairings.get(String(code ?? "").toUpperCase());
-    if (!pairing || pairing.status !== "pending") return html(res, messagePage("Código vencido", "Corré `mono connect` de nuevo en la terminal."), 404);
+    if (!pairing || pairing.status !== "pending") return html(res, messagePage("Code expired", "Run `mono connect` again in the terminal."), 404);
     const hostId = randomId(12);
     pairing.status = "approved";
     pairing.result = { hostId, email, token: sign({ t: "host", hostId, email, name: pairing.name, iat: Date.now() }) };
-    return html(res, messagePage("Listo ✓", `${pairing.name} quedó conectada a tu cuenta. Volvé a la terminal.`, { href: "/", label: "Abrir Mono" }));
+    return html(res, messagePage("Connected", `${pairing.name} is linked to your account. You can return to the terminal.`, { href: "/", label: "Open Mono" }));
   }
 
   if (route === "/hosts" && req.method === "GET") return html(res, hostsPage({ email, hosts: hostsFor(email), current: pickedHost(req, email), admin: access.isAdmin(email), relay: PUBLIC_URL }));
 
   if (route.startsWith("/admin")) {
-    if (!access.isAdmin(email)) return html(res, messagePage("Sin permiso", "Solo los admins pueden invitar gente."), 403);
+    if (!access.isAdmin(email)) return html(res, messagePage("No permission", "Only admins can invite people."), 403);
     if (req.method === "POST") {
       if (!sameOrigin(req)) return send(res, 403, { error: "forbidden" });
       const form = await readForm(req);
@@ -422,12 +422,12 @@ async function tunnel(req, res, url) {
   const isApi = /^\/(api|files)\//.test(url.pathname);
   const email = sessionEmail(req);
   if (!email && url.pathname === "/" && req.method === "GET") return html(res, landingPage({ relay: PUBLIC_URL }));
-  if (!email) return isApi ? send(res, 401, { error: "Iniciá sesión" }) : redirect(res, `/_mono/login?next=${encodeURIComponent(url.pathname + url.search)}`);
+  if (!email) return isApi ? send(res, 401, { error: "Not signed in" }) : redirect(res, `/_mono/login?next=${encodeURIComponent(url.pathname + url.search)}`);
 
   let hostId = pickedHost(req, email);
   if (!hostId) {
     const mine = hostsFor(email);
-    if (mine.length !== 1) return isApi ? send(res, 503, { error: "Elegí una máquina" }) : redirect(res, "/_mono/hosts");
+    if (mine.length !== 1) return isApi ? send(res, 503, { error: "Pick a Mac" }) : redirect(res, "/_mono/hosts");
     hostId = mine[0].id;
     pickHost(res, email, hostId);
   }
@@ -445,7 +445,7 @@ async function tunnel(req, res, url) {
     return;
   }
 
-  if (!hosts.has(hostId)) return isApi ? send(res, 503, { error: "Tu Mac está desconectada. ¿Está prendida y con `mono` corriendo?" }) : redirect(res, "/_mono/hosts");
+  if (!hosts.has(hostId)) return isApi ? send(res, 503, { error: "Your Mac is offline. Check that it's on and running `mono`." }) : redirect(res, "/_mono/hosts");
   if (req.method !== "GET" && !sameOrigin(req)) return send(res, 403, { error: "forbidden" });
 
   try {
@@ -479,7 +479,7 @@ const server = http.createServer(async (req, res) => {
     return await tunnel(req, res, url);
   } catch (error) {
     console.error(error);
-    if (!res.headersSent) send(res, 500, { error: "Error interno" });
+    if (!res.headersSent) send(res, 500, { error: "Internal error" });
   }
 });
 
@@ -488,4 +488,4 @@ server.on("upgrade", (req, socket, head) => {
   wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
 });
 
-server.listen(PORT, () => console.log(`Mono relay en ${PUBLIC_URL} (puerto ${PORT})${DEV_LOGIN ? " — login de desarrollo activado" : ""}`));
+server.listen(PORT, () => console.log(`Mono relay at ${PUBLIC_URL} (port ${PORT})${DEV_LOGIN ? " — dev login enabled" : ""}`));

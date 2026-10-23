@@ -15,23 +15,23 @@ for (const block of document.querySelectorAll("[data-copy]")) {
 const escape = (text) => String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 const FEATURES = [
-  ["Tableros que se escriben solos", "Con el skill /workspace, tus agentes documentan cada tarea como story map, flujo antes/después, testeo y mapa técnico. Lo entendés en 30 segundos y lo editás arrastrando."],
-  ["Tus agentes, en vivo", "Todas las sesiones de Claude Code de tu Mac en un lugar: qué están haciendo, qué tocaron y cuáles terminaron sin que las vieras."],
-  ["Seguí desde el celu", "Retomá una sesión, aprobá un permiso o mandá el próximo pedido desde cualquier navegador o desde la app."],
-  ["Tu código no sale de tu Mac", "Los agentes corren en tu máquina, con tu Claude Code y tus repos. El relay solo pasa mensajes entre tu Mac y vos."],
+  ["Boards that write themselves", "With the /workspace skill, agents document each task as a story map, before/after flow, test plan and technical map. Drag to edit."],
+  ["Live sessions", "Every Claude Code session on your Mac in one place: what it's doing, what it touched, what finished while you were away."],
+  ["From your phone", "Resume a session, approve a permission or send the next prompt from any browser or the mobile app."],
+  ["Your code stays on your Mac", "Agents run on your machine with your Claude Code and your repos. The relay only passes messages."],
 ];
 
 /** Public front door of the relay: what Mono is, how to get in, how to install it. */
 export function landingPage({ relay }) {
   return `<!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0b0b0d" />
-<title>Mono · tus agentes de Claude Code, a la vista</title>
-<meta name="description" content="Mono convierte el trabajo de tus agentes de Claude Code en tableros que se entienden de un vistazo. Corre en tu Mac y lo seguís desde el celu." />
-<meta property="og:title" content="Mono · tus agentes de Claude Code, a la vista" />
+<title>Mono · Your Claude Code agents, at a glance</title>
+<meta name="description" content="Mono turns your Claude Code agents' work into boards you can read at a glance. Runs on your Mac, works from your phone." />
+<meta property="og:title" content="Mono · Your Claude Code agents, at a glance" />
 <meta property="og:image" content="${escape(relay)}/_mono/static/app-board.jpg" />
 <link rel="icon" href="/_mono/static/icon.png" />
 <style>
@@ -94,8 +94,6 @@ export function landingPage({ relay }) {
   .install.copied .copied-hint { display: inline; color: var(--accent); }
   .hero-alt { position: relative; margin: 18px 0 0; color: var(--muted); font-size: 14px; }
   .hero-alt code, .alt code { color: var(--text); font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 3px 7px; border-radius: 6px; background: rgb(255 255 255 / 0.06); }
-  .hero-phone { position: relative; margin: 8px 0 0; color: #6b6b74; font-size: 13.5px; }
-  .hero-phone a { color: var(--muted); }
   .alt { margin: 18px 0 0; color: var(--muted); font-size: 14px; }
   pre { margin: 0; padding: 12px 14px; border-radius: 10px; background: #0f0f12; border: 1px solid var(--border); font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: #d4d4d8; white-space: pre-wrap; word-break: break-all; }
   pre .c { color: #6b6b74; }
@@ -118,56 +116,55 @@ export function landingPage({ relay }) {
 <nav><div class="wrap">
   <a class="brand" href="/"><img src="/_mono/static/icon.png" alt="" /> Mono</a>
   <span class="spacer"></span>
-  <a class="link" href="#como">Cómo funciona</a>
-  <a class="link" href="#instalar">Instalar</a>
-  <a class="btn small primary" href="/_mono/login">Entrar</a>
+  <a class="link" href="#como">How it works</a>
+  <a class="link" href="#instalar">Install</a>
+  <a class="btn small primary" href="/_mono/login">Sign in</a>
 </div></nav>
 
 <header class="hero"><div class="wrap">
-  <span class="eyebrow"><i></i> Por invitación</span>
-  <h1>Tus agentes de Claude Code, <span>a la vista.</span></h1>
-  <p class="lead">Mono convierte lo que hacen tus agentes en tableros que entendés de un vistazo. Corre en tu Mac, con tu Claude Code, y lo seguís desde el celu.</p>
+  <span class="eyebrow"><i></i> Invite only</span>
+  <h1>Your Claude Code agents, <span>at a glance.</span></h1>
+  <p class="lead">Mono turns your agents' work into boards you can read in seconds. It runs on your Mac, with your Claude Code.</p>
   <div class="ctas">
-    <button class="install" data-copy="npx ${escape(PACKAGE)}" title="Copiar">
+    <button class="install" data-copy="npx ${escape(PACKAGE)}">
       <span class="prompt">$</span> <code>npx ${escape(PACKAGE)}</code>
-      <span class="copy-hint">Copiar</span><span class="copied-hint">¡Copiado!</span>
+      <span class="copy-hint">Copy</span><span class="copied-hint">Copied</span>
     </button>
-    <a class="btn ghost big" href="/_mono/login">Entrar con Google</a>
+    <a class="btn ghost big" href="/_mono/login">Sign in with Google</a>
   </div>
-  <p class="hero-alt">Corrélo en la terminal de tu Mac: instala la app de Mono y la abre.</p>
-  <p class="hero-phone">También en el celu: <a href="/_mono/login">entrá con Google</a> desde el navegador</p>
+  <p class="hero-alt">Run it in Terminal on your Mac. It installs and opens the desktop app.</p>
   <div class="shot">
-    <img class="desktop" src="/_mono/static/app-board.jpg" alt="Mono en la Mac: el flujo de pago de una tarea, antes y después" width="1200" height="750" />
-    <img class="phone" src="/_mono/static/app-mobile.jpg" alt="Mono en el celular: el resumen de la tarea" loading="lazy" />
+    <img class="desktop" src="/_mono/static/app-board.jpg" alt="Mono on Mac: a task's checkout flow, before and after" width="1200" height="750" />
+    <img class="phone" src="/_mono/static/app-mobile.jpg" alt="Mono on iPhone: task summary" loading="lazy" />
   </div>
 </div></header>
 
 <section id="como"><div class="wrap">
-  <h2>Ver el trabajo, no leer la conversación.</h2>
-  <p class="sub">Los agentes trabajan horas; vos necesitás saber en un minuto qué cambió, qué se probó y qué falta.</p>
+  <h2>See the work, not the transcript.</h2>
+  <p class="sub">Agents run for hours. Know in a minute what changed, what was tested and what's left.</p>
   <div class="grid">
     ${FEATURES.map(([title, text]) => `<div class="card"><h3>${escape(title)}</h3><p>${escape(text)}</p></div>`).join("")}
   </div>
 </div></section>
 
 <section id="instalar"><div class="wrap">
-  <h2>Listo en tres pasos.</h2>
-  <p class="sub">Necesitás una Mac con <a href="https://docs.claude.com/en/docs/claude-code/setup">Claude Code</a> y una invitación.</p>
+  <h2>Three steps.</h2>
+  <p class="sub">Requires a Mac with <a href="https://docs.claude.com/en/docs/claude-code/setup">Claude Code</a> and an invite.</p>
   <div class="steps">
-    <div class="step"><h3>Instalá Mono</h3><p>En la terminal de tu Mac. Instala la app de escritorio y la abre; después la tenés en Aplicaciones.</p><pre>npx ${escape(PACKAGE)}</pre></div>
-    <div class="step"><h3>Conectá tu Mac</h3><p>En la app: menú <b>Mono → Conectar con el celular…</b> Entrás con Google, aprobás el código y queda corriendo en segundo plano.</p></div>
-    <div class="step"><h3>Usalo donde estés</h3><p>Desde el celu o cualquier navegador en:</p><pre>${escape(relay.replace(/^https?:\/\//, ""))}</pre></div>
+    <div class="step"><h3>Install</h3><p>In Terminal. Installs the desktop app to Applications and opens it.</p><pre>npx ${escape(PACKAGE)}</pre></div>
+    <div class="step"><h3>Connect your Mac</h3><p>In the app: <b>Mono → Connect phone…</b> Sign in with Google and approve the code. Mono keeps running in the background.</p></div>
+    <div class="step"><h3>Use it anywhere</h3><p>From your phone or any browser:</p><pre>${escape(relay.replace(/^https?:\/\//, ""))}</pre></div>
   </div>
 
   <div class="final">
-    <h2>¿Tenés invitación?</h2>
-    <p>Entrá con la cuenta de Google a la que te llegó. Si no tenés, pedísela a quien te pasó este link.</p>
-    <a class="btn primary" href="/_mono/login">Entrar con Google</a>
+    <h2>Have an invite?</h2>
+    <p>Sign in with the Google account it was sent to.</p>
+    <a class="btn primary" href="/_mono/login">Sign in with Google</a>
   </div>
 </div></section>
 
 ${COPY_SCRIPT}
-<footer><div class="wrap">Mono 🐒 · tus agentes corren en tu máquina · <a href="/_mono/privacidad">Privacidad</a></div></footer>
+<footer><div class="wrap">Mono 🐒 · <a href="/_mono/privacidad">Privacy</a></div></footer>
 </body>
 </html>`;
 }

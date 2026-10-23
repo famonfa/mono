@@ -74,35 +74,35 @@ export type Task = {
 };
 
 export const CHANGE_STATUS: Record<ChangeStatus, { label: string; color: string }> = {
-  new: { label: "Nuevo", color: "#16a34a" },
-  changed: { label: "Modificado", color: "#d97706" },
-  same: { label: "Sin cambios", color: "#94a3b8" },
-  removed: { label: "Eliminado", color: "#dc2626" },
-  risk: { label: "Riesgo", color: "#9333ea" },
+  new: { label: "New", color: "#16a34a" },
+  changed: { label: "Changed", color: "#d97706" },
+  same: { label: "Unchanged", color: "#94a3b8" },
+  removed: { label: "Removed", color: "#dc2626" },
+  risk: { label: "Risk", color: "#9333ea" },
 };
 
 export const TEST_STATUS: Record<TestStatus, { label: string; icon: string; color: string }> = {
-  pass: { label: "Pasó", icon: "✓", color: "#16a34a" },
-  fail: { label: "Falló", icon: "✕", color: "#dc2626" },
-  todo: { label: "Sin probar", icon: "○", color: "#64748b" },
-  skip: { label: "Omitido", icon: "–", color: "#94a3b8" },
+  pass: { label: "Passed", icon: "✓", color: "#16a34a" },
+  fail: { label: "Failed", icon: "✕", color: "#dc2626" },
+  todo: { label: "Untested", icon: "○", color: "#64748b" },
+  skip: { label: "Skipped", icon: "–", color: "#94a3b8" },
 };
 
 export const TASK_STATUS: Record<TaskStatus, { label: string; color: string }> = {
-  planificado: { label: "Planificado", color: "#64748b" },
-  "en-curso": { label: "En curso", color: "#2563eb" },
-  "en-review": { label: "En review", color: "#d97706" },
-  hecho: { label: "Hecho", color: "#16a34a" },
-  bloqueado: { label: "Bloqueado", color: "#dc2626" },
+  planificado: { label: "Planned", color: "#64748b" },
+  "en-curso": { label: "In progress", color: "#2563eb" },
+  "en-review": { label: "In review", color: "#d97706" },
+  hecho: { label: "Done", color: "#16a34a" },
+  bloqueado: { label: "Blocked", color: "#dc2626" },
 };
 
 export const BOARD_KIND: Record<BoardKind, { label: string; icon: string }> = {
   storymap: { label: "Story map", icon: "🗺️" },
-  flow: { label: "Flujo", icon: "🔀" },
-  tests: { label: "Testeo", icon: "🧪" },
-  tech: { label: "Mapa técnico", icon: "🧩" },
+  flow: { label: "Flow", icon: "🔀" },
+  tests: { label: "Tests", icon: "🧪" },
+  tech: { label: "Tech map", icon: "🧩" },
   ui: { label: "UI", icon: "🖼️" },
-  free: { label: "Libre", icon: "✏️" },
+  free: { label: "Free", icon: "✏️" },
 };
 
 export type Project = { id: string; title: string; root: string; initials: string; color: string; hasIcon: boolean; parentId: string | null };

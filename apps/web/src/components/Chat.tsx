@@ -43,7 +43,7 @@ function ModelPicker({ models, model, effort, onChange }: { models: ModelOption[
     <>
       <Menu
         value={current.id}
-        placeholder="Buscar modelo…"
+        placeholder="Search models…"
         options={models.map((m) => ({ value: m.id, label: shortModel(m.name), icon: <Cpu size={13} /> }))}
         onChange={(id) => {
           const next = models.find((m) => m.id === id)!;
@@ -75,7 +75,7 @@ const loadCommands = (cwd?: string) => {
   return commandCache.get(key)!;
 };
 
-const SOURCE_LABEL: Record<SlashCommand["source"], string> = { project: "proyecto", user: "personal", plugin: "plugin", builtin: "Claude Code" };
+const SOURCE_LABEL: Record<SlashCommand["source"], string> = { project: "project", user: "user", plugin: "plugin", builtin: "Claude Code" };
 
 /** Like the CLI: typing `/` at the start opens the commands and skills this session can run. */
 function SlashMenu({ query, commands, active, onPick, onHover }: { query: string; commands: SlashCommand[]; active: number; onPick: (c: SlashCommand) => void; onHover: (i: number) => void }) {
@@ -94,7 +94,7 @@ function SlashMenu({ query, commands, active, onPick, onHover }: { query: string
           </button>
         ))
       ) : (
-        <div className="menu-empty">Ningún comando empieza con “/{query}”</div>
+        <div className="menu-empty">No commands match “/{query}”</div>
       )}
     </div>
   );
@@ -191,7 +191,7 @@ function Composer({
     setSending(true);
     setError(null);
     try {
-      await onSend(value || "Mirá los archivos adjuntos.", ready);
+      await onSend(value || "See the attached files.", ready);
       // onSend may navigate away (new session) and unmount before the effect clears the draft.
       if (draftKey) localStorage.removeItem(`ws-draft-${draftKey}`);
       setText("");
@@ -228,9 +228,9 @@ function Composer({
           {drafts.map((d) => (
             <span key={d.key} className={`attachment ${d.error ? "error" : ""}`} title={d.error ?? d.file.name}>
               {d.preview ? <img src={d.preview} alt="" /> : <FileIcon size={14} />}
-              <span className="attachment-name">{d.file.name || "imagen pegada"}</span>
+              <span className="attachment-name">{d.file.name || "Pasted image"}</span>
               {!d.uploaded && !d.error && <Loader2 size={12} className="spin" />}
-              <button onClick={() => setDrafts((all) => all.filter((x) => x.key !== d.key))} title="Quitar">
+              <button onClick={() => setDrafts((all) => all.filter((x) => x.key !== d.key))} title="Remove">
                 <X size={12} />
               </button>
             </span>
@@ -280,17 +280,17 @@ function Composer({
       />
       <div className="composer-bar">
         <input ref={fileInput} type="file" multiple hidden onChange={(e) => (addFiles([...(e.target.files ?? [])]), (e.target.value = ""))} />
-        <button className="icon-btn tiny" onClick={() => fileInput.current?.click()} title="Adjuntar archivos (también podés pegar o arrastrar)" disabled={disabled}>
+        <button className="icon-btn tiny" onClick={() => fileInput.current?.click()} title="Attach files" disabled={disabled}>
           <Paperclip size={14} />
         </button>
         {footer}
         <span className="spacer" />
         {running && onStop && (
-          <button className="composer-stop" onClick={onStop} title="Interrumpir (Esc)">
+          <button className="composer-stop" onClick={onStop} title="Stop (Esc)">
             <Square size={11} fill="currentColor" />
           </button>
         )}
-        <button className="composer-send" onClick={submit} disabled={(!text.trim() && !ready.length) || sending || disabled || uploading} title="Enviar (Enter)">
+        <button className="composer-send" onClick={submit} disabled={(!text.trim() && !ready.length) || sending || disabled || uploading} title="Send (Enter)">
           {sending ? <Loader2 size={14} className="spin" /> : <ArrowUp size={15} />}
         </button>
       </div>
@@ -323,7 +323,7 @@ function PermissionCard({ sessionId, request, onAnswered }: { sessionId: string;
     <div className="permission-card">
       <div className="permission-head">
         <ShieldCheck size={14} />
-        <span>Claude quiere usar</span>
+        <span>Claude wants to use</span>
         <span className="permission-tool">
           <ToolIcon name={request.toolName} /> {request.toolName}
         </span>
@@ -331,19 +331,19 @@ function PermissionCard({ sessionId, request, onAnswered }: { sessionId: string;
       <div className="permission-title">{title}</div>
       {request.decisionReason && <div className="permission-reason">{request.decisionReason}</div>}
       <pre className="code">{detail}</pre>
-      <input className="permission-input" placeholder="Motivo si lo rechazás (opcional)…" value={reason} onChange={(e) => setReason(e.target.value)} />
+      <input className="permission-input" placeholder="Reason for denying (optional)…" value={reason} onChange={(e) => setReason(e.target.value)} />
       <div className="permission-actions">
         <button className="btn ghost" disabled={busy} onClick={() => answer(false)}>
-          Rechazar
+          Deny
         </button>
         <span className="spacer" />
         {request.canAlwaysAllow && (
           <button className="btn ghost" disabled={busy} onClick={() => answer(true, true)}>
-            Permitir siempre
+            Always allow
           </button>
         )}
         <button className="btn primary" disabled={busy} onClick={() => answer(true)} autoFocus>
-          Permitir
+          Allow
         </button>
       </div>
     </div>
@@ -372,7 +372,7 @@ function QuestionCard({ sessionId, request, onAnswered }: { sessionId: string; r
     setError(null);
     try {
       const answers = Object.fromEntries(questions.map((x) => [x.question, answerFor(x)]));
-      onAnswered(await chatApi.answer(sessionId, request.id, allow ? { allow, answers } : { allow, message: "El usuario prefirió no responder estas preguntas" }));
+      onAnswered(await chatApi.answer(sessionId, request.id, allow ? { allow, answers } : { allow, message: "The user chose not to answer these questions" }));
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
@@ -400,7 +400,7 @@ function QuestionCard({ sessionId, request, onAnswered }: { sessionId: string; r
     <div className="question-card">
       <div className="question-head">
         <CircleHelp size={14} />
-        <span>Claude te pregunta</span>
+        <span>Claude asks</span>
         {questions.length > 1 && (
           <span className="question-steps">
             {questions.map((x, i) => (
@@ -413,7 +413,7 @@ function QuestionCard({ sessionId, request, onAnswered }: { sessionId: string; r
         )}
       </div>
       <div className="question-text">{q.question}</div>
-      {q.multiSelect && <div className="question-hint">Podés elegir varias</div>}
+      {q.multiSelect && <div className="question-hint">Select all that apply</div>}
       <div className="question-options">
         {q.options.map((o, i) => {
           const on = selected.includes(o.label);
@@ -423,7 +423,7 @@ function QuestionCard({ sessionId, request, onAnswered }: { sessionId: string; r
               <span className="question-option-body">
                 <span className="question-option-label">
                   {o.label.replace(RECOMMENDED, "")}
-                  {RECOMMENDED.test(o.label) && <span className="question-badge">Recomendada</span>}
+                  {RECOMMENDED.test(o.label) && <span className="question-badge">Recommended</span>}
                 </span>
                 {o.description && <span className="question-option-desc">{o.description}</span>}
               </span>
@@ -432,7 +432,7 @@ function QuestionCard({ sessionId, request, onAnswered }: { sessionId: string; r
         })}
         <input
           className="question-other"
-          placeholder="Otra respuesta…"
+          placeholder="Other…"
           value={other[q.question] ?? ""}
           disabled={busy}
           onChange={(e) => {
@@ -450,17 +450,17 @@ function QuestionCard({ sessionId, request, onAnswered }: { sessionId: string; r
       {error && <div className="composer-error">{error}</div>}
       <div className="permission-actions">
         <button className="btn ghost" disabled={busy} onClick={() => send(false)}>
-          No responder
+          Skip
         </button>
         <span className="spacer" />
         {!last && (
           <button className="btn ghost" disabled={busy || !answerFor(q)} onClick={() => setStep(step + 1)}>
-            Siguiente
+            Next
           </button>
         )}
         {(last || done) && (
           <button className="btn primary" disabled={busy || !done} onClick={() => send(true)}>
-            {busy ? <Loader2 size={13} className="spin" /> : "Responder"}
+            {busy ? <Loader2 size={13} className="spin" /> : "Answer"}
           </button>
         )}
       </div>
@@ -524,7 +524,7 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
 
   return (
     <div className="session-chat">
-      {feed.truncated && <div className="msg-notice top">Mostrando la parte más reciente de la sesión</div>}
+      {feed.truncated && <div className="msg-notice top">Showing the most recent part of the session</div>}
       <Feed events={feed.events} sessionId={sessionId} live={running} isSubagent={false} pendingText={pendingText} />
       <div className="chat-dock">
         {chat?.pending.map((p) =>
@@ -534,12 +534,12 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
             <PermissionCard key={p.id} sessionId={sessionId} request={p} onAnswered={setChat} />
           ),
         )}
-        {chat?.error && <div className="composer-error">La sesión terminó con un error: {chat.error}</div>}
+        {chat?.error && <div className="composer-error">Session ended with an error: {chat.error}</div>}
         <Composer
           draftKey={`session-${sessionId}`}
-          placeholder={running ? "Mandale otro mensaje (se encola)…" : "Escribile a esta sesión…"}
+          placeholder={running ? "Queue another message…" : "Message this session…"}
           disabled={busyElsewhere}
-          disabledReason={busyElsewhere ? "Esta sesión está trabajando en otra app. Cuando quede en pausa, podés seguirla desde acá." : undefined}
+          disabledReason={busyElsewhere ? "Running in another app. You can continue here once it's idle." : undefined}
           running={running && live}
           commandsCwd={currentCwd}
           onSend={send}
@@ -551,9 +551,9 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
               {currentCwd && (
                 <Menu
                   value={currentCwd}
-                  placeholder="Buscar carpeta o rama, o escribí una ruta (/… o ~/…)"
+                  placeholder="Search folders or branches, or type a path (/… or ~/…)"
                   options={worktrees.map((w) => ({ value: w.path, label: worktreeLabel(w), icon: <FolderGit2 size={13} /> }))}
-                  custom={(q) => (/^[/~]/.test(q) ? { value: q, label: `Usar carpeta ${q}`, icon: <Folder size={13} /> } : null)}
+                  custom={(q) => (/^[/~]/.test(q) ? { value: q, label: `Use folder ${q}`, icon: <Folder size={13} /> } : null)}
                   onChange={(next) => void changeCwd(next)}
                   className="mode-trigger"
                 >
@@ -561,7 +561,7 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
                 </Menu>
               )}
               {cwdError && <span className="composer-hint">{cwdError}</span>}
-              {!live && <span className="composer-hint">{summary ? "Se retoma al enviar" : ""}</span>}
+              {!live && <span className="composer-hint">{summary ? "Resumes on send" : ""}</span>}
             </>
           }
         />
@@ -570,7 +570,7 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
   );
 }
 
-const worktreeLabel = (w: Worktree) => (w.root ? `${w.repo} (raíz)` : `${w.repo} · ${w.branch}`);
+const worktreeLabel = (w: Worktree) => (w.root ? `${w.repo} (root)` : `${w.repo} · ${w.branch}`);
 
 /** Starts a session for a task (with its context) or a standalone one in any project folder. */
 export function NewSession({ task }: { task?: Task }) {
@@ -607,17 +607,13 @@ export function NewSession({ task }: { task?: Task }) {
         <div className="new-session-icon">
           <Bot size={22} />
         </div>
-        <h2>{task ? `Nueva sesión en ${task.id}` : "Nueva sesión"}</h2>
-        <p>
-          {task
-            ? "Claude arranca con el contexto de la tarea (resumen, PRs y boards) y trabaja en la carpeta que elijas. Va a aparecer en vivo en esta pestaña y en Agentes."
-            : "Una sesión suelta, sin tarea. Elegí el proyecto y la carpeta; si después querés, la vinculás a una tarea desde la propia sesión."}
-        </p>
+        <h2>{task ? `New session in ${task.id}` : "New session"}</h2>
+        {task && <p>Starts with the task's summary, PRs, and boards as context.</p>}
         <Composer
           autoFocus
           draftKey={`new-${task?.id ?? "free"}`}
           commandsCwd={cwd || undefined}
-          placeholder={task ? "¿Qué hacemos? Ej: revisá los 3 must-fix del board de testeo y arreglalos…" : "¿Qué hacemos?"}
+          placeholder="What should we do?"
           onSend={async (prompt, attachments) => {
             const state = await chatApi.start({ taskId: task?.id, cwd, prompt, ...config, attachments });
             navigate(task ? href.taskSession(task.id, state.sessionId) : href.session(state.sessionId));
@@ -634,7 +630,7 @@ export function NewSession({ task }: { task?: Task }) {
               {!task && (
                 <Menu
                   value={projectId}
-                  placeholder="Buscar proyecto…"
+                  placeholder="Search projects…"
                   options={projects.map((p) => ({ value: p.id, label: p.title, icon: <ProjectIcon project={p} size={14} /> }))}
                   onChange={setProjectId}
                   className="mode-trigger"
@@ -644,9 +640,9 @@ export function NewSession({ task }: { task?: Task }) {
               )}
               <Menu
                 value={cwd}
-                placeholder="Buscar carpeta o rama, o escribí una ruta (/… o ~/…)"
+                placeholder="Search folders or branches, or type a path (/… or ~/…)"
                 options={worktrees.map((w) => ({ value: w.path, label: worktreeLabel(w), icon: <FolderGit2 size={13} /> }))}
-                custom={(q) => (/^[/~]/.test(q) ? { value: q, label: `Usar carpeta ${q}`, icon: <Folder size={13} /> } : null)}
+                custom={(q) => (/^[/~]/.test(q) ? { value: q, label: `Use folder ${q}`, icon: <Folder size={13} /> } : null)}
                 onChange={setCwd}
                 className="mode-trigger"
               >
@@ -689,8 +685,8 @@ export function LaunchSessions({ group, onClose }: { group: SessionGroup; onClos
   const selectedProject = projects.find((p) => p.id === projectId);
 
   const submit = async () => {
-    if (!goal.trim()) return setError("Escribí qué hay que hacer");
-    if (!cwd) return setError("Elegí una carpeta");
+    if (!goal.trim()) return setError("Describe the work");
+    if (!cwd) return setError("Pick a folder");
     setBusy(true);
     setError(null);
     try {
@@ -716,18 +712,18 @@ export function LaunchSessions({ group, onClose }: { group: SessionGroup; onClos
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void submit();
         }}
       >
-        <div className="dialog-title">Lanzar sesiones en {group.name}</div>
+        <div className="dialog-title">Launch sessions in {group.name}</div>
         <textarea
           autoFocus
           className="dialog-textarea"
-          placeholder="¿Qué hay que hacer? Ej: corré /pr-review y hacé rebase sobre main en todos mis PRs abiertos"
+          placeholder="What needs to be done?"
           value={goal}
           onChange={(e) => setGoal(e.target.value)}
         />
         <div className="launch-row">
           <Menu
             value={projectId}
-            placeholder="Buscar proyecto…"
+            placeholder="Search projects…"
             options={projects.map((p) => ({ value: p.id, label: p.title, icon: <ProjectIcon project={p} size={14} /> }))}
             onChange={setProjectId}
             className="mode-trigger"
@@ -736,9 +732,9 @@ export function LaunchSessions({ group, onClose }: { group: SessionGroup; onClos
           </Menu>
           <Menu
             value={cwd}
-            placeholder="Buscar carpeta o rama, o escribí una ruta (/… o ~/…)"
+            placeholder="Search folders or branches, or type a path (/… or ~/…)"
             options={worktrees.map((w) => ({ value: w.path, label: worktreeLabel(w), icon: <FolderGit2 size={13} /> }))}
-            custom={(q) => (/^[/~]/.test(q) ? { value: q, label: `Usar carpeta ${q}`, icon: <Folder size={13} /> } : null)}
+            custom={(q) => (/^[/~]/.test(q) ? { value: q, label: `Use folder ${q}`, icon: <Folder size={13} /> } : null)}
             onChange={setCwd}
             className="mode-trigger"
           >
@@ -754,18 +750,15 @@ export function LaunchSessions({ group, onClose }: { group: SessionGroup; onClos
             }}
           />
         </div>
-        <p className="hint">
-          Claude arma el plan con las sesiones que hacen falta (lo ves en el canvas) y las lanza apenas lo termina, hasta 6 a la vez. Si comparten repo,
-          cada una trabaja en su propio worktree.
-        </p>
+        <p className="hint">Claude plans the sessions, then runs up to 6 at once. Sessions in the same repo each get their own worktree.</p>
         {error && <div className="dialog-error">{error}</div>}
         <div className="dialog-actions">
           <button type="button" className="btn ghost" onClick={onClose}>
-            Cancelar
+            Cancel
           </button>
           <button type="submit" className="btn primary" disabled={busy || !goal.trim()}>
             {busy ? <Loader2 size={13} className="spin" /> : null}
-            Planear y lanzar <kbd className="kbd on-primary">⌘↵</kbd>
+            Plan and launch <kbd className="kbd on-primary">⌘↵</kbd>
           </button>
         </div>
       </form>
@@ -791,7 +784,7 @@ export function TaskSessions({ task, sessionId }: { task: Task; sessionId?: stri
   const showPane = !mobile || Boolean(sessionId) || composing;
   const back = mobile && (
     <a className="session-back" href={href.taskSession(task.id)} onClick={() => setComposing(false)}>
-      <ChevronLeft size={16} /> Sesiones
+      <ChevronLeft size={16} /> Sessions
     </a>
   );
 
@@ -808,9 +801,9 @@ export function TaskSessions({ task, sessionId }: { task: Task; sessionId?: stri
             setComposing(true);
           }}
         >
-          <Plus size={14} /> Nueva sesión
+          <Plus size={14} /> New session
         </a>
-        <div className="prop-title session-list-title">Sesiones · {linked.length}</div>
+        <div className="prop-title session-list-title">Sessions · {linked.length}</div>
         {linked.map((s) => (
           <a key={s.id} className={`session-item ${s.id === sessionId ? "active" : ""} ${isUnread(s) ? "unread" : ""}`} href={href.taskSession(task.id, s.id)}>
             <StatusDot status={isUnread(s) ? "unread" : s.status} size={7} />
@@ -818,12 +811,12 @@ export function TaskSessions({ task, sessionId }: { task: Task; sessionId?: stri
               <span className="session-item-title">{s.title}</span>
               <span className="session-item-meta">
                 {s.ownedByWorkspace ? "workspace" : s.project} · {formatDate(s.lastTs)}
-                {s.subagents.length > 0 && ` · ${s.subagents.length} subagentes`}
+                {s.subagents.length > 0 && ` · ${s.subagents.length} ${s.subagents.length === 1 ? "subagent" : "subagents"}`}
               </span>
             </span>
           </a>
         ))}
-        {!linked.length && <p className="hint session-empty">Todavía no hay sesiones vinculadas a esta tarea.</p>}
+        {!linked.length && <p className="hint session-empty">No linked sessions</p>}
       </aside>
       )}
       {showPane && (
@@ -833,11 +826,11 @@ export function TaskSessions({ task, sessionId }: { task: Task; sessionId?: stri
             <header className="session-pane-head">
               {back}
               <StatusDot status={current?.status ?? "inactive"} size={7} />
-              <span className="session-pane-title">{current?.title ?? "Sesión"}</span>
+              <span className="session-pane-title">{current?.title ?? "Session"}</span>
               <span className="spacer" />
               <SendToGroup sessionId={sessionId} title={current?.title} className="link-btn" />
               <a className="link-btn" href={href.session(sessionId)}>
-                Ver en Agentes
+                Open in Agents
               </a>
             </header>
             <SessionChat key={sessionId} sessionId={sessionId} summary={current} />

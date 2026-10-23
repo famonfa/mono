@@ -5,11 +5,11 @@ export const STATUS_ORDER: TaskStatus[] = ["en-review", "en-curso", "planificado
 export const STATUS_MENU_ORDER: TaskStatus[] = ["planificado", "en-curso", "en-review", "hecho", "bloqueado"];
 
 export const STATUS_META: Record<TaskStatus, { label: string; color: string; key: string }> = {
-  planificado: { label: "Planificado", color: "var(--text-3)", key: "1" },
-  "en-curso": { label: "En curso", color: "#f2c94c", key: "2" },
-  "en-review": { label: "En review", color: "#4cb782", key: "3" },
-  hecho: { label: "Hecho", color: "#5e6ad2", key: "4" },
-  bloqueado: { label: "Bloqueado", color: "#eb5757", key: "5" },
+  planificado: { label: "Planned", color: "var(--text-3)", key: "1" },
+  "en-curso": { label: "In progress", color: "#f2c94c", key: "2" },
+  "en-review": { label: "In review", color: "#4cb782", key: "3" },
+  hecho: { label: "Done", color: "#5e6ad2", key: "4" },
+  bloqueado: { label: "Blocked", color: "#eb5757", key: "5" },
 };
 
 export function StatusIcon({ status, size = 14 }: { status: TaskStatus; size?: number }) {
@@ -60,9 +60,9 @@ export function StatusIcon({ status, size = 14 }: { status: TaskStatus; size?: n
 export type Risk = "bajo" | "medio" | "alto";
 
 export const RISK_META: Record<Risk, { label: string }> = {
-  bajo: { label: "Riesgo bajo" },
-  medio: { label: "Riesgo medio" },
-  alto: { label: "Riesgo alto" },
+  bajo: { label: "Low risk" },
+  medio: { label: "Medium risk" },
+  alto: { label: "High risk" },
 };
 
 export function RiskIcon({ risk, size = 14 }: { risk?: Risk; size?: number }) {

@@ -1,60 +1,60 @@
 ---
 name: capture-android
-description: Captura screenshots y video de un emulador o dispositivo Android (apps nativas o React Native) como evidencia de una tarea. Usala cuando el diff toque pantallas de una app Android.
+description: Capture screenshots and video from an Android emulator or device (native or React Native apps) as evidence for a task. Use it when the diff touches screens of an Android app.
 targets: android, react-native
 outputs: screenshot, video
-verified: "2026-10-22 (adb 37.0.1, emulador android-35 arm64, con gestos durante la grabación)"
+verified: "2026-10-22 (adb 37.0.1, android-35 arm64 emulator, with gestures during recording)"
 needs: android-sdk, ffmpeg
 allowed-tools: Bash(adb:*), Bash(*/platform-tools/adb:*), Bash(*/emulator/emulator:*), Bash(ffmpeg:*), Bash(ffprobe:*), Bash(mkdir:*), Bash(sleep:*), Bash(ls:*)
 ---
 
 # capture-android
 
-Evidencia de Android con `adb` (screencap + screenrecord). Mismo contrato de salida que `capture-web`: archivos en un directorio temporal y `ws asset <tarea> <archivos…>`.
+Android evidence with `adb` (screencap + screenrecord). Same output contract as `capture-web`: files in a temp directory and `ws asset <task> <files…>`.
 
-## Encontrar adb
+## Finding adb
 
-`adb` suele no estar en el PATH. Usá, en este orden: `adb` si existe; `$ANDROID_HOME/platform-tools/adb`; `~/Library/Android/sdk/platform-tools/adb`. En los comandos de abajo `ADB` es esa ruta escrita literal (no uses una variable: el comando tiene que empezar con la ruta).
+`adb` is usually not on PATH. Use, in this order: `adb` if it exists; `$ANDROID_HOME/platform-tools/adb`; `~/Library/Android/sdk/platform-tools/adb`. In the commands below `ADB` is that path written literally (don't use a variable: the command has to start with the path).
 
-## Pasos
+## Steps
 
 ```bash
-ADB devices                                    # ¿hay uno en estado "device"? usalo
+ADB devices                                    # one in "device" state? use it
 ~/Library/Android/sdk/emulator/emulator -list-avds
-# si no hay ninguno, arrancá un AVD en segundo plano y esperá:
+# if there are none, start an AVD in the background and wait:
 nohup ~/Library/Android/sdk/emulator/emulator -avd <AVD> -no-window -no-audio -no-boot-anim -no-snapshot-save >/dev/null 2>&1 &
 ADB wait-for-device
-# repetí hasta que dé 1 (cada 3 s, máx. 40 veces):
+# repeat until it returns 1 (every 3 s, max 40 times):
 ADB shell getprop sys.boot_completed
 OUT=$(mktemp -d)
 ```
 
-No lances varios `adb` a la vez mientras el daemon arranca (falla con "cannot connect to daemon"): esperá el primero.
+Don't run several `adb` commands at once while the daemon starts (fails with "cannot connect to daemon"): wait for the first one.
 
-**Navegar**
-- Abrir app: `ADB shell monkey -p <paquete> -c android.intent.category.LAUNCHER 1`
-- Deep link: `ADB shell am start -a android.intent.action.VIEW -d "miapp://ruta"`
-- Gestos: `ADB shell input tap X Y`, `input swipe X1 Y1 X2 Y2 300`, `input text "hola"`, `input keyevent KEYCODE_BACK`
-- React Native en dev: el bundler (Metro) tiene que estar corriendo y `ADB reverse tcp:8081 tcp:8081`.
+**Navigate**
+- Open app: `ADB shell monkey -p <package> -c android.intent.category.LAUNCHER 1`
+- Deep link: `ADB shell am start -a android.intent.action.VIEW -d "myapp://path"`
+- Gestures: `ADB shell input tap X Y`, `input swipe X1 Y1 X2 Y2 300`, `input text "hello"`, `input keyevent KEYCODE_BACK`
+- React Native in dev: the bundler (Metro) must be running, plus `ADB reverse tcp:8081 tcp:8081`.
 
 **Screenshot**
 ```bash
 ADB exec-out screencap -p > "$OUT/<label>.png"
 ```
 
-**Video** (screenrecord solo codifica cuando la pantalla cambia; con la pantalla quieta el clip dura menos de lo pedido)
+**Video** (screenrecord only encodes when the screen changes; on a still screen the clip is shorter than requested)
 ```bash
-ADB shell "screenrecord --time-limit 10 /sdcard/cap.mp4" &     # máximo 180 s
+ADB shell "screenrecord --time-limit 10 /sdcard/cap.mp4" &     # max 180 s
 sleep 1
-ADB shell input tap X Y                                         # las acciones del clip
+ADB shell input tap X Y                                         # the clip's actions
 sleep 2
-wait                                                            # espera que termine el límite
+wait                                                            # waits for the time limit
 ADB pull /sdcard/cap.mp4 "$OUT/<label>.mp4"
 ADB shell rm /sdcard/cap.mp4
 ffmpeg -loglevel error -y -i "$OUT/<label>.mp4" -vf "fps=8,scale=480:-1" "$OUT/<label>.gif"
 ```
 
-## Notas
+## Notes
 
-- Si arrancaste el emulador vos, apagalo al terminar: `ADB emu kill`. Si ya estaba corriendo, no lo toques.
-- No hace falta Java para `adb` ni para el emulador (sí para `sdkmanager`/`avdmanager`).
+- If you started the emulator, shut it down when done: `ADB emu kill`. If it was already running, leave it alone.
+- `adb` and the emulator don't need Java (`sdkmanager`/`avdmanager` do).

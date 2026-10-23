@@ -9,10 +9,10 @@ const current = JSON.parse(fs.readFileSync(files[0], "utf8")).version;
 const arg = process.argv[2] ?? "patch";
 const [major, minor, patch] = current.split(".").map(Number);
 const version = arg === "patch" ? `${major}.${minor}.${patch + 1}` : arg === "minor" ? `${major}.${minor + 1}.0` : arg;
-if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`Versión inválida: ${version}`);
+if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`Invalid version: ${version}`);
 
 const git = (...args) => execFileSync("git", args, { stdio: "inherit" });
-if (execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim()) throw new Error("Hay cambios sin commitear");
+if (execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim()) throw new Error("Uncommitted changes");
 for (const file of files) {
   const pkg = JSON.parse(fs.readFileSync(file, "utf8"));
   pkg.version = version;
@@ -22,4 +22,4 @@ git("add", ...files);
 git("commit", "-m", `chore: release v${version}`);
 git("tag", `v${version}`);
 git("push", "origin", "HEAD", `v${version}`);
-console.log(`\n✓ v${version} en camino: https://github.com/famonfa/mono/actions`);
+console.log(`\n✓ v${version} on its way: https://github.com/famonfa/mono/actions`);

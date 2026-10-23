@@ -35,9 +35,9 @@ const server = http.createServer((req, res) => {
     if (rel && serveStatic(res, DIST, rel)) return;
     if (!serveStatic(res, DIST, "index.html")) {
       res.statusCode = 503;
-      res.end("Falta compilar la app: npm run build");
+      res.end("App not built: run npm run build");
     }
   });
 });
 
-server.listen(PORT, HOST, () => console.log(`Mono en http://localhost:${PORT}`));
+server.listen(PORT, HOST, () => console.log(`Mono at http://localhost:${PORT}`));

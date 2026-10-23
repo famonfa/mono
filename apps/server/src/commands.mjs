@@ -6,8 +6,8 @@ import { launchRootFor } from "./projects.mjs";
 const HOME = os.homedir();
 const CACHE_MS = 60_000;
 const BUILTINS = [
-  { name: "compact", description: "Compactar la conversación para liberar contexto", source: "builtin" },
-  { name: "context", description: "Ver cuánto contexto está usando la sesión", source: "builtin" },
+  { name: "compact", description: "Compact the conversation to free up context", source: "builtin" },
+  { name: "context", description: "Show how much context the session is using", source: "builtin" },
 ];
 
 const cache = new Map();

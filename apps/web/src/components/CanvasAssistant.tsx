@@ -13,13 +13,13 @@ function canvasPrompt(task: Task, boardId: string, request: string, selected: Se
     request,
     "",
     "---",
-    `Contexto: estás editando el board \`${boardId}\` de la tarea ${task.id} ("${task.title}") en Mono, el workspace de Facundo, que el usuario está mirando en vivo.`,
-    `- Leelo con \`ws get ${task.id} ${boardId}\`.`,
-    `- Aplicá el pedido escribiendo un JSON con los nodos nuevos o cambiados y cargalo con \`ws board ${task.id} ${boardId} <archivo> --patch\` (reusá ids existentes; el canvas se actualiza solo).`,
-    "- Para borrar nodos, mandá el board completo sin --patch (los nodos creados o editados a mano se conservan igual).",
-    "- Usá el formato del skill workspace (labels cortos, status, test, etc.). Para ubicar un nodo en un carril poné su nombre en `lane`; no crees nodos de tipo lane ni pongas parentId o position (el layout lo maneja la app). No toques repos.",
-    selected.length ? `- Nodos seleccionados por el usuario: ${selected.map((n) => `\`${n.id}\` ("${n.label}")`).join(", ")}.` : null,
-    "- Terminá con una sola línea diciendo qué cambiaste.",
+    `Context: you're editing board \`${boardId}\` of task ${task.id} ("${task.title}") in Mono. The user is watching it live.`,
+    `- Read it with \`ws get ${task.id} ${boardId}\`.`,
+    `- Apply the request by writing a JSON file with the new or changed nodes and loading it with \`ws board ${task.id} ${boardId} <file> --patch\` (reuse existing ids; the canvas updates itself).`,
+    "- To delete nodes, send the full board without --patch (nodes created or edited by hand are kept anyway).",
+    "- Use the workspace skill format (short labels, status, test, etc.). To put a node in a lane, set its name in `lane`; don't create lane nodes or set parentId or position (the app handles layout). Don't touch repos.",
+    selected.length ? `- Nodes selected by the user: ${selected.map((n) => `\`${n.id}\` ("${n.label}")`).join(", ")}.` : null,
+    "- End with a single line saying what you changed.",
   ]
     .filter((line) => line !== null)
     .join("\n");
@@ -70,20 +70,20 @@ export function CanvasAssistant({ task, boardId, selected }: { task: Task; board
         <Sparkles size={15} className="canvas-assistant-icon" />
         {selected.length > 0 && (
           <span className="canvas-assistant-chip" title={selected.map((n) => n.label).join("\n")}>
-            <MousePointer2 size={11} /> {selected.length === 1 ? selected[0].label.slice(0, 24) : `${selected.length} nodos`}
+            <MousePointer2 size={11} /> {selected.length === 1 ? selected[0].label.slice(0, 24) : `${selected.length} nodes`}
           </span>
         )}
         <input
           ref={input}
           value={text}
-          placeholder={selected.length ? "¿Qué hacemos con lo seleccionado?" : "Pedile algo a este canvas… ej: agregá un carril con los casos de error"}
+          placeholder={selected.length ? "What should change in the selection?" : "Ask Claude to edit this canvas…"}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             e.stopPropagation();
             if (e.key === "Enter" && !e.nativeEvent.isComposing) void submit();
           }}
         />
-        <button className="composer-send" onClick={submit} disabled={!text.trim() || sending} title="Enviar (Enter)">
+        <button className="composer-send" onClick={submit} disabled={!text.trim() || sending} title="Send (Enter)">
           {sending ? <Loader2 size={14} className="spin" /> : <ArrowUp size={15} />}
         </button>
       </div>
@@ -96,7 +96,7 @@ function AssistantStatus({ sessionId, taskId, boardId, onReset }: { sessionId: s
   const undo = async () => {
     try {
       const { remaining } = await api.undoBoard(taskId, boardId);
-      setUndoNote(remaining ? `Deshecho · quedan ${remaining} versiones` : "Deshecho");
+      setUndoNote(remaining ? `Undone · ${remaining} ${remaining === 1 ? "version" : "versions"} left` : "Undone");
     } catch (e) {
       setUndoNote((e as Error).message);
     }
@@ -110,21 +110,21 @@ function AssistantStatus({ sessionId, taskId, boardId, onReset }: { sessionId: s
   return (
     <div className="canvas-assistant-status">
       {running ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} className="done" />}
-      <span className="canvas-assistant-msg">{undoNote ?? (running ? lastTool?.title || "Pensando…" : lastText?.text?.split("\n").filter(Boolean).pop() ?? "Listo")}</span>
+      <span className="canvas-assistant-msg">{undoNote ?? (running ? lastTool?.title || "Thinking…" : lastText?.text?.split("\n").filter(Boolean).pop() ?? "Done")}</span>
       {running && (
-        <button className="icon-btn tiny" onClick={() => void chatApi.interrupt(sessionId)} title="Interrumpir">
+        <button className="icon-btn tiny" onClick={() => void chatApi.interrupt(sessionId)} title="Stop">
           <Square size={10} fill="currentColor" />
         </button>
       )}
       {!running && (
-        <button className="icon-btn tiny" onClick={undo} title="Deshacer el último cambio de la IA en este board">
+        <button className="icon-btn tiny" onClick={undo} title="Undo AI edit">
           <Undo2 size={12} />
         </button>
       )}
-      <a className="icon-btn tiny" href={href.session(sessionId)} title="Ver la sesión completa">
+      <a className="icon-btn tiny" href={href.session(sessionId)} title="Open session">
         <ExternalLink size={12} />
       </a>
-      <button className="icon-btn tiny" onClick={onReset} title="Empezar una conversación nueva">
+      <button className="icon-btn tiny" onClick={onReset} title="New conversation">
         <RotateCcw size={12} />
       </button>
     </div>

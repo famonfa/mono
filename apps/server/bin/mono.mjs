@@ -9,30 +9,30 @@ import * as launcher from "../src/launcher.mjs";
 
 launcher.runFromRuntime();
 
-const USAGE = `mono (alias: ws) — CLI de Mono (http://localhost:4600)
+const USAGE = `mono (alias: ws) — Mono CLI (http://localhost:4600)
 
-  mono [--web]                             Arranca el server si hace falta y abre la app de escritorio (o el navegador)
-  mono serve                               Corre el server en primer plano
-  mono status                              Estado del server, del servicio y de la conexión remota
-  mono connect <relay-url>                 Conecta esta máquina al relay (Google) para usarla desde el celu/web
-  mono disconnect                          Corta la conexión remota
-  mono service install|uninstall           Arranca Mono solo al iniciar sesión (launchd) y pone mono/ws en el PATH
+  mono [--web]                             Start the server if needed and open the desktop app (or the browser)
+  mono serve                               Run the server in the foreground
+  mono status                              Server, service and remote connection status
+  mono connect <relay-url>                 Connect this machine to the relay (Google) for phone/web access
+  mono disconnect                          Drop the remote connection
+  mono service install|uninstall           Start Mono at login (launchd) and put mono/ws on PATH
 
-  ws list                                  Lista las tareas
-  ws show <task>                           Muestra task.json + boards/docs/assets
-  ws get <task> <board>                    Imprime un board (nodos y conexiones) para editarlo
-  ws task <task> <file.json|->             Crea/actualiza metadatos (merge superficial)
+  ws list                                  List tasks
+  ws show <task>                           Show task.json + boards/docs/assets
+  ws get <task> <board>                    Print a board (nodes and edges) for editing
+  ws task <task> <file.json|->             Create/update metadata (shallow merge)
   ws board <task> <board> <file.json|-> [--relayout | --patch]
-                                           Crea/actualiza un board conservando lo que movió el usuario.
-                                           --patch solo agrega/actualiza nodos, nunca borra.
-  ws undo <task> <board>                   Vuelve el board a la versión anterior a la última escritura
-  ws doc <task> <name.md> <file.md|->      Escribe un documento
-  ws asset <task> <image...>               Copia imágenes a assets/
-  ws sessions [task] [--since ISO]         Actividad reciente de los agentes (de una tarea o todos)
-  ws groups                                Lista los grupos de sesiones (canvas de chats)
-  ws group <grupo> <session-id...>         Manda sesiones al canvas de un grupo (lo crea si no existe)
-  ws open [task]                           Abre la app en el navegador
-  ws path [task]                           Imprime la carpeta de datos`;
+                                           Create/update a board, keeping the user's layout.
+                                           --patch only adds/updates nodes, never deletes.
+  ws undo <task> <board>                   Revert the board to before its last write
+  ws doc <task> <name.md> <file.md|->      Write a doc
+  ws asset <task> <image...>               Copy images to assets/
+  ws sessions [task] [--since ISO]         Recent agent activity (one task or all)
+  ws groups                                List session groups (chat canvases)
+  ws group <group> <session-id...>         Add sessions to a group's canvas (creates it if missing)
+  ws open [task]                           Open the app in the browser
+  ws path [task]                           Print the data folder`;
 
 const [, , command, ...args] = process.argv;
 
@@ -83,14 +83,14 @@ switch (command === "--web" ? "launch" : (command ?? (invokedAs === "ws" ? "help
   case "show": {
     requireArgs(1);
     const task = store.getTask(args[0]);
-    if (!task) fail(`No existe la tarea ${args[0]}`);
+    if (!task) fail(`Task not found: ${args[0]}`);
     console.log(JSON.stringify(task, null, 2));
     break;
   }
   case "get": {
     requireArgs(2);
     const board = store.getBoard(args[0], args[1]);
-    if (!board) fail(`No existe el board ${args[0]}/${args[1]}`);
+    if (!board) fail(`Board not found: ${args[0]}/${args[1]}`);
     const compact = {
       ...board,
       // Lanes, parents and positions are the app's layout; agents place nodes with the \`lane\` name.
@@ -104,7 +104,7 @@ switch (command === "--web" ? "launch" : (command ?? (invokedAs === "ws" ? "help
     const [id, source] = args;
     store.assertSafe(id);
     const task = store.saveTask(id, JSON.parse(readInput(source)));
-    console.log(`✓ tarea ${task.id} actualizada`);
+    console.log(`✓ task ${task.id} updated`);
     break;
   }
   case "board": {
@@ -116,13 +116,13 @@ switch (command === "--web" ? "launch" : (command ?? (invokedAs === "ws" ? "help
     store.snapshotBoard(id, boardId);
     store.saveBoard(id, boardId, merged);
     const kept = existing ? merged.nodes.filter((n) => n.position).length : 0;
-    console.log(`✓ board ${id}/${boardId}: ${merged.nodes.length} nodos, ${merged.edges.length} conexiones${kept ? ` (${kept} conservaron su posición)` : ""}`);
+    console.log(`✓ board ${id}/${boardId}: ${merged.nodes.length} nodes, ${merged.edges.length} edges${kept ? ` (${kept} kept their position)` : ""}`);
     break;
   }
   case "undo": {
     requireArgs(2);
     const restored = store.restoreBoard(args[0], args[1]);
-    console.log(`✓ board ${args[0]}/${args[1]} restaurado a ${restored.replace(".json", "")}`);
+    console.log(`✓ board ${args[0]}/${args[1]} restored to ${restored.replace(".json", "")}`);
     break;
   }
   case "doc": {
@@ -151,14 +151,14 @@ switch (command === "--web" ? "launch" : (command ?? (invokedAs === "ws" ? "help
     const since = sinceArg >= 0 ? args[sinceArg + 1] : undefined;
     const all = sessions.listSessions({ days: 7 });
     const task = id ? store.getTask(id) : null;
-    if (id && !task) fail(`No existe la tarea ${id}`);
+    if (id && !task) fail(`Task not found: ${id}`);
     const list = task ? sessions.sessionsForTask(task, all) : all.filter((x) => x.status !== "inactive");
-    if (!list.length) console.log("Sin sesiones vinculadas.");
+    if (!list.length) console.log("No linked sessions.");
     for (const session of list) printSessionDigest(session, since);
     break;
   }
   case "groups": {
-    for (const g of groups.listGroups()) console.log(`${g.id}\t${g.name}\t${g.panes.length} sesiones\thttp://localhost:4600/#/g/${g.id}`);
+    for (const g of groups.listGroups()) console.log(`${g.id}\t${g.name}\t${g.panes.length} session${g.panes.length === 1 ? "" : "s"}\thttp://localhost:4600/#/g/${g.id}`);
     break;
   }
   case "group": {
@@ -167,7 +167,7 @@ switch (command === "--web" ? "launch" : (command ?? (invokedAs === "ws" ? "help
     const titles = new Map(sessions.listSessions({ days: 30 }).map((s) => [s.id, s.title]));
     let group = groups.findGroup(ref) ?? groups.createGroup({ name: ref });
     for (const id of ids) group = groups.addSession(group.id, id, titles.get(id));
-    console.log(`${group.name}: ${group.panes.length} sesiones · http://localhost:4600/#/g/${group.id}`);
+    console.log(`${group.name}: ${group.panes.length} session${group.panes.length === 1 ? "" : "s"} · http://localhost:4600/#/g/${group.id}`);
     break;
   }
   case "open": {
@@ -188,11 +188,11 @@ switch (command === "--web" ? "launch" : (command ?? (invokedAs === "ws" ? "help
 function printSessionDigest(session, since) {
   const short = (text, max) => (text && text.length > max ? `${text.slice(0, max)}…` : text ?? "");
   console.log(`\n## ${session.title}  [${session.status}]  ${session.id}`);
-  console.log(`${session.project} · ${session.gitBranch ?? "-"} · última actividad ${session.lastTs}${session.prLinks.length ? ` · PRs ${session.prLinks.map((u) => "#" + u.split("/").pop()).join(" ")}` : ""}`);
+  console.log(`${session.project} · ${session.gitBranch ?? "-"} · last activity ${session.lastTs}${session.prLinks.length ? ` · PRs ${session.prLinks.map((u) => "#" + u.split("/").pop()).join(" ")}` : ""}`);
   const detail = sessions.readSessionEvents(session.id);
   const events = detail.events.filter((e) => !since || e.ts > since);
   const results = new Map(events.filter((e) => e.kind === "result").map((e) => [e.toolUseId, e]));
-  console.log("\n### Línea de tiempo (más reciente al final)");
+  console.log("\n### Timeline (most recent last)");
   for (const e of events.slice(-70)) {
     if (e.kind === "prompt") console.log(`\n👤 ${short(e.text, 500)}`);
     if (e.kind === "text") console.log(`\n🤖 ${short(e.text, 700)}`);
@@ -205,7 +205,7 @@ function printSessionDigest(session, since) {
   for (const agent of session.subagents.filter((a) => !since || (a.lastTs ?? "") > since)) {
     const agentDetail = sessions.readSessionEvents(session.id, { agent: agent.id });
     const finalTexts = agentDetail?.events.filter((e) => e.kind === "text").slice(-2).map((e) => e.text) ?? [];
-    console.log(`\n### Subagente: ${agent.description}  [${agent.status}]`);
-    console.log(short(finalTexts.join("\n\n"), 2500) || "(sin texto todavía)");
+    console.log(`\n### Subagent: ${agent.description}  [${agent.status}]`);
+    console.log(short(finalTexts.join("\n\n"), 2500) || "(no text yet)");
   }
 }

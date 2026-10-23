@@ -99,7 +99,7 @@
     flex-shrink: 0;
   }
 
-  /* The Sesiones tab already shows the working dot; the pill would push the tabs off-screen. */
+  /* The Sessions tab already shows the working dot; the pill would push the tabs off-screen. */
   .task-topbar .status-pill-live {
     display: none;
   }
@@ -128,7 +128,7 @@
     max-width: none;
   }
 
-  /* Secondary actions in a session's top bar ("Enviar a grupo", status pill): icon only. */
+  /* Secondary actions in a session's top bar ("Send to group", status pill): icon only. */
   .task-topbar .btn.ghost,
   .task-topbar .menu-trigger.btn {
     width: 34px;
@@ -379,7 +379,7 @@
     text-overflow: ellipsis;
   }
 
-  /* "Enviar a grupo" stays as an icon; "Ver en Agentes" is one tap away from the sidebar. */
+  /* "Send to group" stays as an icon; "Open in Agents" is one tap away from the sidebar. */
   .session-pane-head .link-btn {
     font-size: 0;
     flex-shrink: 0;

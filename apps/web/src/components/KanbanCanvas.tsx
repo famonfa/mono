@@ -83,7 +83,7 @@ const ColumnNode = memo(({ data }: NodeProps<Node<ColumnData, "column">>) => {
         <span className="group-label">{STATUS_META[data.status].label}</span>
         <span className="group-count">{data.count}</span>
         <span className="spacer" />
-        <button className="icon-btn nodrag" onClick={() => newTask(data.status)} title="Nueva tarea en este estado">
+        <button className="icon-btn nodrag" onClick={() => newTask(data.status)} title="New task">
           <Plus size={14} />
         </button>
       </div>
@@ -99,7 +99,7 @@ const CardNode = memo(({ data, dragging }: NodeProps<Node<CardData, "card">>) =>
         <span className="row-id">{task.id}</span>
         {live && (
           <span className="row-live">
-            <StatusDot status="working" size={6} /> en vivo
+            <StatusDot status="working" size={6} /> live
           </span>
         )}
         <span className="spacer" />

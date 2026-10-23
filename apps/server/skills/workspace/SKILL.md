@@ -45,11 +45,11 @@ Write JSON/MD to `/tmp/ws-<TASK>/` and load each with the CLI. Write everything 
 
 ```json
 {
-  "title": "Refund + cancel en órdenes pagas",
+  "title": "Refund + cancel on paid orders",
   "status": "en-curso",
   "risk": "medio",
   "tldr": { "problema": "…", "solucion": "…", "impacto": "…" },
-  "summary": "markdown corto: origen, estado, pendientes fuera de scope",
+  "summary": "short markdown: origin, status, out-of-scope follow-ups",
   "repos": [{ "name": "api", "branch": "ABC-123-refunds", "pr": "https://github.com/…/pull/1637" }],
   "linear": "https://linear.app/…/issue/ABC-123",
   "tags": ["refunds"],
@@ -66,7 +66,7 @@ Default set (skip a board when it adds nothing, e.g. no tech map for a one-file 
 | board-id | kind | layout | What it shows |
 | --- | --- | --- | --- |
 | `story-map` | storymap | storymap | Actors → activities (columns, in order) → steps under each activity. Mark what changed. |
-| `flujo` | flow | lanes | Lanes `Antes` / `Después` with the same steps side by side, or one lane per variant. |
+| `flujo` | flow | lanes | Lanes `Before` / `After` with the same steps side by side, or one lane per variant. |
 | `testeo` | tests | lanes | One lane per test path; last node carries the result (`test`) and screenshot (`image`). |
 | `mapa-tecnico` | tech | lanes | One lane per repo; nodes = modules/files touched; edges = data flow between them. |
 | `ui` | ui | lanes | **Only if the change touched UI.** One lane per screen/state; `image` nodes with real screenshots (`status` new/changed). Skip entirely for backend-only work. |
@@ -75,13 +75,13 @@ Board file shape (flat nodes — the CLI normalizes them):
 
 ```json
 {
-  "title": "Flujos de testeo", "kind": "tests", "layout": "lanes", "direction": "LR", "order": 3,
-  "description": "Una línea que explica cómo leer el board.",
+  "title": "Test flows", "kind": "tests", "layout": "lanes", "direction": "LR", "order": 3,
+  "description": "One line on how to read the board.",
   "nodes": [
-    { "id": "t1a", "lane": "1 · Reembolso parcial", "label": "Orden paga con loyalty" },
-    { "id": "t1b", "lane": "1 · Reembolso parcial", "label": "Puntos revocados", "test": "pass", "image": "assets/refund-partial.png" }
+    { "id": "t1a", "lane": "1 · Partial refund", "label": "Paid order with loyalty" },
+    { "id": "t1b", "lane": "1 · Partial refund", "label": "Points revoked", "test": "pass", "image": "assets/refund-partial.png" }
   ],
-  "edges": [{ "from": "t1a", "to": "t1b", "label": "opcional", "dashed": false, "animated": false }]
+  "edges": [{ "from": "t1a", "to": "t1b", "label": "optional", "dashed": false, "animated": false }]
 }
 ```
 
@@ -93,7 +93,7 @@ Storymap specifics: `actor` nodes go in a left column; `activity` nodes become c
 
 ### Docs → `ws doc <TASK> <name>.md /tmp/ws-<TASK>/<name>.md`
 
-Only when they add value; usually just `decisiones.md` (table: decisión | por qué, plus rollout risks). No essays.
+Only when they add value; usually just `decisions.md` (table: decision | why, plus rollout risks). No essays.
 
 ## Content rules
 

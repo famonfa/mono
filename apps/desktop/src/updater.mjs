@@ -17,29 +17,29 @@ const newer = (a, b) => {
 async function newerVersion() {
   const res = await fetch(`${RELAY}/_mono/version`, { signal: AbortSignal.timeout(8000) });
   const latest = res.ok ? await res.json() : null;
-  if (!latest?.version) throw new Error("No pude buscar actualizaciones. Revisá tu conexión.");
+  if (!latest?.version) throw new Error("Couldn't check for updates. Check your connection.");
   return newer(latest.version, app.getVersion()) ? latest.version : null;
 }
 
-/** Menu → Buscar actualizaciones…: answers with dialogs, including "up to date" and errors. */
+/** Menu → Check for updates…: answers with dialogs, including "up to date" and errors. */
 export async function checkForUpdates() {
-  if (!app.isPackaged) return dialog.showMessageBox({ message: "Las actualizaciones funcionan en la app instalada, no en desarrollo." });
+  if (!app.isPackaged) return dialog.showMessageBox({ message: "Updates only work in the installed app, not in development." });
   let version;
   try {
     version = await newerVersion();
   } catch (error) {
     return dialog.showErrorBox("Mono", error.message);
   }
-  if (!version) return dialog.showMessageBox({ message: `Tenés la última versión de Mono (${app.getVersion()}).` });
+  if (!version) return dialog.showMessageBox({ message: `Mono is up to date (${app.getVersion()}).` });
   const { response } = await dialog.showMessageBox({
     type: "info",
-    message: `Hay una versión nueva de Mono (${version})`,
-    detail: `Tenés la ${app.getVersion()}. Se baja, se instala y Mono se vuelve a abrir.`,
-    buttons: ["Actualizar", "Más tarde"],
+    message: `Mono ${version} is available`,
+    detail: `You have ${app.getVersion()}. Mono will download it, install it and reopen.`,
+    buttons: ["Update", "Later"],
     defaultId: 0,
     cancelId: 1,
   });
-  if (response === 0) await installUpdate().catch((error) => dialog.showErrorBox("No se pudo actualizar", error.message));
+  if (response === 0) await installUpdate().catch((error) => dialog.showErrorBox("Couldn't update", error.message));
 }
 
 /** Checks quietly on launch, every 30 minutes and when the window comes back; `onAvailable` gets each newer version once. */
@@ -71,7 +71,7 @@ export async function installUpdate() {
   const arch = process.arch === "arm64" ? "arm64" : "x64";
   const work = fs.mkdtempSync(path.join(os.tmpdir(), "mono-update-"));
   const res = await fetch(`${RELAY}/_mono/download/Mono-${arch}.zip`);
-  if (!res.ok) throw new Error(`No pude bajar la versión nueva (${res.status})`);
+  if (!res.ok) throw new Error(`Couldn't download the new version (${res.status})`);
   fs.writeFileSync(path.join(work, "Mono.zip"), Buffer.from(await res.arrayBuffer()));
   execFileSync("ditto", ["-x", "-k", path.join(work, "Mono.zip"), work]);
 

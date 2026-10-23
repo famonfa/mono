@@ -150,7 +150,7 @@ export function launchRootFor(dir) {
 
 export function saveOverride(projectId, patch) {
   const project = listProjects().find((p) => p.id === projectId);
-  if (!project) throw new Error(`No existe el proyecto ${projectId}`);
+  if (!project) throw new Error(`Project not found: ${projectId}`);
   const overrides = readOverrides();
   overrides[project.root] = { ...overrides[project.root], ...patch };
   fs.mkdirSync(path.dirname(OVERRIDES_FILE), { recursive: true });

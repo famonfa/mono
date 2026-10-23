@@ -5,26 +5,24 @@ import { useApp } from "../app-context";
 import { href } from "../router";
 import { sessionsApi, useRefreshJob, type SessionSummary } from "../sessions";
 import { CHANGE_STATUS, type CaptureSkill, type PrStatus, type Task, type WsNode } from "../types";
-import { formatDate, Menu } from "../ui";
+import { Menu, timeAgo } from "../ui";
 
 const VIDEO = /\.(mp4|webm)$/i;
 export const isVideo = (file: string) => VIDEO.test(file);
 
-/** formatDate says "ahora" for the last minute, which doesn't take a "hace" in front. */
-const ago = (iso: string) => (formatDate(iso) === "ahora" ? "ahora" : `hace ${formatDate(iso)}`);
 
 function lastActivity(sessions: SessionSummary[]) {
   return sessions.reduce<string | undefined>((latest, s) => (s.lastTs && (!latest || s.lastTs > latest) ? s.lastTs : latest), undefined);
 }
 
 function prLabel(pr: PrStatus) {
-  if (pr.error) return { text: "sin datos", tone: "muted" };
-  if (pr.state === "MERGED") return { text: "mergeado", tone: "done" };
-  if (pr.state === "CLOSED") return { text: "cerrado", tone: "muted" };
-  if (pr.checks?.failing) return { text: `CI: ${pr.checks.failing} fallan`, tone: "bad" };
-  if (pr.checks?.pending) return { text: "CI en curso", tone: "warn" };
-  if (pr.checks?.total) return { text: pr.state === "DRAFT" ? "borrador · CI ok" : "CI ok", tone: "ok" };
-  return { text: pr.state === "DRAFT" ? "borrador" : "abierto", tone: "muted" };
+  if (pr.error) return { text: "no data", tone: "muted" };
+  if (pr.state === "MERGED") return { text: "merged", tone: "done" };
+  if (pr.state === "CLOSED") return { text: "closed", tone: "muted" };
+  if (pr.checks?.failing) return { text: `CI: ${pr.checks.failing} failing`, tone: "bad" };
+  if (pr.checks?.pending) return { text: "CI running", tone: "warn" };
+  if (pr.checks?.total) return { text: pr.state === "DRAFT" ? "draft · CI ok" : "CI ok", tone: "ok" };
+  return { text: pr.state === "DRAFT" ? "draft" : "open", tone: "muted" };
 }
 
 /** Four live signals at a glance: who is working, PRs + CI, tests, and how much of the UI has evidence. */
@@ -56,10 +54,10 @@ export function StatusStrip({ task }: { task: Task }) {
     <div className="status-strip">
       <div className="status-tile">
         <div className="status-tile-head">
-          <Bot size={13} /> Agentes
+          <Bot size={13} /> Agents
         </div>
-        <div className="status-tile-value">{working ? `${working} trabajando` : linked.length ? "Quietos" : "Sin sesiones"}</div>
-        <div className="status-tile-sub">{last ? `Último movimiento ${ago(last)}` : "Sin actividad registrada"}</div>
+        <div className="status-tile-value">{working ? `${working} working` : linked.length ? "Idle" : "No sessions"}</div>
+        <div className="status-tile-sub">{last ? `Last active ${timeAgo(last)}` : "No activity"}</div>
       </div>
 
       <div className="status-tile">
@@ -82,7 +80,7 @@ export function StatusStrip({ task }: { task: Task }) {
               })}
           </div>
         ) : (
-          <div className="status-tile-value muted">Sin PRs</div>
+          <div className="status-tile-value muted">No PRs</div>
         )}
       </div>
 
@@ -93,28 +91,28 @@ export function StatusStrip({ task }: { task: Task }) {
         {tests?.total ? (
           <>
             <div className="status-tile-value">
-              {tests.pass}/{tests.total} pasaron{tests.fail ? <span className="bad"> · {tests.fail} fallan</span> : null}
+              {tests.pass}/{tests.total} passed{tests.fail ? <span className="bad"> · {tests.fail} failing</span> : null}
             </div>
-            <div className="test-bar" title={`${tests.pass} pasaron · ${tests.fail} fallan · ${tests.todo} sin probar`}>
+            <div className="test-bar" title={`${tests.pass} passed · ${tests.fail} failing · ${tests.todo} untested`}>
               <i className="pass" style={{ flex: tests.pass }} />
               <i className="fail" style={{ flex: tests.fail }} />
               <i className="todo" style={{ flex: tests.todo + tests.skip }} />
             </div>
           </>
         ) : (
-          <div className="status-tile-value muted">Sin casos de test</div>
+          <div className="status-tile-value muted">No test cases</div>
         )}
       </a>
 
       <div className="status-tile">
         <div className="status-tile-head">
-          <Camera size={13} /> Evidencia
+          <Camera size={13} /> Evidence
         </div>
         {evidence?.total ? (
           <>
             <div className="status-tile-value">
-              {evidence.withMedia}/{evidence.total} pantallas
-              {evidence.withMedia < evidence.total ? <span className="warn"> · faltan {evidence.total - evidence.withMedia}</span> : null}
+              {evidence.withMedia}/{evidence.total} screens
+              {evidence.withMedia < evidence.total ? <span className="warn"> · {evidence.total - evidence.withMedia} missing</span> : null}
             </div>
             <div className="test-bar">
               <i className="pass" style={{ flex: evidence.withMedia }} />
@@ -122,7 +120,7 @@ export function StatusStrip({ task }: { task: Task }) {
             </div>
           </>
         ) : (
-          <div className="status-tile-value muted">Sin pantallas registradas</div>
+          <div className="status-tile-value muted">No screens</div>
         )}
       </div>
     </div>
@@ -136,7 +134,7 @@ function Media({ taskId, node, onOpen }: { taskId: string; node: WsNode; onOpen:
   if (image) return <img src={fileUrl(taskId, image)} alt={label} loading="lazy" onClick={() => onOpen(fileUrl(taskId, image))} />;
   return (
     <div className="evidence-missing">
-      <CircleAlert size={15} /> Falta captura
+      <CircleAlert size={15} /> No capture
     </div>
   );
 }
@@ -168,32 +166,32 @@ function CapturePanel({ task, skills, onChange }: { task: Task; skills: CaptureS
     <div className="capture-panel">
       <Menu
         value={chosen?.id}
-        options={skills.map((s) => ({ value: s.id, label: `${s.name.replace(/^capture-/, "")} · ${s.targets.join(", ")}${s.verified ? "" : " (sin verificar)"}` }))}
+        options={skills.map((s) => ({ value: s.id, label: `${s.name.replace(/^capture-/, "")} · ${s.targets.join(", ")}${s.verified ? "" : " (unverified)"}` }))}
         onChange={(skill) => save({ skill })}
         className="btn"
       >
-        {chosen ? chosen.name.replace(/^capture-/, "") : "Elegir cómo capturar…"}
+        {chosen ? chosen.name.replace(/^capture-/, "") : "Capture method…"}
       </Menu>
-      <button className="btn ai" onClick={run} disabled={running || !chosen} title={chosen ? chosen.description : "Elegí primero la skill de captura"}>
+      <button className="btn ai" onClick={run} disabled={running || !chosen} title={chosen ? chosen.description : "Pick a capture method first"}>
         {capturing ? <Loader2 size={13} className="spin" /> : <Camera size={13} />}
-        {capturing ? "Capturando…" : "Capturar evidencia"}
+        {capturing ? "Capturing…" : "Capture evidence"}
       </button>
       <textarea
         className="capture-notes"
         rows={2}
         defaultValue={task.capture?.notes ?? ""}
-        placeholder="Cómo correr la app y llegar a cada pantalla: URL, bundle id o paquete, deep links, login de prueba…"
+        placeholder="How to run the app and reach each screen: URL, bundle id, deep links, test login…"
         onBlur={(e) => e.target.value.trim() !== (task.capture?.notes ?? "").trim() && save({ notes: e.target.value.trim() })}
       />
-      {chosen && !chosen.verified && <div className="capture-hint warn">Esta skill todavía no se probó en una máquina real: puede fallar.</div>}
-      {running && job.mode === "refresh" && <div className="capture-hint">Hay una actualización en curso; esperá a que termine para capturar.</div>}
-      {job.status === "failed" && job.mode === "capture" && <div className="capture-hint bad">La captura falló. Mirá el resultado en “Actualizar con IA → Ver error”.</div>}
+      {chosen && !chosen.verified && <div className="capture-hint warn">Unverified on a real device; may fail.</div>}
+      {running && job.mode === "refresh" && <div className="capture-hint">Update in progress. Capture when it finishes.</div>}
+      {job.status === "failed" && job.mode === "capture" && <div className="capture-hint bad">Capture failed. See Update with AI → View error.</div>}
       {error && <div className="capture-hint bad">{error}</div>}
     </div>
   );
 }
 
-/** "Qué cambió": one tile per screen of the `ui` board with its screenshot or clip, and an explicit gap where evidence is missing. */
+/** "What changed": one tile per screen of the `ui` board with its screenshot or clip, and an explicit gap where evidence is missing. */
 export function EvidenceGallery({ task, onChange, onOpen }: { task: Task; onChange: () => void; onOpen: (url: string) => void }) {
   const uiBoard = task.boards.find((b) => b.kind === "ui");
   const { data: board } = useLiveData(() => (uiBoard ? api.getBoard(task.id, uiBoard.id) : Promise.resolve(null)), [task.id, uiBoard?.id, task.updatedAt], task.id);
@@ -204,24 +202,24 @@ export function EvidenceGallery({ task, onChange, onOpen }: { task: Task; onChan
     const groups = new Map<string, WsNode[]>();
     for (const node of board?.nodes ?? []) {
       if (node.type !== "card" && node.type !== "image") continue;
-      const lane = (node.data.lane as string | undefined) ?? "Sin pantalla";
+      const lane = (node.data.lane as string | undefined) ?? "No screen";
       groups.set(lane, [...(groups.get(lane) ?? []), node]);
     }
-    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b, "es", { numeric: true }));
+    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b, "en", { numeric: true }));
   }, [board]);
 
   return (
     <section className="evidence">
       <div className="evidence-head">
         <div>
-          <h3>Qué cambió</h3>
-          <p>Capturas y videos de cada pantalla tocada.{task.capturedAt ? ` Última captura ${ago(task.capturedAt)}.` : ""}</p>
+          <h3>What changed</h3>
+          {task.capturedAt && <p>Last capture {timeAgo(task.capturedAt)}</p>}
         </div>
         <Film size={15} className="evidence-icon" />
       </div>
       <CapturePanel task={task} skills={skills} onChange={onChange} />
       {lanes.length === 0 ? (
-        <div className="evidence-empty">Todavía no hay pantallas registradas. Al capturar, o al actualizar con IA, aparecen acá.</div>
+        <div className="evidence-empty">No screens yet.</div>
       ) : (
         lanes.map(([lane, nodes]) => (
           <div key={lane} className="evidence-lane">

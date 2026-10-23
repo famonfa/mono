@@ -14,7 +14,7 @@ async function savedRelay() {
 
 async function login(relay) {
   await Preferences.set({ key: "relay", value: relay });
-  $("status").textContent = "Entrá con Google en la ventana que se abrió.";
+  $("status").textContent = "Sign in with Google in the browser window.";
   await Browser.open({ url: `${relay}/_mono/mobile/done`, presentationStyle: "popover" });
 }
 
@@ -28,7 +28,7 @@ async function handleDeepLink(url) {
 }
 
 function showSetup(relay) {
-  $("status").textContent = "Pegá la URL de tu relay de Mono.";
+  $("status").textContent = "Enter your Mono relay URL.";
   $("setup").hidden = false;
   if (relay) $("relay").value = relay;
 }
@@ -50,7 +50,7 @@ $("setup").addEventListener("submit", (event) => {
   try {
     login(new URL($("relay").value.trim()).origin);
   } catch {
-    $("error").textContent = "Esa URL no es válida.";
+    $("error").textContent = "Invalid URL.";
   }
 });
 

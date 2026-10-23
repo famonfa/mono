@@ -175,7 +175,7 @@ export function useSessionFeed(id: string, agent?: string) {
   return state;
 }
 
-/** Last session the user had open, globally and per task, so "Agentes" / "Sesiones" reopen it. */
+/** Last session the user had open, globally and per task, so "Agents" / "Sessions" reopen it. */
 const lastKey = (taskId?: string) => (taskId ? `ws-last-session-${taskId}` : "ws-last-session");
 
 export function rememberSession(sessionId: string, taskId?: string) {

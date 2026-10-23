@@ -141,13 +141,13 @@ async function handleChats(res, method, parts, body) {
   const [, sessionId, action, actionId] = parts;
   if (!sessionId && method === "POST") {
     const prompt = String(body.prompt ?? "").trim();
-    if (!prompt) throw new Error("Escribí un mensaje");
+    if (!prompt) throw new Error("Message is empty");
     return send(res, 200, await chats.startChat({ taskId: body.taskId, cwd: body.cwd, prompt, model: body.model, effort: body.effort, permissionMode: body.permissionMode, attachments: body.attachments ?? [] }));
   }
   if (sessionId && !action && method === "GET") return send(res, 200, chats.chatState(sessionId));
   if (action === "messages" && method === "POST") {
     const text = String(body.text ?? "").trim();
-    if (!text) throw new Error("Escribí un mensaje");
+    if (!text) throw new Error("Message is empty");
     return send(res, 200, await chats.sendMessage(sessionId, text, { workingSessions: workingElsewhere(sessionId), model: body.model, effort: body.effort, permissionMode: body.permissionMode, attachments: body.attachments ?? [] }));
   }
   if (action === "interrupt" && method === "POST") return send(res, 200, await chats.interrupt(sessionId));

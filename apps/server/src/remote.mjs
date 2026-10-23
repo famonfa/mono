@@ -76,11 +76,11 @@ export function startRemote({ port }) {
       }
       if (msg.type === "welcome") {
         retry = 1000;
-        console.log(`Mono conectado al relay ${config.relay} como ${msg.email}`);
+        console.log(`Mono connected to relay ${config.relay} as ${msg.email}`);
         writeStatus({ state: "connected", email: msg.email, hostId: msg.hostId });
       }
       if (msg.type === "rejected") {
-        console.error(`El relay rechazó esta máquina: ${msg.reason}`);
+        console.error(`Relay rejected this machine: ${msg.reason}`);
         writeStatus({ state: "rejected", reason: msg.reason });
         retry = 5 * 60_000;
       }

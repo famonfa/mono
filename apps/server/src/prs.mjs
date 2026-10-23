@@ -23,7 +23,7 @@ function gh(url) {
   });
 }
 
-/** State and CI of each PR of a task, cached for a minute so the Resumen can poll without hammering GitHub. */
+/** State and CI of each PR of a task, cached for a minute so the Summary can poll without hammering GitHub. */
 export async function prStatus(urls) {
   const now = Date.now();
   return Promise.all(

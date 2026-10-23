@@ -1,66 +1,66 @@
 # Mono 🐒
 
-Mono vive en `~/mono` (`~/avocado-workspace` es un symlink para rutas viejas). App personal para ver el trabajo como flujos editables, mirar a los agentes de Claude Code trabajar y chatear con ellos, desde la Mac, la web o el celu.
+Mono lives in `~/mono` (`~/avocado-workspace` is a symlink for old paths). See work as editable flows, watch Claude Code agents work and chat with them, from your Mac, the web or your phone.
 
 ## Apps
 
-| App | Qué es |
+| App | What it is |
 | --- | --- |
-| `apps/server` | Paquete npm `@famonfa/mono`: server local (API + eventos en vivo + Agent SDK) y el CLI `mono` / `ws`. Corre Claude Code en tu Mac. |
-| `apps/web` | La interfaz (React + Vite). La sirve el server; la usan el escritorio, la web y el celu. |
-| `apps/desktop` | App de macOS (Electron). Usa el server local, y si no está corriendo lo levanta. |
-| `apps/relay` | Puerta pública multiusuario: login con Google, invitaciones y el túnel hacia la Mac de cada uno. |
-| `apps/mobile` | App de iOS y Android (Capacitor) que abre tu relay, con login de Google desde el navegador del sistema. |
+| `apps/server` | npm package `@famonfa/mono`: local server (API + live events + Agent SDK) and the `mono` / `ws` CLI. Runs Claude Code on your Mac. |
+| `apps/web` | The UI (React + Vite). Served by the server; used by desktop, web and mobile. |
+| `apps/desktop` | macOS app (Electron). Uses the local server and starts it if needed. |
+| `apps/relay` | Multi-user public entry point: Google sign-in, invites and the tunnel to each user's Mac. |
+| `apps/mobile` | iOS and Android app (Capacitor) that opens your relay, with Google sign-in through the system browser. |
 
-En este checkout los datos quedan en `~/mono/data/` (no se versionan; se cambian con `MONO_DATA_DIR`). Instalado con npm, van a `~/.mono/data/`.
+In this checkout, data lives in `~/mono/data/` (not versioned; override with `MONO_DATA_DIR`). When installed from npm, it goes to `~/.mono/data/`.
 
-## Escritorio: igual que `t3`
+## Desktop
 
 ```bash
-mono                     # levanta el server si hace falta y abre Mono (Mono.app → Electron de dev → navegador)
-mono status              # server, servicio y conexión remota
-mono service install     # arranca solo al iniciar sesión (launchd) y pone mono/ws en el PATH
-npm run desktop:package  # genera apps/desktop/release/mac-arm64/Mono.app → copiala a /Applications
+mono                     # starts the server if needed and opens Mono (Mono.app → dev Electron → browser)
+mono status              # server, service and remote connection
+mono service install     # starts at login (launchd) and puts mono/ws on PATH
+npm run desktop:package  # builds apps/desktop/release/mac-arm64/Mono.app → copy it to /Applications
 ```
 
-## Celu, web e invitados (como T3)
+## Phone, web and invites
 
-Cada persona corre Mono en **su** Mac, con su Claude Code. Un único relay en la nube les da login con Google y acceso desde el celu o la web; cada uno ve solo sus máquinas.
+Each person runs Mono on **their own** Mac, with their own Claude Code. A single cloud relay provides Google sign-in and access from phone or web; each user sees only their Macs.
 
-**Una vez (admin):**
-1. El relay corre en la VM gratis de Oracle que comparte con Omno: `https://mono.155-181-39-178.sslip.io`. Para deployar, `apps/relay/deploy.sh` (ssh `pelado-oracle`): sincroniza `/srv/mono-relay`, y la primera vez crea el `.env`, el servicio `mono-relay` (con tope de 512 MB y 50% de CPU) y su entrada en Caddy. La entrada de Omno no se toca. Las credenciales van en `/srv/mono-relay/.env` y las variables están explicadas en `apps/relay/.env.example`.
-2. Google Cloud Console → Credentials → *OAuth client ID* (Web application), con el redirect `https://mono.155-181-39-178.sslip.io/_mono/auth/callback`.
-3. Publicar el paquete: `npm run release -w @famonfa/mono`. Arma `@famonfa/mono` con la UI compilada y sus dependencias empaquetadas, sin el binario de Claude (~6 MB en vez de 320 MB), y lo publica.
+**One-time setup (admin):**
+1. The relay runs on the free Oracle VM it shares with Omno: `https://mono.155-181-39-178.sslip.io`. Deploy with `apps/relay/deploy.sh` (ssh `pelado-oracle`): it syncs `/srv/mono-relay` and, on first run, creates the `.env`, the `mono-relay` service (capped at 512 MB and 50% CPU) and its Caddy site. Omno's site is never touched. Credentials go in `/srv/mono-relay/.env`; variables are documented in `apps/relay/.env.example`.
+2. Google Cloud Console → Credentials → *OAuth client ID* (Web application), with redirect `https://mono.155-181-39-178.sslip.io/_mono/auth/callback`.
+3. Publish the package: `npm run release -w @famonfa/mono`. Builds `@famonfa/mono` with the compiled UI and bundled dependencies, without the Claude binary (~6 MB instead of 320 MB), and publishes it.
 
-**Invitar:** entrás a `https://<relay>/_mono/admin`, ponés el email de Google de la persona y le mandás el link. Para quitarle el acceso, "Quitar": se corta su sesión y se desconectan sus Macs.
+**Invite:** go to `https://<relay>/_mono/admin`, enter the person's Google email and send them the link. "Remove" revokes access: their session ends and their Macs disconnect.
 
-**Cada invitado, en su Mac** (único camino de instalación, como `npx t3`):
+**Each invitee, on their Mac** (the only install path):
 ```bash
-npx @famonfa/mono            # abre Mono; la primera vez se instala en ~/.mono/runtime
-npx @famonfa/mono connect    # queda corriendo en segundo plano y se empareja con Google
+npx @famonfa/mono            # opens Mono; first run installs to ~/.mono/runtime
+npx @famonfa/mono connect    # keeps running in the background and pairs via Google
 ```
-`npx` solo arranca la instalación: copia la misma versión a `~/.mono/runtime` y le pasa los comandos, porque la caché de npx se puede borrar y el servicio de launchd necesita una ruta fija.
-Después usa `https://mono.155-181-39-178.sslip.io` desde cualquier navegador o la app móvil (`npm run mobile:ios` / `mobile:android`).
+`npx` only bootstraps: it copies the same version to `~/.mono/runtime` and forwards commands there, since the npx cache can be cleared and the launchd service needs a fixed path.
+Then use `https://mono.155-181-39-178.sslip.io` from any browser or the mobile app (`npm run mobile:ios` / `mobile:android`).
 
-Fuera del repo, Mono guarda todo en `~/.mono/` (config, conexión y `data/`) y le instala a Claude Code el skill `/workspace` si no lo tiene. La carpeta por defecto de los chats nuevos es `defaultCwd` en `~/.mono/config.json` (si no está, el home).
+Outside the repo, Mono keeps everything in `~/.mono/` (config, connection and `data/`) and installs the `/workspace` skill for Claude Code if missing. New chats default to `defaultCwd` in `~/.mono/config.json` (home if unset).
 
-## Desarrollo
+## Development
 
 ```bash
 npm install
-npm run dev       # Vite con hot reload en http://localhost:4601 (usa la API del server en :4600)
-npm run build     # compila apps/web; el server lo sirve sin reiniciar
+npm run dev       # Vite with hot reload at http://localhost:4601 (uses the server API on :4600)
+npm run build     # builds apps/web; the server serves it without restarting
 npm run desktop   # build + Electron
-launchctl kickstart -k gui/$(id -u)/com.famonfa.mono   # reiniciar el server tras cambiar apps/server
+launchctl kickstart -k gui/$(id -u)/com.famonfa.mono   # restart the server after changing apps/server
 ```
 
-Para probar el relay en local, sin Google: `PORT=4700 SESSION_SECRET=$(openssl rand -hex 32) ADMIN_EMAILS=yo@x.com DEV_LOGIN=1 npm run relay`, y después `mono connect http://localhost:4700`.
+To test the relay locally without Google: `PORT=4700 SESSION_SECRET=$(openssl rand -hex 32) ADMIN_EMAILS=me@x.com DEV_LOGIN=1 npm run relay`, then `mono connect http://localhost:4700`.
 
-## Partes del server
+## Server modules
 
-- `store.mjs`: tareas, boards y docs en `data/tasks/<TAREA>/`
-- `sessions.mjs`: lee los transcripts de Claude Code (`~/.claude/projects`) y los vincula a tareas
-- `chats.mjs`: sesiones manejadas desde la app con el Agent SDK (permisos, interrupción, retomar)
-- `refresh.mjs`: "Actualizar con IA", una sesión headless que lee la actividad de los agentes y actualiza los boards
-- `remote.mjs`: conexión saliente al relay; reenvía los pedidos al server local y le pasa los eventos
-- `launcher.mjs`: `mono`, `connect`, `status` y `service`
+- `store.mjs`: tasks, boards and docs in `data/tasks/<TASK>/`
+- `sessions.mjs`: reads Claude Code transcripts (`~/.claude/projects`) and links them to tasks
+- `chats.mjs`: sessions driven from the app via the Agent SDK (permissions, interrupt, resume)
+- `refresh.mjs`: AI refresh, a headless session that reads agent activity and updates the boards
+- `remote.mjs`: outbound connection to the relay; forwards requests to the local server and streams events back
+- `launcher.mjs`: `mono`, `connect`, `status` and `service`
