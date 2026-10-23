@@ -660,14 +660,13 @@ export function NewSession({ task }: { task?: Task }) {
   );
 }
 
-/** Launches several sessions into a group at once: one per line, all with the same instruction and folder. */
+/** Asks Claude to plan the sessions a request needs; the planner joins the group and launches them when its plan is ready. */
 export function LaunchSessions({ group, onClose }: { group: SessionGroup; onClose: () => void }) {
   const { projects, project } = useApp();
   const [projectId, setProjectId] = useState("");
   const [worktrees, setWorktrees] = useState<Worktree[]>([]);
   const [cwd, setCwd] = useState("");
-  const [instruction, setInstruction] = useState("");
-  const [items, setItems] = useState("");
+  const [goal, setGoal] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { models, stored, remember } = useChatDefaults();
@@ -686,18 +685,16 @@ export function LaunchSessions({ group, onClose }: { group: SessionGroup; onClos
     });
   }, [projectId]);
 
-  const lines = items.split("\n").map((l) => l.trim()).filter(Boolean);
   const selected = worktrees.find((w) => w.path === cwd);
   const selectedProject = projects.find((p) => p.id === projectId);
 
   const submit = async () => {
-    if (!lines.length) return setError("Escribí al menos una línea: cada una es una sesión");
+    if (!goal.trim()) return setError("Escribí qué hay que hacer");
     if (!cwd) return setError("Elegí una carpeta");
     setBusy(true);
     setError(null);
     try {
-      const sessions = lines.map((line) => ({ title: line.slice(0, 80), prompt: instruction.trim() ? `${instruction.trim()}\n\n${line}` : line, cwd }));
-      await groupsApi.spawn(group.id, { sessions, ...config });
+      await groupsApi.plan(group.id, { goal, cwd, ...config });
       onClose();
     } catch (e) {
       setError((e as Error).message);
@@ -720,16 +717,13 @@ export function LaunchSessions({ group, onClose }: { group: SessionGroup; onClos
         }}
       >
         <div className="dialog-title">Lanzar sesiones en {group.name}</div>
-        <label className="launch-label">Instrucción para todas</label>
         <textarea
           autoFocus
           className="dialog-textarea"
-          placeholder="Ej: corré /pr-review sobre este PR y hacé rebase sobre main"
-          value={instruction}
-          onChange={(e) => setInstruction(e.target.value)}
+          placeholder="¿Qué hay que hacer? Ej: corré /pr-review y hacé rebase sobre main en todos mis PRs abiertos"
+          value={goal}
+          onChange={(e) => setGoal(e.target.value)}
         />
-        <label className="launch-label">Una sesión por línea</label>
-        <textarea className="dialog-textarea" placeholder={"#1481\n#1490\n#1502"} value={items} onChange={(e) => setItems(e.target.value)} />
         <div className="launch-row">
           <Menu
             value={projectId}
@@ -761,17 +755,17 @@ export function LaunchSessions({ group, onClose }: { group: SessionGroup; onClos
           />
         </div>
         <p className="hint">
-          {lines.length ? `${lines.length} ${lines.length === 1 ? "sesión" : "sesiones"}` : "Ninguna sesión todavía"} · hasta 6 a la vez, el resto espera en cola. Si
-          comparten repo, cada una trabaja en su propio worktree.
+          Claude arma el plan con las sesiones que hacen falta (lo ves en el canvas) y las lanza apenas lo termina, hasta 6 a la vez. Si comparten repo,
+          cada una trabaja en su propio worktree.
         </p>
         {error && <div className="dialog-error">{error}</div>}
         <div className="dialog-actions">
           <button type="button" className="btn ghost" onClick={onClose}>
             Cancelar
           </button>
-          <button type="submit" className="btn primary" disabled={busy || !lines.length}>
+          <button type="submit" className="btn primary" disabled={busy || !goal.trim()}>
             {busy ? <Loader2 size={13} className="spin" /> : null}
-            Lanzar {lines.length || ""} <kbd className="kbd on-primary">⌘↵</kbd>
+            Planear y lanzar <kbd className="kbd on-primary">⌘↵</kbd>
           </button>
         </div>
       </form>

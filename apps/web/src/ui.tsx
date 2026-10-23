@@ -121,7 +121,11 @@ export function Menu<T extends string>({
                   if (e.key === "Escape") setOpen(false);
                   if (e.key === "ArrowDown") setActive((a) => Math.min(filtered.length - 1, a + 1));
                   if (e.key === "ArrowUp") setActive((a) => Math.max(0, a - 1));
-                  if (e.key === "Enter" && filtered[active]) choose(filtered[active].value);
+                  if (e.key === "Enter") {
+                    // Otherwise the same Enter clicks the trigger (focused again by choose) and reopens the menu.
+                    e.preventDefault();
+                    if (filtered[active]) choose(filtered[active].value);
+                  }
                   const byHint = options.find((o) => o.hint === e.key);
                   if (!query && byHint) {
                     e.preventDefault();

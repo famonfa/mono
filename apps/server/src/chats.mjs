@@ -297,8 +297,11 @@ function linkSessionToTask(taskId, sessionId) {
  * Starts (or resumes) a Claude Code session driven from the workspace. Resolves with the session id
  * once the CLI reports it, so the UI can navigate to the live feed straight away.
  */
-/** `context` is extra system prompt for sessions Mono launches itself (e.g. a group's batch launch). */
-export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort, permissionMode, attachments = [], context }) {
+/**
+ * `context` is extra system prompt and `onResult` sees each finished turn, for sessions Mono drives itself
+ * (a group's planner and the sessions it launches).
+ */
+export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort, permissionMode, attachments = [], context, onResult }) {
   const mode = modeOrDefault(permissionMode);
   if (!CLAUDE_BIN) throw new Error("No encontré Claude Code en esta Mac. Instalalo (https://docs.claude.com/en/docs/claude-code/setup) y reiniciá Mono.");
   if (resume && chats.get(resume) && !chats.get(resume).closed) throw new Error("La sesión ya está abierta en el workspace");
@@ -369,6 +372,7 @@ export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort
           } else if (msg.type === "result") {
             if (chat.pending.size === 0) setState(chat, "idle");
             if (msg.subtype !== "success") chat.error = msg.subtype;
+            onResult?.(msg);
           }
         }
       } catch (error) {

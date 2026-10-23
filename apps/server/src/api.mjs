@@ -12,7 +12,7 @@ import { listCommands } from "./commands.mjs";
 import { refreshStatus, startRefresh } from "./refresh.mjs";
 import { listCaptureSkills } from "./capture.mjs";
 import { prStatus } from "./prs.mjs";
-import { spawnSessions } from "./spawn.mjs";
+import { planSessions } from "./spawn.mjs";
 
 const MIME = {
   ".png": "image/png",
@@ -167,7 +167,7 @@ function handleGroups(res, method, parts, body) {
     return send(res, 200, { ok: true });
   }
   if (sub === "sessions" && !sessionId && method === "POST") return send(res, 200, groups.addSession(id, body.sessionId, body.title));
-  if (sub === "spawn" && method === "POST") return send(res, 200, spawnSessions({ ...body, group: id }));
+  if (sub === "plan" && method === "POST") return planSessions({ ...body, group: id }).then((out) => send(res, 200, out));
   if (sub === "sessions" && sessionId && method === "DELETE") return send(res, 200, groups.removeSession(id, sessionId));
   return send(res, 404, { error: "not found" });
 }
@@ -231,7 +231,7 @@ export function createApi(broadcast) {
       if (resource === "health") return send(res, 200, { app: "mono", ok: true });
       if (resource === "me" && method === "GET") return send(res, 200, localAccount());
       if (resource === "chats") return await handleChats(res, method, parts, body);
-      if (resource === "groups") return handleGroups(res, method, parts, body);
+      if (resource === "groups") return await handleGroups(res, method, parts, body);
       if (resource === "capture-skills" && method === "GET") return send(res, 200, listCaptureSkills());
       if (resource === "models" && method === "GET") return send(res, 200, chats.listModels());
       if (resource === "commands" && method === "GET") return send(res, 200, listCommands(url.searchParams.get("cwd") ? chats.expandHome(url.searchParams.get("cwd")) : null));

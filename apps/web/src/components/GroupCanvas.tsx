@@ -290,7 +290,7 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
             ) : null}
             {group.failed?.length ? (
               <span className="status-pill-live failed" title={group.failed.map((f) => `${f.title}: ${f.error}`).join("\n")}>
-                {group.failed.length} no arrancaron
+                {group.failed.length} con error
               </span>
             ) : null}
           </span>
@@ -353,7 +353,7 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
             <div className="group-empty">
               <p>Este grupo está vacío.</p>
               <p className="hint">
-                Agregá sesiones con <b>Agregar sesión</b>, lanzá varias nuevas a la vez con <b>Lanzar sesiones</b>, o mandalas desde cualquier sesión con <b>Enviar a grupo</b>.
+                Agregá sesiones con <b>Agregar sesión</b>, pedile a Claude que planee y lance varias con <b>Lanzar sesiones</b>, o mandalas desde cualquier sesión con <b>Enviar a grupo</b>.
               </p>
             </div>
           )}

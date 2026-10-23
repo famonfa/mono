@@ -32,8 +32,8 @@ export const groupsApi = {
   remove: (id: string) => request(`/api/groups/${enc(id)}`, { method: "DELETE" }),
   addSession: (id: string, sessionId: string, title?: string) =>
     request<SessionGroup>(`/api/groups/${enc(id)}/sessions`, { method: "POST", body: JSON.stringify({ sessionId, title }) }),
-  spawn: (id: string, input: { sessions: { title: string; prompt: string; cwd: string }[]; model?: string; effort?: string }) =>
-    request<{ group: SessionGroup; queued: number; limit: number }>(`/api/groups/${enc(id)}/spawn`, { method: "POST", body: JSON.stringify(input) }),
+  plan: (id: string, input: { goal: string; cwd: string; model?: string; effort?: string }) =>
+    request<{ group: SessionGroup; sessionId: string }>(`/api/groups/${enc(id)}/plan`, { method: "POST", body: JSON.stringify(input) }),
   removeSession: (id: string, sessionId: string) => request<SessionGroup>(`/api/groups/${enc(id)}/sessions/${enc(sessionId)}`, { method: "DELETE" }),
 };
 
