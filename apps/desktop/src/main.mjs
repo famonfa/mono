@@ -3,8 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, dialog, Menu, nativeTheme, Notification, shell } from "electron";
-import { checkForUpdates } from "./updater.mjs";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, Notification, shell } from "electron";
+import { checkForUpdates, installUpdate, watchForUpdates } from "./updater.mjs";
 
 const PORT = Number(process.env.PORT ?? 4600);
 const APP_URL = `http://localhost:${PORT}`;
@@ -60,16 +60,19 @@ const notify = (body) => new Notification({ title: "Mono", body }).show();
  * Using Mono from the phone needs the server up even with the app closed: hand it to launchd first
  * (stopping the copy this window started), then pair with the relay through Google in the browser.
  */
-async function connectPhone() {
-  const { response } = await dialog.showMessageBox({
-    type: "info",
-    message: "Conectar con el celular",
-    detail: "Mono va a quedar corriendo en segundo plano (también al iniciar sesión) para que puedas usarlo desde el celu. Se abre el navegador: entrá con Google y aprobá el código.",
-    buttons: ["Conectar", "Cancelar"],
-    defaultId: 0,
-    cancelId: 1,
-  });
-  if (response !== 0) return;
+/** From the menu it asks first and reports with dialogs; from the in-app panel it just runs and throws. */
+async function connectPhone({ fromApp = false } = {}) {
+  if (!fromApp) {
+    const { response } = await dialog.showMessageBox({
+      type: "info",
+      message: "Conectar con el celular",
+      detail: "Mono va a quedar corriendo en segundo plano (también al iniciar sesión) para que puedas usarlo desde el celu. Se abre el navegador: entrá con Google y aprobá el código.",
+      buttons: ["Conectar", "Cancelar"],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (response !== 0) return;
+  }
   try {
     if (server) {
       server.kill();
@@ -79,8 +82,9 @@ async function connectPhone() {
     await runCli(["service", "install", "--if-missing"]);
     await waitUntilUp();
     await runCli(["connect"]);
-    notify("Listo: tu Mac quedó conectada. Entrá desde el celu con Google.");
+    if (!fromApp) notify("Listo: tu Mac quedó conectada. Entrá desde el celu con Google.");
   } catch (error) {
+    if (fromApp) throw error;
     dialog.showErrorBox("No se pudo conectar", error.message);
   }
 }
@@ -103,9 +107,9 @@ function buildMenu() {
       label: "Mono",
       submenu: [
         { role: "about", label: "Acerca de Mono" },
-        { label: "Buscar actualizaciones…", click: () => checkForUpdates({ manual: true }) },
+        { label: "Buscar actualizaciones…", click: () => checkForUpdates() },
         { type: "separator" },
-        { label: "Conectar con el celular…", click: connectPhone },
+        { label: "Conectar con el celular…", click: () => connectPhone() },
         { label: "Instalar el comando “mono” en la terminal…", click: installCommand },
         { type: "separator" },
         { role: "hide", label: "Ocultar Mono" },
@@ -166,8 +170,15 @@ app.whenReady().then(async () => {
   }
   createWindow();
   app.on("activate", () => BrowserWindow.getAllWindows().length === 0 && createWindow());
-  setTimeout(() => checkForUpdates(), 5000);
-  setInterval(() => checkForUpdates(), 6 * 60 * 60 * 1000);
+  // The page shows updates as a toast; it asks for the current one on load and hears about new ones here.
+  let available = null;
+  watchForUpdates((version) => {
+    available = version;
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send("mono:update", version);
+  });
+  ipcMain.handle("mono:update", () => available);
+  ipcMain.handle("mono:install-update", () => installUpdate());
+  ipcMain.handle("mono:connect-phone", () => connectPhone({ fromApp: true }));
 });
 
 app.on("window-all-closed", () => process.platform !== "darwin" && app.quit());

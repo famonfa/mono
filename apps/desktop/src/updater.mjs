@@ -13,41 +13,52 @@ const newer = (a, b) => {
   return false;
 };
 
-/** Checks for a newer Mono and offers to install it. `manual` also reports "up to date" and errors. */
-export async function checkForUpdates({ manual = false } = {}) {
-  if (!app.isPackaged) {
-    if (manual) dialog.showMessageBox({ message: "Las actualizaciones funcionan en la app instalada, no en desarrollo." });
-    return;
-  }
-  let latest;
+/** The newest published version when it's newer than this app, otherwise null. Throws when the relay can't be reached. */
+async function newerVersion() {
+  const res = await fetch(`${RELAY}/_mono/version`, { signal: AbortSignal.timeout(8000) });
+  const latest = res.ok ? await res.json() : null;
+  if (!latest?.version) throw new Error("No pude buscar actualizaciones. Revisá tu conexión.");
+  return newer(latest.version, app.getVersion()) ? latest.version : null;
+}
+
+/** Menu → Buscar actualizaciones…: answers with dialogs, including "up to date" and errors. */
+export async function checkForUpdates() {
+  if (!app.isPackaged) return dialog.showMessageBox({ message: "Las actualizaciones funcionan en la app instalada, no en desarrollo." });
+  let version;
   try {
-    const res = await fetch(`${RELAY}/_mono/version`, { signal: AbortSignal.timeout(8000) });
-    latest = res.ok ? await res.json() : null;
-  } catch {
-    latest = null;
+    version = await newerVersion();
+  } catch (error) {
+    return dialog.showErrorBox("Mono", error.message);
   }
-  if (!latest?.version) {
-    if (manual) dialog.showErrorBox("Mono", "No pude buscar actualizaciones. Revisá tu conexión.");
-    return;
-  }
-  if (!newer(latest.version, app.getVersion())) {
-    if (manual) dialog.showMessageBox({ message: `Tenés la última versión de Mono (${app.getVersion()}).` });
-    return;
-  }
+  if (!version) return dialog.showMessageBox({ message: `Tenés la última versión de Mono (${app.getVersion()}).` });
   const { response } = await dialog.showMessageBox({
     type: "info",
-    message: `Hay una versión nueva de Mono (${latest.version})`,
+    message: `Hay una versión nueva de Mono (${version})`,
     detail: `Tenés la ${app.getVersion()}. Se baja, se instala y Mono se vuelve a abrir.`,
     buttons: ["Actualizar", "Más tarde"],
     defaultId: 0,
     cancelId: 1,
   });
-  if (response !== 0) return;
-  try {
-    await install();
-  } catch (error) {
-    dialog.showErrorBox("No se pudo actualizar", error.message);
-  }
+  if (response === 0) await installUpdate().catch((error) => dialog.showErrorBox("No se pudo actualizar", error.message));
+}
+
+/** Checks quietly on launch, every 30 minutes and when the window comes back; `onAvailable` gets each newer version once. */
+export function watchForUpdates(onAvailable) {
+  if (!app.isPackaged) return;
+  let announced = null;
+  let last = 0;
+  const check = async () => {
+    if (Date.now() - last < 60_000) return;
+    last = Date.now();
+    const version = await newerVersion().catch(() => null);
+    if (version && version !== announced) {
+      announced = version;
+      onAvailable(version);
+    }
+  };
+  setTimeout(check, 5000);
+  setInterval(check, 30 * 60_000);
+  app.on("browser-window-focus", check);
 }
 
 /**
@@ -55,7 +66,7 @@ export async function checkForUpdates({ manual = false } = {}) {
  * trashes the old bundle (macOS only lets Finder remove installed apps), the new one takes its
  * place, the background service is restarted if it runs from this bundle, and Mono reopens.
  */
-async function install() {
+export async function installUpdate() {
   const bundle = path.resolve(process.execPath, "..", "..", "..");
   const arch = process.arch === "arm64" ? "arm64" : "x64";
   const work = fs.mkdtempSync(path.join(os.tmpdir(), "mono-update-"));

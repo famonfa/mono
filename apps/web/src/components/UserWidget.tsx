@@ -1,10 +1,8 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeftRight, Check, ChevronsUpDown, Copy, LogOut, Monitor, Smartphone, UserPlus } from "lucide-react";
+import { ArrowLeftRight, ChevronsUpDown, LogOut, Monitor, Smartphone, UserPlus } from "lucide-react";
 import { useAccount, type Account } from "../account";
-
-/** Set by the desktop app's preload (apps/desktop/src/preload.cjs). */
-const inDesktopApp = typeof window !== "undefined" && "monoDesktop" in window;
+import { PhonePanel } from "./PhonePanel";
 
 const initials = (text: string) =>
   text
@@ -47,24 +45,6 @@ function Item({ icon, children, href, onClick, external }: { icon: ReactNode; ch
   );
 }
 
-function CopyCommand({ command }: { command: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      className="user-command"
-      onClick={() => {
-        navigator.clipboard.writeText(command);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      }}
-      title="Copiar"
-    >
-      <code>{command}</code>
-      {copied ? <Check size={13} /> : <Copy size={13} />}
-    </button>
-  );
-}
-
 /** Mono runs the Claude Code installed on the Mac; say so, or how to fix it when it's missing. */
 function ClaudeStatus({ account }: { account: Account }) {
   if (account.claude === undefined) return null;
@@ -89,7 +69,7 @@ function ClaudeStatus({ account }: { account: Account }) {
   );
 }
 
-function MenuContent({ account }: { account: Account }) {
+function MenuContent({ account, onPhone }: { account: Account; onPhone: () => void }) {
   if (account.mode === "remote") {
     return (
       <>
@@ -136,34 +116,18 @@ function MenuContent({ account }: { account: Account }) {
       </div>
       <ClaudeStatus account={account} />
       <div className="user-menu-divider" />
-      {account.remote ? (
-        <>
-          <div className="user-menu-section">
-            <div className="user-menu-caption">Celular y web</div>
-            <div className="user-menu-host">
-              <span className="user-dot" />
-              Conectada como {account.remote.email}
-            </div>
-          </div>
-          <Item icon={<Smartphone size={14} />} href={account.remote.relay} external>
-            Abrir desde cualquier lado
-          </Item>
-        </>
-      ) : (
+      {account.remote && (
         <div className="user-menu-section">
-          <div className="user-menu-caption">Usala desde el celu</div>
-          {inDesktopApp ? (
-            <p className="user-menu-text">
-              En el menú <b>Mono → Conectar con el celular…</b> y entrá con Google.
-            </p>
-          ) : (
-            <>
-              <p className="user-menu-text">Corré esto en la terminal y entrá con Google:</p>
-              <CopyCommand command={account.connectCommand} />
-            </>
-          )}
+          <div className="user-menu-caption">Celular y web</div>
+          <div className="user-menu-host">
+            <span className="user-dot" />
+            Conectada como {account.remote.email}
+          </div>
         </div>
       )}
+      <Item icon={<Smartphone size={14} />} onClick={onPhone}>
+        {account.remote ? "Abrir en el celular" : "Usar desde el celular"}
+      </Item>
       <div className="user-menu-foot">Mono {account.version}</div>
     </>
   );
@@ -173,6 +137,7 @@ function MenuContent({ account }: { account: Account }) {
 export function UserWidget() {
   const account = useAccount();
   const [open, setOpen] = useState(false);
+  const [phone, setPhone] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; bottom: number; width: number }>({ left: 0, bottom: 0, width: 0 });
@@ -205,11 +170,18 @@ export function UserWidget() {
         createPortal(
           <div className="menu-backdrop" onMouseDown={() => setOpen(false)}>
             <div className="user-menu" ref={menu} style={pos} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.key === "Escape" && setOpen(false)}>
-              <MenuContent account={account} />
+              <MenuContent
+                account={account}
+                onPhone={() => {
+                  setOpen(false);
+                  setPhone(true);
+                }}
+              />
             </div>
           </div>,
           document.body,
         )}
+      {phone && account.mode === "local" && <PhonePanel account={account} onClose={() => setPhone(false)} />}
     </>
   );
 }

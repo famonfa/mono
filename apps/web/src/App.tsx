@@ -6,6 +6,7 @@ import { AgentsPage, SessionView, StatusDot } from "./components/Agents";
 import { BoardView } from "./components/BoardView";
 import { NewSession, TaskSessions } from "./components/Chat";
 import { CommandPalette } from "./components/CommandPalette";
+import { UpdateToast } from "./components/UpdateToast";
 import { DocView } from "./components/DocView";
 import { GroupView } from "./components/GroupCanvas";
 import { Home } from "./components/Home";
@@ -143,6 +144,7 @@ export function App() {
       </div>
       {palette && <CommandPalette route={route} onClose={() => setPalette(false)} />}
       {dialog && <Dialog request={dialog} onClose={() => setDialog(null)} />}
+      <UpdateToast />
     </AppContext.Provider>
   );
 }
