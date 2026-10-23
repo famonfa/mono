@@ -57,19 +57,12 @@ export function getTask(id) {
   if (!fs.existsSync(dir)) return null;
   const meta = readJson(path.join(dir, "task.json"), {});
   const tests = { pass: 0, fail: 0, todo: 0, skip: 0 };
-  const evidence = { total: 0, withMedia: 0 };
   const boards = listFiles(path.join(dir, "boards"), (f) => f.endsWith(".json")).map((f) => {
     const board = readJson(path.join(dir, "boards", f), {});
     const boardId = f.replace(/\.json$/, "");
     const nodes = board.nodes?.filter((n) => n.type !== "lane") ?? [];
     if (board.kind === "tests") {
       for (const n of nodes) if (n.data?.test in tests) tests[n.data.test]++;
-    }
-    if (board.kind === "ui") {
-      for (const n of nodes.filter((n) => n.type === "card" || n.type === "image")) {
-        evidence.total++;
-        if (n.data?.image || n.data?.video) evidence.withMedia++;
-      }
     }
     return { id: boardId, title: board.title ?? boardId, kind: board.kind ?? "free", order: board.order ?? 99, nodeCount: nodes.length };
   });
@@ -83,14 +76,13 @@ export function getTask(id) {
     docs: listFiles(path.join(dir, "docs"), (f) => f.endsWith(".md")),
     assets: listFiles(path.join(dir, "assets"), (f) => MEDIA_EXT.test(f)),
     tests: { ...tests, total: tests.pass + tests.fail + tests.todo + tests.skip },
-    evidence,
   };
 }
 
 export function saveTask(id, patch) {
   const file = path.join(taskDir(id), "task.json");
   const current = readJson(file, {});
-  const { boards, docs, assets, tests, evidence, ...rest } = patch;
+  const { boards, docs, assets, tests, ...rest } = patch;
   const next = { ...current, ...rest, id, updatedAt: new Date().toISOString() };
   writeJson(file, next);
   return getTask(id);

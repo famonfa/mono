@@ -9,7 +9,7 @@ import { formatDate, Menu, slugify, timeAgo } from "../ui";
 import { lastSessionId, sessionsApi, useRefreshJob } from "../sessions";
 import { SessionRow, StatusDot } from "./Agents";
 import { BoardView } from "./BoardView";
-import { EvidenceGallery, isVideo, StatusStrip } from "./Evidence";
+import { isVideo, StatusStrip } from "./Evidence";
 import { Markdown } from "./Markdown";
 import { ProjectIcon } from "./Projects";
 
@@ -126,18 +126,17 @@ const TLDR = [
 function RefreshButton({ task, onDone, onAuto }: { task: Task; onDone: () => void; onAuto: (on: boolean) => Promise<void> }) {
   const { openDialog } = useApp();
   const { job, start } = useRefreshJob(task.id, onDone);
-  const refreshing = job.status === "running" && job.mode !== "capture";
+  const refreshing = job.status === "running";
   const showOutput = () =>
     openDialog({ title: job.status === "failed" ? "Update failed" : "Last update", submitLabel: "Close", fields: [{ name: "out", label: "Output", defaultValue: job.output?.trim() || "(no output)", multiline: true, readOnly: true }], onSubmit: () => {} });
 
   return (
     <div className="refresh-box">
-      <button className="btn ai" onClick={() => start("refresh")} disabled={job.status === "running"}>
+      <button className="btn ai" onClick={() => start()} disabled={job.status === "running"}>
         {refreshing ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
         {refreshing ? "Updating with AI…" : "Update with AI"}
       </button>
       <div className="refresh-meta">
-        {job.status === "running" && job.mode === "capture" && "Capturing evidence · live in Agents"}
         {refreshing && "Live in Agents"}
         {job.status !== "running" && task.refreshedAt && `Updated ${timeAgo(task.refreshedAt)}`}
         {(job.status === "done" || job.status === "failed") && (
@@ -240,8 +239,6 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
               </div>
             ))}
           </div>
-
-          <EvidenceGallery task={task} onChange={onChange} onOpen={setLightbox} />
 
           <BoardsPanel task={task} onCreate={createBoard} />
 

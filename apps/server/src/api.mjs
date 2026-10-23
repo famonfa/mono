@@ -10,7 +10,6 @@ import * as groups from "./groups.mjs";
 import * as projects from "./projects.mjs";
 import { listCommands, readCommand } from "./commands.mjs";
 import { refreshStatus, startRefresh } from "./refresh.mjs";
-import { listCaptureSkills } from "./capture.mjs";
 import { prStatus } from "./prs.mjs";
 import { planSessions } from "./spawn.mjs";
 
@@ -237,7 +236,6 @@ export function createApi(broadcast) {
       if (resource === "me" && method === "GET") return send(res, 200, localAccount());
       if (resource === "chats") return await handleChats(res, method, parts, body);
       if (resource === "groups") return await handleGroups(res, method, parts, body);
-      if (resource === "capture-skills" && method === "GET") return send(res, 200, listCaptureSkills());
       if (resource === "models" && method === "GET") return send(res, 200, chats.listModels());
       if (resource === "commands" && method === "GET" && url.searchParams.get("name")) {
         const found = readCommand(url.searchParams.get("cwd") ? chats.expandHome(url.searchParams.get("cwd")) : null, url.searchParams.get("name"));
@@ -291,7 +289,7 @@ export function createApi(broadcast) {
         return send(res, 200, await prStatus((task?.repos ?? []).map((r) => r.pr).filter(Boolean)));
       }
       if (id && sub === "refresh") {
-        if (method === "POST") return send(res, 200, startRefresh(id, { mode: body?.mode === "capture" ? "capture" : "refresh" }));
+        if (method === "POST") return send(res, 200, startRefresh(id));
         if (method === "GET") return send(res, 200, refreshStatus(id));
       }
 

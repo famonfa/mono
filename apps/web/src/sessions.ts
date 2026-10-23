@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { onServerEvent } from "./events";
-import type { CaptureSkill, PrStatus } from "./types";
+import type { PrStatus } from "./types";
 
 export type SessionStatus = "working" | "idle" | "inactive";
 /** Where the user filed a session: ongoing until put on hold or finished. */
@@ -61,7 +61,7 @@ export type SessionEvent = {
 
 type SessionDetail = { session: SessionSummary; events: SessionEvent[]; cursor: number; truncated: boolean };
 
-export type RefreshJob = { status: "never" | "running" | "done" | "failed"; mode?: "refresh" | "capture"; startedAt?: string; finishedAt?: string; output?: string };
+export type RefreshJob = { status: "never" | "running" | "done" | "failed"; startedAt?: string; finishedAt?: string; output?: string };
 
 async function get<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -78,10 +78,9 @@ export const sessionsApi = {
     return get<SessionDetail>(`/api/sessions/${encodeURIComponent(id)}?${params}`);
   },
   refreshStatus: (taskId: string) => get<RefreshJob>(`/api/tasks/${encodeURIComponent(taskId)}/refresh`),
-  captureSkills: () => get<CaptureSkill[]>("/api/capture-skills"),
   prStatus: (taskId: string) => get<PrStatus[]>(`/api/tasks/${encodeURIComponent(taskId)}/prs`),
-  startRefresh: async (taskId: string, mode: "refresh" | "capture" = "refresh") => {
-    const res = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/refresh`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode }) });
+  startRefresh: async (taskId: string) => {
+    const res = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/refresh`, { method: "POST" });
     if (!res.ok) throw new Error((await res.json())?.error ?? res.statusText);
     return (await res.json()) as RefreshJob;
   },
@@ -232,7 +231,7 @@ export function rememberSession(sessionId: string, taskId?: string) {
 
 export const lastSessionId = (taskId?: string) => localStorage.getItem(lastKey(taskId));
 
-/** The background job of a task (refresh or evidence capture), polled while it runs. */
+/** The background refresh job of a task, polled while it runs. */
 export function useRefreshJob(taskId: string, onFinished?: () => void) {
   const [job, setJob] = useState<RefreshJob>({ status: "never" });
   const poll = useCallback(() => sessionsApi.refreshStatus(taskId).then(setJob, () => {}), [taskId]);
@@ -247,6 +246,6 @@ export function useRefreshJob(taskId: string, onFinished?: () => void) {
     if (previous.current === "running" && job.status !== "running") onFinished?.();
     previous.current = job.status;
   }, [job.status, onFinished]);
-  const start = async (mode: "refresh" | "capture" = "refresh") => setJob(await sessionsApi.startRefresh(taskId, mode));
+  const start = async () => setJob(await sessionsApi.startRefresh(taskId));
   return { job, start };
 }
