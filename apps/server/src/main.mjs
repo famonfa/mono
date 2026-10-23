@@ -7,7 +7,8 @@ const PORT = Number(process.env.PORT ?? 4600);
 const HOST = "127.0.0.1";
 
 const clients = new Set();
-const relay = startRemote({ port: PORT });
+// A dev server next to the installed app must not take over the app's relay connection.
+const relay = process.env.MONO_NO_REMOTE ? { forward() {} } : startRemote({ port: PORT });
 
 function broadcast(event, data) {
   const frame = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;

@@ -8,6 +8,8 @@
   "scripts": {
     "start": "npm run start -w @famonfa/mono",
     "dev": "npm run dev -w @mono/web",
+    "dev:server": "PORT=4610 MONO_NO_REMOTE=1 node --watch apps/server/src/main.mjs",
+    "dev:full": "npm run dev:server & MONO_BACKEND=http://127.0.0.1:4610 npm run dev; kill %1",
     "build": "npm run build -w @mono/web",
     "typecheck": "npm run typecheck -w @mono/web",
     "desktop": "npm run build && npm run start -w @mono/desktop",
