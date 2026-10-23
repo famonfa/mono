@@ -31,6 +31,9 @@ const USAGE = `mono (alias: ws) — CLI de Mono (http://localhost:4600)
   ws sessions [task] [--since ISO]         Actividad reciente de los agentes (de una tarea o todos)
   ws groups                                Lista los grupos de sesiones (canvas de chats)
   ws group <grupo> <session-id...>         Manda sesiones al canvas de un grupo (lo crea si no existe)
+  ws spawn <grupo> <file.json|->          Lanza sesiones en paralelo en el canvas de un grupo (hasta 6 a la vez,
+                                           el resto en cola). JSON: [{"title", "prompt", "cwd"?}]; cwd por defecto
+                                           la carpeta actual. Las que comparten repo trabajan cada una en su worktree.
   ws open [task]                           Abre la app en el navegador
   ws path [task]                           Imprime la carpeta de datos`;
 
@@ -168,6 +171,25 @@ switch (command === "--web" ? "launch" : (command ?? (invokedAs === "ws" ? "help
     let group = groups.findGroup(ref) ?? groups.createGroup({ name: ref });
     for (const id of ids) group = groups.addSession(group.id, id, titles.get(id));
     console.log(`${group.name}: ${group.panes.length} sesiones · http://localhost:4600/#/g/${group.id}`);
+    break;
+  }
+  case "spawn": {
+    requireArgs(2);
+    const [ref, source] = args;
+    const parsed = JSON.parse(readInput(source));
+    const list = (Array.isArray(parsed) ? parsed : parsed.sessions ?? []).map((s) => ({ ...s, cwd: path.resolve(s.cwd ? s.cwd.replace(/^~(?=$|\/)/, process.env.HOME) : process.cwd()) }));
+    await launcher.ensureServer();
+    const res = await fetch(`${launcher.APP_URL}/api/spawn`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...(Array.isArray(parsed) ? {} : parsed), group: ref, sessions: list, taskId: process.env.MONO_TASK_ID || undefined }),
+    });
+    const out = await res.json();
+    if (!res.ok) fail(out.error ?? res.statusText);
+    const started = list.length - out.queued;
+    console.log(`${out.group.name}: ${started} arrancando${out.queued ? `, ${out.queued} en cola` : ""} (máximo ${out.limit} a la vez)`);
+    console.log(`${launcher.APP_URL}/#/g/${out.group.id}`);
+    console.log("Seguí el avance con `ws sessions` o en el canvas. Cada sesión termina con un resumen.");
     break;
   }
   case "open": {

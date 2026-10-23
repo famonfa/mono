@@ -9,6 +9,9 @@ export type SessionGroup = {
   createdAt: string;
   updatedAt: string;
   panes: GroupPane[];
+  /** `ws spawn` children still waiting for a free slot, and the ones that failed to start. */
+  queued?: string[];
+  failed?: { title: string; error: string }[];
 };
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {

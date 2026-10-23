@@ -4050,6 +4050,10 @@ textarea,
   background: var(--unread-soft);
 }
 
+.status-pill-live.failed {
+  color: #eb5757;
+}
+
 .agent-row.unread .agent-title,
 .session-item.unread .session-item-title {
   color: var(--text);

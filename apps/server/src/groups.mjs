@@ -82,3 +82,11 @@ export function removeSession(id, sessionId) {
     group.panes = group.panes.filter((p) => p.sessionId !== sessionId);
   });
 }
+
+/** Fan-out progress shown in the canvas: titles still waiting to start, and children that failed to start. */
+export function setSpawnState(id, { queued, failed }) {
+  return mutate(id, (group) => {
+    if (Array.isArray(queued)) group.queued = queued.length ? queued : undefined;
+    if (Array.isArray(failed)) group.failed = [...(group.failed ?? []), ...failed];
+  });
+}

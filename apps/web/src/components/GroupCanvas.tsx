@@ -282,6 +282,16 @@ function GroupCanvas({ group }: { group: SessionGroup }) {
                 <StatusDot status="idle" size={7} /> {idle} en pausa
               </span>
             )}
+            {group.queued?.length ? (
+              <span className="status-pill-live idle" title={group.queued.join("\n")}>
+                {group.queued.length} en cola
+              </span>
+            ) : null}
+            {group.failed?.length ? (
+              <span className="status-pill-live failed" title={group.failed.map((f) => `${f.title}: ${f.error}`).join("\n")}>
+                {group.failed.length} no arrancaron
+              </span>
+            ) : null}
           </span>
           <span className="spacer" />
           <Menu
