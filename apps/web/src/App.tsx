@@ -7,6 +7,7 @@ import { BoardView } from "./components/BoardView";
 import { FolderPicker, NewSession, TaskSessions } from "./components/Chat";
 import { CommandPalette } from "./components/CommandPalette";
 import { UpdateToast } from "./components/UpdateToast";
+import { AppearancePicker } from "./components/AppearancePicker";
 import { DocView } from "./components/DocView";
 import { GroupView } from "./components/GroupCanvas";
 import { Home } from "./components/Home";
@@ -19,14 +20,15 @@ import { groupsApi, reloadGroups, useGroups } from "./groups";
 import { href, navigate, useRoute, type Route } from "./router";
 import { lastSessionId, useSessions } from "./sessions";
 import type { Task, TaskStatus } from "./types";
-import { Dialog, useHotkey, useTheme, type DialogRequest } from "./ui";
+import { useAppearance } from "./appearance";
+import { Dialog, useHotkey, type DialogRequest } from "./ui";
 import { useUnread } from "./unread";
 
 export function App() {
   const route = useRoute();
   const { data, reload: reloadTasks, setData } = useLiveData(api.listTasks, []);
   const tasks = useMemo(() => data ?? [], [data]);
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, appearance, setAppearance } = useAppearance();
   const sessions = useSessions(3);
   const { data: projectData, reload: reloadProjects } = useLiveData(api.listProjects, []);
   const projects = useMemo(() => projectData ?? [], [projectData]);
@@ -95,6 +97,8 @@ export function App() {
     newTask,
     theme,
     toggleTheme,
+    appearance,
+    setAppearance,
   };
 
   const overlayOpen = Boolean(dialog || palette);
@@ -274,6 +278,7 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
         <button className="icon-btn" onClick={toggleTheme} title="Toggle theme">
           {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
         </button>
+        <AppearancePicker />
         <button className="icon-btn" onClick={onToggle} title="Hide sidebar ([)">
           <PanelLeft size={15} />
         </button>

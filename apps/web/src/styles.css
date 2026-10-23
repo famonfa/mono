@@ -1,28 +1,39 @@
+/* Appearance: the palette (ui.tsx) sets --accent and --tint on <html>; --tint-level 0–2 tints the surfaces. */
+:root {
+  --accent: #5e6ad2;
+  --tint: #5e6ad2;
+  --tint-level: 0;
+  --on-accent: #fff;
+}
+
 :root,
 :root[data-theme="dark"] {
-  --bg-app: #0d0d0f;
-  --bg-panel: #151517;
-  --bg-elev: #1b1b1e;
-  --bg-elev-2: #222226;
+  --tint-mix: calc(var(--tint-level) * 9%);
+  --bg-app: color-mix(in oklab, #0d0d0f, var(--tint) var(--tint-mix));
+  --bg-panel: color-mix(in oklab, #151517, var(--tint) var(--tint-mix));
+  --bg-elev: color-mix(in oklab, #1b1b1e, var(--tint) var(--tint-mix));
+  --bg-elev-2: color-mix(in oklab, #222226, var(--tint) var(--tint-mix));
   --bg-hover: rgb(255 255 255 / 0.045);
   --bg-active: rgb(255 255 255 / 0.075);
-  --bg-canvas: #111113;
+  --bg-canvas: color-mix(in oklab, #111113, var(--tint) var(--tint-mix));
   --border: rgb(255 255 255 / 0.065);
   --border-strong: rgb(255 255 255 / 0.11);
   --text: #e8e8ea;
   --text-2: #a4a4ad;
   --text-3: #6f6f78;
   --text-4: #45454c;
-  --accent: #5e6ad2;
-  --accent-hover: #6c78e0;
-  --accent-soft: rgb(94 106 210 / 0.16);
+  --accent-hover: color-mix(in oklab, var(--accent), white 12%);
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --energy: color-mix(in oklab, var(--accent), white 32%);
+  --energy-soft: color-mix(in srgb, var(--energy) 22%, transparent);
+  --energy-core: color-mix(in oklab, var(--accent), white 90%);
   --unread: #4ea7fc;
   --unread-soft: rgb(78 167 252 / 0.22);
   --shadow: 0 12px 40px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.06);
   --canvas-dots: rgb(255 255 255 / 0.09);
-  --minimap-mask: rgb(13 13 15 / 0.7);
+  --minimap-mask: color-mix(in srgb, var(--bg-app) 70%, transparent);
   --minimap-lane: rgb(255 255 255 / 0.06);
-  --card-bg: #1c1c1f;
+  --card-bg: color-mix(in oklab, #1c1c1f, var(--tint) var(--tint-mix));
   --lane-bg: rgb(255 255 255 / 0.018);
   --lane-border: rgb(255 255 255 / 0.08);
   --activity-bg: #26262b;
@@ -32,27 +43,31 @@
 }
 
 :root[data-theme="light"] {
-  --bg-app: #f3f3f5;
-  --bg-panel: #ffffff;
-  --bg-elev: #ffffff;
-  --bg-elev-2: #f7f7f8;
+  --tint-mix: calc(var(--tint-level) * 6%);
+  --bg-app: color-mix(in oklab, #f3f3f5, var(--tint) var(--tint-mix));
+  --bg-panel: color-mix(in oklab, #ffffff, var(--tint) var(--tint-mix));
+  --bg-elev: color-mix(in oklab, #ffffff, var(--tint) var(--tint-mix));
+  --bg-elev-2: color-mix(in oklab, #f7f7f8, var(--tint) var(--tint-mix));
   --bg-hover: rgb(0 0 0 / 0.035);
   --bg-active: rgb(0 0 0 / 0.06);
-  --bg-canvas: #fafafa;
+  --bg-canvas: color-mix(in oklab, #fafafa, var(--tint) var(--tint-mix));
   --border: rgb(0 0 0 / 0.07);
   --border-strong: rgb(0 0 0 / 0.12);
   --text: #1b1b1f;
   --text-2: #5c5c66;
   --text-3: #8b8b94;
   --text-4: #c4c4cb;
-  --accent-soft: rgb(94 106 210 / 0.1);
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, transparent);
+  --energy: var(--accent);
+  --energy-soft: color-mix(in srgb, var(--accent) 20%, transparent);
+  --energy-core: #ffffff;
   --unread: #1f7ae0;
   --unread-soft: rgb(31 122 224 / 0.16);
   --shadow: 0 12px 40px rgb(0 0 0 / 0.12), 0 0 0 1px rgb(0 0 0 / 0.06);
   --canvas-dots: rgb(0 0 0 / 0.1);
-  --minimap-mask: rgb(250 250 250 / 0.7);
+  --minimap-mask: color-mix(in srgb, var(--bg-canvas) 70%, transparent);
   --minimap-lane: rgb(0 0 0 / 0.05);
-  --card-bg: #ffffff;
+  --card-bg: color-mix(in oklab, #ffffff, var(--tint) var(--tint-mix));
   --lane-bg: rgb(0 0 0 / 0.015);
   --lane-border: rgb(0 0 0 / 0.08);
   --activity-bg: #26262b;
@@ -153,7 +168,7 @@ code,
 
 .btn.primary {
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
 }
 
 .btn.primary:hover {
@@ -1978,7 +1993,7 @@ code,
   height: 24px;
   border-radius: 50%;
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
 }
 
 .activity {
@@ -2471,7 +2486,7 @@ code,
   padding: 0 14px;
   border-radius: 999px;
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
   font-weight: 500;
   box-shadow: 0 6px 20px rgb(0 0 0 / 0.3);
 }
@@ -2540,8 +2555,8 @@ code,
 .btn.ai {
   justify-content: center;
   height: 32px;
-  background: linear-gradient(135deg, rgb(94 106 210 / 0.22), rgb(217 119 87 / 0.18));
-  border: 1px solid rgb(94 106 210 / 0.35);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, transparent), rgb(217 119 87 / 0.18));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
   color: var(--text);
 }
 
@@ -2670,7 +2685,7 @@ code,
 
 .composer-send {
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
 }
 
 .composer-send:disabled {
@@ -2899,7 +2914,7 @@ code,
 .question-option.on .question-mark {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .question-option-body {
@@ -4027,7 +4042,7 @@ textarea,
 }
 
 .group-pane.working {
-  border-color: rgb(94 106 210 / 0.45);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 .group-pane-head {
@@ -4741,4 +4756,112 @@ a.status-tile.link:hover {
   font-size: 12px;
   color: var(--text-3);
   margin-right: 4px;
+}
+
+/* Appearance picker */
+.icon-btn.on {
+  background: var(--bg-active);
+  color: var(--text);
+}
+
+.menu.appearance {
+  width: 248px;
+  padding: 4px 12px 12px;
+}
+
+.appearance-section {
+  margin: 10px 0 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.appearance-segment {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--bg-hover);
+}
+
+.appearance-segment button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 26px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.appearance-segment button:hover {
+  color: var(--text);
+}
+
+.appearance-segment button.on {
+  background: var(--bg-elev-2);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+
+.appearance-swatches {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 4px;
+}
+
+.appearance-swatch {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--swatch);
+  color: #fff;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.appearance-swatch:hover {
+  transform: scale(1.12);
+}
+
+.appearance-swatch.on {
+  box-shadow: 0 0 0 2px var(--bg-elev), 0 0 0 3.5px var(--swatch);
+}
+
+.appearance-swatch.custom:not(.on) {
+  background: conic-gradient(#eb5757, #f2c94c, #4cb782, #26b5ce, #5e6ad2, #bb87fc, #eb5757);
+}
+
+.appearance-swatch.custom input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.appearance-current {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.appearance-current code {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.appearance-dot,
+.palette-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
 }

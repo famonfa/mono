@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Bot, CornerDownLeft, Home, MessageSquarePlus, Moon, Plus, Search, Sparkles, Sun, Trash2 } from "lucide-react";
+import { Bot, CornerDownLeft, Home, MessageSquarePlus, Moon, Palette, Plus, Search, Sparkles, Sun, Trash2 } from "lucide-react";
+import { PALETTES, TINT_LABELS, type TintLevel } from "../appearance";
 import { api } from "../api";
 import { ALL_PROJECTS, ProjectIcon } from "./Projects";
 import { useApp } from "../app-context";
@@ -10,7 +11,7 @@ import { href, navigate, type Route } from "../router";
 type Command = { id: string; group: string; label: string; sublabel?: string; icon: ReactNode; shortcut?: string; run: () => void };
 
 export function CommandPalette({ route, onClose }: { route: Route; onClose: () => void }) {
-  const { tasks, sessions, projects, project, setProject, newTask, updateTask, theme, toggleTheme, openDialog, reloadTasks } = useApp();
+  const { tasks, sessions, projects, project, setProject, newTask, updateTask, theme, toggleTheme, appearance, setAppearance, openDialog, reloadTasks } = useApp();
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const currentTask = "taskId" in route ? tasks.find((t) => t.id === route.taskId) : undefined;
@@ -59,11 +60,19 @@ export function CommandPalette({ route, onClose }: { route: Route; onClose: () =
       list.push({ id: `session:${s.id}`, group: "Agents", label: s.title, sublabel: s.project, icon: <Bot size={14} />, run: () => navigate(href.session(s.id)) });
     }
     list.push({ id: "theme", group: "Actions", label: theme === "dark" ? "Light theme" : "Dark theme", icon: theme === "dark" ? <Sun size={14} /> : <Moon size={14} />, run: toggleTheme });
+    for (const p of PALETTES) {
+      if (p.id === appearance.palette) continue;
+      list.push({ id: `palette:${p.id}`, group: "Appearance", label: `Accent: ${p.label}`, icon: <span className="palette-dot" style={{ background: p.accent }} />, run: () => setAppearance({ palette: p.id }) });
+    }
+    for (const level of [0, 1, 2] as TintLevel[]) {
+      if (level === appearance.tint) continue;
+      list.push({ id: `tint:${level}`, group: "Appearance", label: `Background: ${TINT_LABELS[level]}`, icon: <Palette size={14} />, run: () => setAppearance({ tint: level }) });
+    }
     for (const t of tasks) {
       list.push({ id: `t:${t.id}`, group: "Tasks", label: t.title, sublabel: t.id, icon: <StatusIcon status={t.status} />, run: () => navigate(href.task(t.id)) });
     }
     return list;
-  }, [tasks, sessions, projects, project, setProject, currentTask, newTask, updateTask, theme, toggleTheme, openDialog, reloadTasks]);
+  }, [tasks, sessions, projects, project, setProject, currentTask, newTask, updateTask, theme, toggleTheme, appearance, setAppearance, openDialog, reloadTasks]);
 
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   const filtered = commands.filter((c) => words.every((w) => `${c.label} ${c.sublabel ?? ""} ${c.group}`.toLowerCase().includes(w)));

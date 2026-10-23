@@ -1,6 +1,7 @@
 import { createContext, useContext } from "react";
 import type { Project, TaskStatus, Task } from "./types";
 import type { DialogRequest } from "./ui";
+import type { Appearance } from "./appearance";
 import type { SessionSummary } from "./sessions";
 
 export type AppContextValue = {
@@ -17,6 +18,8 @@ export type AppContextValue = {
   newTask: (status?: TaskStatus) => void;
   theme: "dark" | "light";
   toggleTheme: () => void;
+  appearance: Appearance;
+  setAppearance: (patch: Partial<Appearance>) => void;
 };
 
 export const AppContext = createContext<AppContextValue>(null as never);

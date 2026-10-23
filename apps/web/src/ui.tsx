@@ -24,17 +24,6 @@ export function useHotkey(key: string, handler: (e: KeyboardEvent) => void, opts
   }, [key, opts.meta, opts.enabled]);
 }
 
-export type Theme = "dark" | "light";
-
-export function useTheme() {
-  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem("ws-theme") as Theme) ?? "dark");
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem("ws-theme", theme);
-  }, [theme]);
-  return { theme, toggleTheme: () => setTheme((t) => (t === "dark" ? "light" : "dark")) };
-}
-
 export type MenuOption<T extends string> = { value: T; label: string; icon?: ReactNode; hint?: string };
 
 /** Linear-style popover select: filterable, keyboard navigable, number shortcuts. */
