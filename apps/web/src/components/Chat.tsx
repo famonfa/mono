@@ -482,6 +482,22 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
     remember(next);
     if (chat?.live) setChat(await chatApi.configure(sessionId, next));
   };
+  const [cwdOverride, setCwdOverride] = useState<string | null>(null);
+  const [cwdError, setCwdError] = useState<string | null>(null);
+  const [worktrees, setWorktrees] = useState<Worktree[]>([]);
+  useEffect(() => {
+    if (summary?.projectId) void chatApi.projectWorktrees(summary.projectId).then(setWorktrees, () => setWorktrees([]));
+  }, [summary?.projectId]);
+  const currentCwd = cwdOverride ?? summary?.focusCwd ?? chat?.cwd ?? summary?.firstCwd ?? summary?.cwd ?? undefined;
+  const changeCwd = async (next: string) => {
+    setCwdError(null);
+    try {
+      const res = await chatApi.setCwd(sessionId, next);
+      setCwdOverride(res.cwd);
+    } catch (e) {
+      setCwdError(e instanceof Error ? e.message : String(e));
+    }
+  };
   const promptCount = feed.events.filter((e) => e.kind === "prompt").length;
   const sentAt = useRef(promptCount);
 
@@ -523,18 +539,26 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
           disabled={busyElsewhere}
           disabledReason={busyElsewhere ? "Esta sesión está trabajando en otra app. Cuando quede en pausa, podés seguirla desde acá." : undefined}
           running={running && live}
-          commandsCwd={chat?.cwd ?? summary?.focusCwd ?? summary?.firstCwd ?? summary?.cwd ?? undefined}
+          commandsCwd={currentCwd}
           onSend={send}
           onStop={() => void chatApi.interrupt(sessionId).then(setChat)}
           footer={
             <>
               <ModelPicker models={models} model={config.model} effort={config.effort} onChange={changeConfig} />
               <PermissionMenu value={config.permissionMode ?? "bypassPermissions"} onChange={(permissionMode) => changeConfig({ permissionMode })} />
-              {chat?.cwd && (
-                <span className="composer-cwd" title={chat.cwd}>
-                  <FolderGit2 size={12} /> {chat.cwd.split("/").slice(-2).join("/")}
-                </span>
+              {currentCwd && (
+                <Menu
+                  value={currentCwd}
+                  placeholder="Buscar carpeta o rama, o escribí una ruta (/… o ~/…)"
+                  options={worktrees.map((w) => ({ value: w.path, label: worktreeLabel(w), icon: <FolderGit2 size={13} /> }))}
+                  custom={(q) => (/^[/~]/.test(q) ? { value: q, label: `Usar carpeta ${q}`, icon: <Folder size={13} /> } : null)}
+                  onChange={(next) => void changeCwd(next)}
+                  className="mode-trigger"
+                >
+                  <FolderGit2 size={12} /> <span title={currentCwd}>{currentCwd.split("/").slice(-2).join("/")}</span>
+                </Menu>
               )}
+              {cwdError && <span className="composer-hint">{cwdError}</span>}
               {!live && <span className="composer-hint">{summary ? "Se retoma al enviar" : ""}</span>}
             </>
           }

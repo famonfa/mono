@@ -57,6 +57,7 @@ export const chatApi = {
     });
     return call<Attachment>("/api/uploads", { name: file.name || "pegado.png", type: file.type, data });
   },
+  setCwd: (sessionId: string, cwd: string) => call<{ sessionId: string; cwd: string }>(`/api/chats/${enc(sessionId)}/cwd`, { cwd }),
   interrupt: (sessionId: string) => call<ChatState>(`/api/chats/${enc(sessionId)}/interrupt`, {}),
   answer: (sessionId: string, requestId: string, decision: { allow: boolean; always?: boolean; message?: string; answers?: Record<string, string> }) =>
     call<ChatState>(`/api/chats/${enc(sessionId)}/permissions/${enc(requestId)}`, decision),

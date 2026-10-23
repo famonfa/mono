@@ -42,6 +42,10 @@ export type BoardSummary = { id: string; title: string; kind: BoardKind; nodeCou
 
 export type RepoRef = { name: string; branch?: string; pr?: string; worktree?: string };
 
+export type CaptureSkill = { id: string; name: string; description: string; targets: string[]; outputs: string[]; needs: string[]; verified: string | null };
+export type CaptureConfig = { skill?: string; notes?: string };
+export type PrStatus = { url: string; error?: boolean; state?: "OPEN" | "MERGED" | "CLOSED" | "DRAFT"; title?: string; review?: string | null; checks?: { total: number; failing: number; pending: number } };
+
 export type Task = {
   id: string;
   title: string;
@@ -54,6 +58,11 @@ export type Task = {
   tags?: string[];
   updatedAt?: string;
   refreshedAt?: string;
+  capturedAt?: string;
+  capture?: CaptureConfig;
+  autoRefresh?: boolean;
+  tests?: { pass: number; fail: number; todo: number; skip: number; total: number };
+  evidence?: { total: number; withMedia: number };
   relatedPrs?: (number | string)[];
   projects?: string[];
   projectIds?: string[];

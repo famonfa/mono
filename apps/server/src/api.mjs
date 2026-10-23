@@ -10,6 +10,8 @@ import * as groups from "./groups.mjs";
 import * as projects from "./projects.mjs";
 import { listCommands } from "./commands.mjs";
 import { refreshStatus, startRefresh } from "./refresh.mjs";
+import { listCaptureSkills } from "./capture.mjs";
+import { prStatus } from "./prs.mjs";
 
 const MIME = {
   ".png": "image/png",
@@ -17,6 +19,8 @@ const MIME = {
   ".jpeg": "image/jpeg",
   ".gif": "image/gif",
   ".webp": "image/webp",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
   ".svg": "image/svg+xml",
   ".webmanifest": "application/manifest+json",
   ".md": "text/markdown; charset=utf-8",
@@ -44,10 +48,30 @@ function send(res, status, body) {
   res.end(JSON.stringify(body ?? null));
 }
 
-export function serveStatic(res, root, rel) {
+export function serveStatic(res, root, rel, req) {
   const file = path.resolve(root, rel);
   if (!file.startsWith(root + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return false;
+  const { size } = fs.statSync(file);
   res.setHeader("Content-Type", MIME[path.extname(file).toLowerCase()] ?? "application/octet-stream");
+  res.setHeader("Accept-Ranges", "bytes");
+  // Video needs byte ranges to seek and, in Safari, to play at all.
+  const range = /^bytes=(\d*)-(\d*)$/.exec(req?.headers.range ?? "");
+  if (range && (range[1] || range[2])) {
+    const start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
+    const end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+    if (start > end || start >= size) {
+      res.statusCode = 416;
+      res.setHeader("Content-Range", `bytes */${size}`);
+      res.end();
+      return true;
+    }
+    res.statusCode = 206;
+    res.setHeader("Content-Range", `bytes ${start}-${end}/${size}`);
+    res.setHeader("Content-Length", end - start + 1);
+    fs.createReadStream(file, { start, end }).pipe(res);
+    return true;
+  }
+  res.setHeader("Content-Length", size);
   fs.createReadStream(file).pipe(res);
   return true;
 }
@@ -127,6 +151,7 @@ async function handleChats(res, method, parts, body) {
   }
   if (action === "interrupt" && method === "POST") return send(res, 200, await chats.interrupt(sessionId));
   if (action === "config" && method === "POST") return send(res, 200, await chats.configure(sessionId, body));
+  if (action === "cwd" && method === "POST") return send(res, 200, chats.setSessionCwd(sessionId, body.cwd));
   if (action === "permissions" && actionId && method === "POST") return send(res, 200, chats.answerPermission(sessionId, actionId, body));
   return send(res, 404, { error: "not found" });
 }
@@ -190,7 +215,7 @@ export function createApi(broadcast) {
     if (!isTrusted(req)) return send(res, 403, { error: "forbidden" });
     if (req.url.startsWith("/files/")) {
       const rel = decodeURIComponent(req.url.replace(/^\/files\//, "").split("?")[0]);
-      return serveStatic(res, store.TASKS_DIR, rel) || next();
+      return serveStatic(res, store.TASKS_DIR, rel, req) || next();
     }
     if (!req.url.startsWith("/api/")) return next();
 
@@ -205,6 +230,7 @@ export function createApi(broadcast) {
       if (resource === "me" && method === "GET") return send(res, 200, localAccount());
       if (resource === "chats") return await handleChats(res, method, parts, body);
       if (resource === "groups") return handleGroups(res, method, parts, body);
+      if (resource === "capture-skills" && method === "GET") return send(res, 200, listCaptureSkills());
       if (resource === "models" && method === "GET") return send(res, 200, chats.listModels());
       if (resource === "commands" && method === "GET") return send(res, 200, listCommands(url.searchParams.get("cwd") ? chats.expandHome(url.searchParams.get("cwd")) : null));
       if (resource === "uploads" && method === "POST") return send(res, 200, chats.saveUpload(body));
@@ -237,8 +263,12 @@ export function createApi(broadcast) {
         const roots = projects.listProjects().filter((p) => projects.projectsForTask(task ?? {}).includes(p.id)).map((p) => p.root);
         return send(res, 200, chats.worktreesForTask(task, roots));
       }
+      if (id && sub === "prs" && method === "GET") {
+        const task = store.getTask(id);
+        return send(res, 200, await prStatus((task?.repos ?? []).map((r) => r.pr).filter(Boolean)));
+      }
       if (id && sub === "refresh") {
-        if (method === "POST") return send(res, 200, startRefresh(id));
+        if (method === "POST") return send(res, 200, startRefresh(id, { mode: body?.mode === "capture" ? "capture" : "refresh" }));
         if (method === "GET") return send(res, 200, refreshStatus(id));
       }
 

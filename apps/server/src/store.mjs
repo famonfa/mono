@@ -7,7 +7,7 @@ export const ROOT = REPO_ROOT ?? PKG_DIR;
 export const TASKS_DIR = path.join(DATA_DIR, "tasks");
 
 const SAFE_ID = /^[A-Za-z0-9._-]+$/;
-const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg)$/i;
+const MEDIA_EXT = /\.(png|jpe?g|gif|webp|svg|mp4|webm)$/i;
 
 export function assertSafe(...parts) {
   for (const part of parts) {
@@ -56,10 +56,22 @@ export function getTask(id) {
   const dir = taskDir(id);
   if (!fs.existsSync(dir)) return null;
   const meta = readJson(path.join(dir, "task.json"), {});
+  const tests = { pass: 0, fail: 0, todo: 0, skip: 0 };
+  const evidence = { total: 0, withMedia: 0 };
   const boards = listFiles(path.join(dir, "boards"), (f) => f.endsWith(".json")).map((f) => {
     const board = readJson(path.join(dir, "boards", f), {});
     const boardId = f.replace(/\.json$/, "");
-    return { id: boardId, title: board.title ?? boardId, kind: board.kind ?? "free", order: board.order ?? 99, nodeCount: board.nodes?.filter((n) => n.type !== "lane").length ?? 0 };
+    const nodes = board.nodes?.filter((n) => n.type !== "lane") ?? [];
+    if (board.kind === "tests") {
+      for (const n of nodes) if (n.data?.test in tests) tests[n.data.test]++;
+    }
+    if (board.kind === "ui") {
+      for (const n of nodes.filter((n) => n.type === "card" || n.type === "image")) {
+        evidence.total++;
+        if (n.data?.image || n.data?.video) evidence.withMedia++;
+      }
+    }
+    return { id: boardId, title: board.title ?? boardId, kind: board.kind ?? "free", order: board.order ?? 99, nodeCount: nodes.length };
   });
   boards.sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
   return {
@@ -69,14 +81,16 @@ export function getTask(id) {
     id,
     boards,
     docs: listFiles(path.join(dir, "docs"), (f) => f.endsWith(".md")),
-    assets: listFiles(path.join(dir, "assets"), (f) => IMAGE_EXT.test(f)),
+    assets: listFiles(path.join(dir, "assets"), (f) => MEDIA_EXT.test(f)),
+    tests: { ...tests, total: tests.pass + tests.fail + tests.todo + tests.skip },
+    evidence,
   };
 }
 
 export function saveTask(id, patch) {
   const file = path.join(taskDir(id), "task.json");
   const current = readJson(file, {});
-  const { boards, docs, assets, ...rest } = patch;
+  const { boards, docs, assets, tests, evidence, ...rest } = patch;
   const next = { ...current, ...rest, id, updatedAt: new Date().toISOString() };
   writeJson(file, next);
   return getTask(id);
@@ -159,7 +173,7 @@ function touchTask(id) {
   writeJson(file, { ...current, updatedAt: new Date().toISOString() });
 }
 
-const DATA_KEYS = ["label", "detail", "status", "test", "repo", "files", "image", "lane", "activity", "color", "kind", "link"];
+const DATA_KEYS = ["label", "detail", "status", "test", "repo", "files", "image", "lane", "activity", "color", "kind", "link", "video"];
 
 /** Accepts the flat node shape the AI writes ({id, type, label, status, ...}) and returns a React Flow node. */
 export function normalizeNode(node) {

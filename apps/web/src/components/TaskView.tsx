@@ -1,16 +1,23 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, Bot, ChevronRight, Maximize2, Loader2, Sparkles, ExternalLink, GitBranch, GitPullRequest, Image as ImageIcon, LayoutDashboard, Link2, MessagesSquare, Plus, Target, Wrench, X } from "lucide-react";
+import { AlertTriangle, Bot, ChevronRight, Maximize2, Loader2, Sparkles, ExternalLink, Film, GitBranch, GitPullRequest, Image as ImageIcon, LayoutDashboard, Link2, MessagesSquare, Plus, Target, Wrench, X } from "lucide-react";
 import { api, fileUrl } from "../api";
 import { useApp } from "../app-context";
 import { BoardIcon, DocIcon, RISK_META, RiskIcon, STATUS_META, STATUS_MENU_ORDER, STATUS_ORDER, StatusIcon, type Risk } from "../icons";
 import { href, navigate } from "../router";
 import { BOARD_KIND, type BoardKind, type Task } from "../types";
 import { formatDate, Menu, slugify } from "../ui";
-import { lastSessionId, sessionsApi, type RefreshJob } from "../sessions";
+import { lastSessionId, sessionsApi, useRefreshJob } from "../sessions";
 import { SessionRow, StatusDot } from "./Agents";
 import { BoardView } from "./BoardView";
+import { EvidenceGallery, isVideo, StatusStrip } from "./Evidence";
 import { Markdown } from "./Markdown";
 import { ProjectIcon } from "./Projects";
+
+/** On phones the tabs scroll sideways; keep the current one visible. */
+function scrollActiveTabIntoView(nav: HTMLElement | null) {
+  const tab = nav?.querySelector<HTMLElement>("a.active");
+  if (nav && tab) nav.scrollLeft = tab.offsetLeft - nav.clientWidth / 2 + tab.offsetWidth / 2;
+}
 
 export function TaskTopBar({ task, active }: { task: Task; active: string }) {
   const { sessions } = useApp();
@@ -28,7 +35,7 @@ export function TaskTopBar({ task, active }: { task: Task; active: string }) {
           <span className="mono">{task.id}</span>
         </a>
       </nav>
-      <nav className="view-tabs">
+      <nav className="view-tabs" ref={scrollActiveTabIntoView}>
         <a className={active === "overview" ? "active" : ""} href={href.task(task.id)}>
           <LayoutDashboard size={13} /> Resumen
         </a>
@@ -116,35 +123,22 @@ const TLDR = [
   { key: "impacto", label: "Impacto", icon: <Target size={14} />, tone: "green" },
 ] as const;
 
-function RefreshButton({ task, onDone }: { task: Task; onDone: () => void }) {
+function RefreshButton({ task, onDone, onAuto }: { task: Task; onDone: () => void; onAuto: (on: boolean) => Promise<void> }) {
   const { openDialog } = useApp();
-  const [job, setJob] = useState<RefreshJob>({ status: "never" });
-
-  const poll = useCallback(() => sessionsApi.refreshStatus(task.id).then(setJob, () => {}), [task.id]);
-  useEffect(() => void poll(), [poll]);
-  useEffect(() => {
-    if (job.status !== "running") return;
-    const id = setInterval(poll, 3000);
-    return () => clearInterval(id);
-  }, [job.status, poll]);
-  const previous = useRef(job.status);
-  useEffect(() => {
-    if (previous.current === "running" && job.status !== "running") onDone();
-    previous.current = job.status;
-  }, [job.status, onDone]);
-
-  const start = async () => setJob(await sessionsApi.startRefresh(task.id));
+  const { job, start } = useRefreshJob(task.id, onDone);
+  const refreshing = job.status === "running" && job.mode !== "capture";
   const showOutput = () =>
     openDialog({ title: job.status === "failed" ? "La actualización falló" : "Resultado de la última actualización", submitLabel: "Cerrar", fields: [{ name: "out", label: "Salida", defaultValue: job.output?.trim() || "(sin salida)", multiline: true, readOnly: true }], onSubmit: () => {} });
 
   return (
     <div className="refresh-box">
-      <button className="btn ai" onClick={start} disabled={job.status === "running"}>
-        {job.status === "running" ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
-        {job.status === "running" ? "Actualizando con IA…" : "Actualizar con IA"}
+      <button className="btn ai" onClick={() => start("refresh")} disabled={job.status === "running"}>
+        {refreshing ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
+        {refreshing ? "Actualizando con IA…" : "Actualizar con IA"}
       </button>
       <div className="refresh-meta">
-        {job.status === "running" && "Una sesión headless está leyendo lo que hicieron los agentes. Aparece en vivo en Agentes."}
+        {job.status === "running" && job.mode === "capture" && "Capturando evidencia en una sesión headless. Aparece en vivo en Agentes."}
+        {refreshing && "Una sesión headless está leyendo lo que hicieron los agentes. Aparece en vivo en Agentes."}
         {job.status !== "running" && task.refreshedAt && `Última actualización: ${formatDate(task.refreshedAt)}`}
         {job.status !== "running" && !task.refreshedAt && "Lee la actividad de los agentes vinculados y actualiza boards y testeo."}
         {(job.status === "done" || job.status === "failed") && (
@@ -153,6 +147,9 @@ function RefreshButton({ task, onDone }: { task: Task; onDone: () => void }) {
           </button>
         )}
       </div>
+      <label className="auto-refresh" title="Cuando el último agente vinculado termina, Mono actualiza el resumen solo (mientras la app esté abierta)">
+        <input type="checkbox" checked={Boolean(task.autoRefresh)} onChange={(e) => void onAuto(e.target.checked)} /> Actualizar al terminar un agente
+      </label>
     </div>
   );
 }
@@ -162,6 +159,14 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
   const linkedSessions = sessions.filter((s) => s.taskIds?.includes(task.id));
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [editingSummary, setEditingSummary] = useState(false);
+
+  // Opt-in: when the last working agent of this task stops, refresh the summary once.
+  const working = linkedSessions.filter((s) => s.status === "working").length;
+  const wasWorking = useRef(working);
+  useEffect(() => {
+    if (task.autoRefresh && wasWorking.current > 0 && working === 0) void sessionsApi.startRefresh(task.id).catch(() => {});
+    wasWorking.current = working;
+  }, [working, task.autoRefresh, task.id]);
 
   const save = async (patch: Partial<Task>) => {
     await updateTask(task.id, patch);
@@ -218,6 +223,8 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
         <div className="issue-content">
           <EditableText className="issue-title" value={task.title} placeholder="Título" onSave={(title) => title && save({ title })} />
 
+          <StatusStrip task={task} />
+
           <div className="tldr">
             {TLDR.map((t) => (
               <div key={t.key} className={`tldr-block ${t.tone}`}>
@@ -234,6 +241,8 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
               </div>
             ))}
           </div>
+
+          <EvidenceGallery task={task} onChange={onChange} onOpen={setLightbox} />
 
           <BoardsPanel task={task} onCreate={createBoard} />
 
@@ -282,16 +291,25 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
           </Section>
 
           {task.assets.length > 0 && (
-            <Section title="Capturas" count={task.assets.length}>
+            <Section title="Archivos" count={task.assets.length}>
               <div className="gallery">
-                {task.assets.map((a) => (
-                  <figure key={a} onClick={() => setLightbox(fileUrl(task.id, `assets/${a}`))}>
-                    <img src={fileUrl(task.id, `assets/${a}`)} alt={a} loading="lazy" />
-                    <figcaption>
-                      <ImageIcon size={11} /> {a}
-                    </figcaption>
-                  </figure>
-                ))}
+                {task.assets.map((a) =>
+                  isVideo(a) ? (
+                    <figure key={a}>
+                      <video src={fileUrl(task.id, `assets/${a}`)} controls muted loop playsInline preload="metadata" />
+                      <figcaption>
+                        <Film size={11} /> {a}
+                      </figcaption>
+                    </figure>
+                  ) : (
+                    <figure key={a} onClick={() => setLightbox(fileUrl(task.id, `assets/${a}`))}>
+                      <img src={fileUrl(task.id, `assets/${a}`)} alt={a} loading="lazy" />
+                      <figcaption>
+                        <ImageIcon size={11} /> {a}
+                      </figcaption>
+                    </figure>
+                  ),
+                )}
               </div>
             </Section>
           )}
@@ -299,7 +317,7 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
       </div>
 
       <aside className="properties">
-        <RefreshButton task={task} onDone={onChange} />
+        <RefreshButton task={task} onDone={onChange} onAuto={(autoRefresh) => save({ autoRefresh })} />
         <div className="prop-group">
           <div className="prop-title">Propiedades</div>
           <Prop label="Estado">

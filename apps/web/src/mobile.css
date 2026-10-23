@@ -99,6 +99,11 @@
     flex-shrink: 0;
   }
 
+  /* The Sesiones tab already shows the working dot; the pill would push the tabs off-screen. */
+  .task-topbar .status-pill-live {
+    display: none;
+  }
+
   .topbar .btn.primary {
     margin-left: auto;
     flex-shrink: 0;

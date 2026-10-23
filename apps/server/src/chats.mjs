@@ -273,6 +273,8 @@ export function readSessionFocus() {
   }
 }
 
+const isDir = (dir) => path.isAbsolute(dir) && Boolean(fs.statSync(dir, { throwIfNoEntry: false })?.isDirectory());
+
 function saveSessionFocus(sessionId, focus) {
   const all = readSessionFocus();
   all[sessionId] = focus;
@@ -292,15 +294,18 @@ function linkSessionToTask(taskId, sessionId) {
  * Starts (or resumes) a Claude Code session driven from the workspace. Resolves with the session id
  * once the CLI reports it, so the UI can navigate to the live feed straight away.
  */
-export function startChat({ taskId, cwd, prompt, resume, model, effort, permissionMode, attachments = [] }) {
+export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort, permissionMode, attachments = [] }) {
   const mode = modeOrDefault(permissionMode);
   if (!CLAUDE_BIN) throw new Error("No encontré Claude Code en esta Mac. Instalalo (https://docs.claude.com/en/docs/claude-code/setup) y reiniciá Mono.");
   if (resume && chats.get(resume) && !chats.get(resume).closed) throw new Error("La sesión ya está abierta en el workspace");
   const task = taskId ? store.getTask(taskId) : null;
-  const focus = cwd ? expandHome(cwd) : defaultCwd();
-  if (!path.isAbsolute(focus) || !fs.statSync(focus, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`No existe la carpeta ${focus}`);
-  const workdir = resume ? focus : launchRootFor(focus);
-  const append = [task && taskContext(task), !resume && focusContext(workdir, focus)].filter(Boolean).join("\n\n");
+  const launch = cwd ? expandHome(cwd) : defaultCwd();
+  if (!isDir(launch)) throw new Error(`No existe la carpeta ${launch}`);
+  // A resumed session keeps launching from its original folder (that's where Claude Code stores the transcript);
+  // a reassigned folder only changes where it works.
+  const focus = resume && focusCwd && isDir(focusCwd) ? focusCwd : launch;
+  const workdir = resume ? launch : launchRootFor(focus);
+  const append = [task && taskContext(task), focusContext(workdir, focus)].filter(Boolean).join("\n\n");
 
   const input = new InputQueue();
   input.push(userMessage(prompt, attachments));
@@ -311,6 +316,7 @@ export function startChat({ taskId, cwd, prompt, resume, model, effort, permissi
     prompt: input,
     options: {
       ...(workdir ? { cwd: workdir } : {}),
+      ...(focus !== workdir ? { additionalDirectories: [focus] } : {}),
       ...(resume ? { resume } : {}),
       permissionMode: mode,
       allowDangerouslySkipPermissions: true,
@@ -388,7 +394,7 @@ export function sendMessage(sessionId, text, { workingSessions = [], model, effo
   }
   const cwd = sessionCwd(sessionId);
   if (!cwd) throw new Error("No encontré la carpeta original de esta sesión");
-  return startChat({ resume: sessionId, cwd, prompt: text, taskId: chat?.taskId, model, effort, permissionMode, attachments });
+  return startChat({ resume: sessionId, cwd, focusCwd: readSessionFocus()[sessionId], prompt: text, taskId: chat?.taskId, model, effort, permissionMode, attachments });
 }
 
 export function chatState(sessionId) {
@@ -439,6 +445,21 @@ export async function configure(sessionId, { model, effort, permissionMode }) {
   }
   notify(sessionId);
   return publicState(chat);
+}
+
+/** Reassigns the folder an existing session works in. Takes effect on the next message (a live idle chat is closed and resumed). */
+export function setSessionCwd(sessionId, cwd) {
+  const focus = expandHome(String(cwd ?? "").trim());
+  if (!isDir(focus)) throw new Error(`No existe la carpeta ${focus}`);
+  const chat = chats.get(sessionId);
+  if (chat && !chat.closed) {
+    if (chat.state !== "idle") throw new Error("Esperá a que la sesión termine para cambiarle la carpeta");
+    chat.input.close();
+    chat.closed = true;
+  }
+  saveSessionFocus(sessionId, focus);
+  notify(sessionId);
+  return { sessionId, cwd: focus };
 }
 
 export function liveChatIds() {
