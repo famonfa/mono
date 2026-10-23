@@ -2733,6 +2733,28 @@ code,
   align-items: center;
   gap: 6px;
   padding: 6px 8px 8px 10px;
+  min-width: 0;
+}
+
+/* Fixed controls keep their size; the folder chip and hints truncate so Send never leaves the card. */
+.composer-bar > * {
+  flex-shrink: 0;
+}
+
+.composer-bar > .cwd-trigger,
+.composer-bar > .composer-hint {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.cwd-trigger > svg {
+  flex-shrink: 0;
+}
+
+.cwd-trigger > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .composer-notice,
