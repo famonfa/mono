@@ -9,7 +9,7 @@ Mono lives in `~/mono` (`~/avocado-workspace` is a symlink for old paths). See w
 | `apps/server` | npm package `@famonfa/mono`: local server (API + live events + Agent SDK) and the `mono` / `ws` CLI. Runs Claude Code on your Mac. |
 | `apps/web` | The UI (React + Vite). Served by the server; used by desktop, web and mobile. |
 | `apps/desktop` | macOS app (Electron). Uses the local server and starts it if needed. |
-| `apps/relay` | Multi-user public entry point: Google sign-in, invites and the tunnel to each user's Mac. |
+| `apps/relay` | Multi-user public entry point: Google sign-in and the tunnel to each user's Mac. |
 | `apps/mobile` | iOS and Android app (Capacitor) that opens your relay, with Google sign-in through the system browser. |
 
 In this checkout, data lives in `~/mono/data/` (not versioned; override with `MONO_DATA_DIR`). When installed from npm, it goes to `~/.mono/data/`.
@@ -23,7 +23,7 @@ mono service install     # starts at login (launchd) and puts mono/ws on PATH
 npm run desktop:package  # builds apps/desktop/release/mac-arm64/Mono.app → copy it to /Applications
 ```
 
-## Phone, web and invites
+## Phone, web and access
 
 Each person runs Mono on **their own** Mac, with their own Claude Code. A single cloud relay provides Google sign-in and access from phone or web; each user sees only their Macs.
 
@@ -32,9 +32,9 @@ Each person runs Mono on **their own** Mac, with their own Claude Code. A single
 2. Google Cloud Console → Credentials → *OAuth client ID* (Web application), with redirect `https://mono.155-181-39-178.sslip.io/_mono/auth/callback`.
 3. Publish the package: `npm run release -w @famonfa/mono`. Builds `@famonfa/mono` with the compiled UI and bundled dependencies, without the Claude binary (~6 MB instead of 320 MB), and publishes it.
 
-**Invite:** go to `https://<relay>/_mono/admin`, enter the person's Google email and send them the link. "Remove" revokes access: their session ends and their Macs disconnect.
+**Access:** open to anyone. Any Google account becomes a member on first sign-in. Admins see members at `https://<relay>/_mono/admin`; "Block" locks an account out for good (their session ends and their Macs disconnect), "Unblock" undoes it.
 
-**Each invitee, on their Mac** (the only install path):
+**Each person, on their Mac** (the only install path; needs Node.js 22+):
 ```bash
 npx @famonfa/mono            # opens Mono; first run installs to ~/.mono/runtime
 npx @famonfa/mono connect    # keeps running in the background and pairs via Google

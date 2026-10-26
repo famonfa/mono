@@ -31,7 +31,7 @@ const DOWNLOADS = new Set(["Mono-arm64.zip", "Mono-x64.zip"]);
 const STATIC_TYPES = { ".jpg": "image/jpeg", ".png": "image/png", ".svg": "image/svg+xml", ".webp": "image/webp" };
 
 if (SECRET.length < 32) throw new Error("SESSION_SECRET must be at least 32 characters (openssl rand -hex 32)");
-if (!access.hasAdmins()) throw new Error("Missing ADMIN_EMAILS (your Google email; you invite everyone else from there)");
+if (!access.hasAdmins()) throw new Error("Missing ADMIN_EMAILS (your Google email; admins can block members from /_mono/admin)");
 const GOOGLE_READY = Boolean(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET);
 if (!GOOGLE_READY) console.warn("Missing GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET: Google sign-in is disabled");
 
@@ -226,11 +226,11 @@ setInterval(() => {
 
 // ---------- routes ----------
 
-/** Google said who you are; you're in if you're an admin, a user, or have a pending invite. */
+/** Google said who you are; any account gets in on first sign-in unless an admin blocked it. */
 function finishLogin(res, rawEmail, next, profile) {
   const email = String(rawEmail).trim().toLowerCase();
-  if (!allowed(email) && !access.acceptInvite(email)) {
-    return html(res, messagePage("No access", `${email || "This email"} isn't invited to Mono.`, { href: "/_mono/logout", label: "Use another account" }), 403);
+  if (!allowed(email) && !access.signUp(email)) {
+    return html(res, messagePage("No access", `${email || "This email"} can't use Mono.`, { href: "/_mono/logout", label: "Use another account" }), 403);
   }
   startSession(res, email, profile);
   return redirect(res, safeNext(next));
@@ -307,6 +307,7 @@ async function relayRoute(req, res, url) {
 
   if (route === "/auth/dev" && DEV_LOGIN) return finishLogin(res, url.searchParams.get("email") ?? "", url.searchParams.get("next"));
 
+  // Links sent before sign-up was opened still land on a working sign-in page.
   if (route.startsWith("/invite/")) {
     const invite = access.getInvite(route.slice("/invite/".length));
     if (!invite) return html(res, messagePage("Invalid invite", "Ask for a new link."), 404);
@@ -383,27 +384,23 @@ async function relayRoute(req, res, url) {
   if (route === "/hosts" && req.method === "GET") return html(res, hostsPage({ email, hosts: hostsFor(email), current: pickedHost(req, email), admin: access.isAdmin(email), relay: PUBLIC_URL }));
 
   if (route.startsWith("/admin")) {
-    if (!access.isAdmin(email)) return html(res, messagePage("No permission", "Only admins can invite people."), 403);
+    if (!access.isAdmin(email)) return html(res, messagePage("No permission", "Only admins can manage members."), 403);
     if (req.method === "POST") {
       if (!sameOrigin(req)) return send(res, 403, { error: "forbidden" });
       const form = await readForm(req);
       let notice = null;
       try {
-        if (route === "/admin/invite") {
-          const invite = access.createInvite(form.email, email);
-          notice = { link: `${PUBLIC_URL}/_mono/invite/${invite.token}`, email: invite.email };
-        }
-        if (route === "/admin/revoke") access.revokeInvite(form.token);
-        if (route === "/admin/remove" && !access.isAdmin(form.email)) {
-          access.removeUser(form.email);
+        if (route === "/admin/block" && !access.isAdmin(form.email)) {
+          access.blockUser(form.email, email);
           disconnectUser(String(form.email).toLowerCase());
         }
+        if (route === "/admin/unblock") access.unblockUser(form.email);
       } catch (error) {
         notice = { error: error.message };
       }
-      return html(res, adminPage({ email, ...access.listAccess(), online: onlineCounts(), notice, relay: PUBLIC_URL }));
+      return html(res, adminPage({ email, ...access.listAccess(), online: onlineCounts(), notice }));
     }
-    return html(res, adminPage({ email, ...access.listAccess(), online: onlineCounts(), relay: PUBLIC_URL }));
+    return html(res, adminPage({ email, ...access.listAccess(), online: onlineCounts() }));
   }
 
   if (route === "/hosts/select" && req.method === "POST") {

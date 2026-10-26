@@ -34,7 +34,7 @@ function layout(title, body) {
   form { margin: 0; }
   h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 22px 0 8px; }
   input { width: 100%; height: 44px; border-radius: 10px; border: 1px solid var(--border); background: transparent; color: inherit; padding: 0 12px; font: inherit; }
-  form.invite, form.dev { display: grid; gap: 8px; }
+  form.dev { display: grid; gap: 8px; }
   form.dev { margin-top: 18px; }
   pre { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-all; }
   ol.steps { padding-left: 20px; color: var(--muted); }
@@ -53,7 +53,7 @@ function layout(title, body) {
 
 const GOOGLE_G = `<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>`;
 
-/** npm package invitees install on their Mac. */
+/** npm package people install on their Mac. */
 const PACKAGE = process.env.MONO_PACKAGE ?? "@famonfa/mono";
 
 const devLogin = (next) => `<form class="dev" method="get" action="/_mono/auth/dev"><input type="hidden" name="next" value="${escape(next)}" />
@@ -100,30 +100,26 @@ export function hostsPage({ email, hosts, current, admin, relay }) {
         )
         .join("")}</div><details><summary>Connect another Mac</summary>${installSteps(relay)}</details>`
     : `<p>No Macs connected yet.</p>${installSteps(relay)}`;
-  return layout("Your Macs", `<h1>Your Macs</h1>${list}<p class="foot">${escape(email)} · ${admin ? `<a href="/_mono/admin">Invite</a> · ` : ""}<a href="/_mono/logout">Sign out</a></p>`);
+  return layout("Your Macs", `<h1>Your Macs</h1>${list}<p class="foot">${escape(email)} · ${admin ? `<a href="/_mono/admin">Members</a> · ` : ""}<a href="/_mono/logout">Sign out</a></p>`);
 }
 
-export function adminPage({ email, admins, users, invites, online, notice, relay }) {
+export function adminPage({ email, admins, users, blocked, online, notice }) {
   const row = (main, sub, action) => `<div class="host"><div><b>${main}</b><small>${sub}</small></div>${action ?? ""}</div>`;
-  const button = (route, name, value, label) =>
-    `<form method="post" action="/_mono/admin/${route}"><input type="hidden" name="${name}" value="${escape(value)}" /><button class="btn secondary">${label}</button></form>`;
+  const button = (route, value, label) =>
+    `<form method="post" action="/_mono/admin/${route}"><input type="hidden" name="email" value="${escape(value)}" /><button class="btn secondary">${label}</button></form>`;
   const machines = (e) => (online[e] ? `${online[e]} Mac${online[e] > 1 ? "s" : ""} connected` : "no Macs connected");
   return layout(
-    "Invite",
-    `<h1>Invite to Mono</h1>
+    "Members",
+    `<h1>Members</h1>
     ${notice?.error ? `<p class="error">${escape(notice.error)}</p>` : ""}
-    ${notice?.link ? `<p>Send this link to ${escape(notice.email)}:</p><pre class="copy">${escape(notice.link)}</pre>` : ""}
-    <form class="invite" method="post" action="/_mono/admin/invite"><input name="email" type="email" placeholder="Google email" required /><button class="btn">Invite</button></form>
-    <h2>Members</h2>
+    <p>Anyone can sign in with Google. Block an account to lock it out.</p>
     <div class="hosts">
       ${admins.map((a) => row(escape(a), `admin · ${machines(a)}`)).join("")}
-      ${users.map((u) => row(escape(u.email), `invited by ${escape(u.invited_by ?? "?")} · ${machines(u.email)}`, button("remove", "email", u.email, "Remove"))).join("")}
+      ${users.map((u) => row(escape(u.email), `${u.invited_by ? `invited by ${escape(u.invited_by)} · ` : ""}${machines(u.email)}`, button("block", u.email, "Block"))).join("")}
     </div>
     ${
-      invites.length
-        ? `<h2>Pending</h2><div class="hosts">${invites
-            .map((i) => row(escape(i.email), `<a href="${escape(`${relay}/_mono/invite/${i.token}`)}">Invite link</a>`, button("revoke", "token", i.token, "Revoke")))
-            .join("")}</div>`
+      blocked.length
+        ? `<h2>Blocked</h2><div class="hosts">${blocked.map((b) => row(escape(b.email), `by ${escape(b.blocked_by ?? "?")}`, button("unblock", b.email, "Unblock"))).join("")}</div>`
         : ""
     }
     <p class="foot"><a href="/_mono/hosts">Back</a> · ${escape(email)}</p>`,
@@ -147,7 +143,7 @@ export function privacyPage() {
     `<h1>Privacy</h1>
     <p>Mono uses your Google account only to identify you: it stores your email to grant access and link your Macs. It doesn't request or store any other Google data.</p>
     <p>Your agents, code and tasks stay on your Mac. The relay passes messages between your Mac and your browser while you use them, and doesn't store them.</p>
-    <p>To delete your account, ask whoever invited you or email monsegurfacundo@gmail.com.</p>
+    <p>To delete your account, email monsegurfacundo@gmail.com.</p>
     <a class="btn secondary" href="/">Back</a>`,
   );
 }

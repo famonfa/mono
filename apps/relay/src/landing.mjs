@@ -122,7 +122,7 @@ export function landingPage({ relay }) {
 </div></nav>
 
 <header class="hero"><div class="wrap">
-  <span class="eyebrow"><i></i> Invite only</span>
+  <span class="eyebrow"><i></i> Free for Mac</span>
   <h1>Your Claude Code agents, <span>at a glance.</span></h1>
   <p class="lead">Mono turns your agents' work into boards you can read in seconds. It runs on your Mac, with your Claude Code.</p>
   <div class="ctas">
@@ -149,7 +149,7 @@ export function landingPage({ relay }) {
 
 <section id="instalar"><div class="wrap">
   <h2>Three steps.</h2>
-  <p class="sub">Requires a Mac with <a href="https://docs.claude.com/en/docs/claude-code/setup">Claude Code</a> and an invite.</p>
+  <p class="sub">Requires a Mac with <a href="https://docs.claude.com/en/docs/claude-code/setup">Claude Code</a> and <a href="https://nodejs.org">Node.js</a> 22+.</p>
   <div class="steps">
     <div class="step"><h3>Install</h3><p>In Terminal. Installs the desktop app to Applications and opens it.</p><pre>npx ${escape(PACKAGE)}</pre></div>
     <div class="step"><h3>Connect your Mac</h3><p>In the app: <b>Mono → Connect phone…</b> Sign in with Google and approve the code. Mono keeps running in the background.</p></div>
@@ -157,8 +157,8 @@ export function landingPage({ relay }) {
   </div>
 
   <div class="final">
-    <h2>Have an invite?</h2>
-    <p>Sign in with the Google account it was sent to.</p>
+    <h2>Already installed?</h2>
+    <p>Sign in with Google to open your Macs from your phone or any browser.</p>
     <a class="btn primary" href="/_mono/login">Sign in with Google</a>
   </div>
 </div></section>

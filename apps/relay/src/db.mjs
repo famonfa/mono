@@ -4,9 +4,8 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 /**
- * Who can use the relay. Admins come from ADMIN_EMAILS; everyone else needs an invite, which turns into
- * a user the first time they sign in with that Google account. Removing a user locks them out and
- * disconnects their machines.
+ * Who can use the relay. Admins come from ADMIN_EMAILS; any other Google account becomes a user the
+ * first time it signs in. Blocking a user locks them out for good and disconnects their machines.
  */
 
 const DB_PATH = process.env.DB_PATH ?? path.resolve("data", "relay.db");
@@ -27,6 +26,11 @@ db.exec(`
     accepted_at text
   );
   create index if not exists invites_email on invites (email);
+  create table if not exists blocked (
+    email text primary key,
+    blocked_by text,
+    created_at text not null
+  );
 `);
 
 const ADMINS = new Set((process.env.ADMIN_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean));
@@ -49,39 +53,31 @@ export function isAllowed(email) {
   return ok;
 }
 
-/** First sign-in of an invited email: the pending invite becomes a user. */
-export function acceptInvite(email) {
+export const isBlocked = (email) => Boolean(db.prepare("select 1 from blocked where email = ?").get(norm(email)));
+
+/** First sign-in of a Google account: it becomes a user (a pending invite still records who sent it). */
+export function signUp(email) {
   const key = norm(email);
+  if (!key || isBlocked(key)) return false;
   const invite = db.prepare("select * from invites where email = ? and accepted_at is null order by created_at desc").get(key);
-  if (!invite) return false;
-  db.prepare("insert or ignore into users (email, invited_by, created_at) values (?, ?, ?)").run(key, invite.invited_by, now());
-  db.prepare("update invites set accepted_at = ? where email = ? and accepted_at is null").run(now(), key);
+  db.prepare("insert or ignore into users (email, invited_by, created_at) values (?, ?, ?)").run(key, invite?.invited_by ?? null, now());
+  if (invite) db.prepare("update invites set accepted_at = ? where email = ? and accepted_at is null").run(now(), key);
   allowedCache.delete(key);
   return true;
 }
 
-export function createInvite(email, invitedBy) {
-  const key = norm(email);
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(key)) throw new Error("Invalid email");
-  if (isAllowed(key)) throw new Error(`${key} already has access`);
-  const pending = db.prepare("select token from invites where email = ? and accepted_at is null").get(key);
-  if (pending) return { token: pending.token, email: key };
-  const token = crypto.randomBytes(18).toString("base64url");
-  db.prepare("insert into invites (token, email, invited_by, created_at) values (?, ?, ?, ?)").run(token, key, norm(invitedBy), now());
-  return { token, email: key };
-}
-
 export const getInvite = (token) => db.prepare("select * from invites where token = ?").get(String(token ?? ""));
 
-export function revokeInvite(token) {
-  db.prepare("delete from invites where token = ? and accepted_at is null").run(String(token ?? ""));
-}
-
-export function removeUser(email) {
+export function blockUser(email, blockedBy) {
   const key = norm(email);
+  db.prepare("insert or ignore into blocked (email, blocked_by, created_at) values (?, ?, ?)").run(key, norm(blockedBy), now());
   db.prepare("delete from users where email = ?").run(key);
   db.prepare("delete from invites where email = ?").run(key);
   allowedCache.delete(key);
+}
+
+export function unblockUser(email) {
+  db.prepare("delete from blocked where email = ?").run(norm(email));
 }
 
 export function listAccess() {
@@ -89,5 +85,6 @@ export function listAccess() {
     admins: [...ADMINS],
     users: db.prepare("select * from users order by created_at").all(),
     invites: db.prepare("select * from invites where accepted_at is null order by created_at desc").all(),
+    blocked: db.prepare("select * from blocked order by created_at desc").all(),
   };
 }
