@@ -80,7 +80,7 @@ export const sessionsApi = {
   refreshStatus: (taskId: string) => get<RefreshJob>(`/api/tasks/${encodeURIComponent(taskId)}/refresh`),
   prStatus: (taskId: string) => get<PrStatus[]>(`/api/tasks/${encodeURIComponent(taskId)}/prs`),
   startRefresh: async (taskId: string) => {
-    const res = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/refresh`, { method: "POST" });
+    const res = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/refresh`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
     if (!res.ok) throw new Error((await res.json())?.error ?? res.statusText);
     return (await res.json()) as RefreshJob;
   },
