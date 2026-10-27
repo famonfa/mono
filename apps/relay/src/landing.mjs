@@ -29,7 +29,8 @@ const escape = (text) => String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;"
 const SHOWCASE = [
   ["Boards", "See the change, not the diff.", "Before/after flows color what's new, changed or risky. Drag cards around, or ask Claude to edit the canvas.", "app-flow.jpg", "A checkout flow, before and after"],
   ["Tests", "Know what was actually tested.", "One lane per test path, with the result on the last card. Pass and fail only when it really ran.", "app-tests.jpg", "Test flows with passed and failed paths"],
-  ["Agents", "Every agent, live.", "Every Claude Code session on your Mac in one list: what it's doing, how full its context is, which project it belongs to. File each one as ongoing, on hold or finished.", "app-agents.jpg", "Agents list with working and idle sessions"],
+  ["Agents", "Every agent, live.", "Every Claude Code session on your Mac in one list: what it's doing, how full its context is, which project it belongs to. File each one as ongoing, on hold or finished. Nothing ages out: idle ones wait in Previous.", "app-agents.jpg", "Agents list with working and idle sessions"],
+  ["Repos", "All your repos, one click away.", "Browse your folders and add a repo with one click. Repos are marked, and the ones you've used with Claude Code show up first.", "app-repos.jpg", "Add repo: a folder browser with repos marked"],
   ["Groups", "Run agents side by side.", "A group is a canvas of sessions. Launch several at once, let Claude plan the split, and watch the wires light up while they work.", "app-group.jpg", "A group canvas with three wired sessions"],
 ];
 
@@ -38,7 +39,7 @@ const FEATURES = [
   ["Tabs", "Work on several things at once. ⌘T opens one, ⌘W closes it, ⌘1–9 jumps."],
   ["Designs on the board", "Import Figma frames next to the flow they belong to."],
   ["From your phone", "Resume a session, approve a permission or send the next prompt from any browser or the mobile app."],
-  ["Your colors", "Light or dark, any accent color, tinted backgrounds."],
+  ["While you were away", "Each project keeps an activity log: sessions with the commits and PRs they made, screenshots and edited pages, with a recap since your last visit."],
   ["Your code stays on your Mac", "Agents run on your machine with your Claude Code and your repos. The relay only passes messages."],
 ];
 
@@ -162,7 +163,7 @@ export function landingPage({ relay }) {
 <header class="hero"><div class="wrap">
   <span class="eyebrow"><i></i> Free for Mac · Works with Claude Code</span>
   <h1>Your agents' work, <span>at a glance.</span></h1>
-  <p class="lead">Mono turns your Claude Code sessions into projects you can read in seconds: boards, docs and live agents. It runs on your Mac and follows you to your phone.</p>
+  <p class="lead">Mono turns your Claude Code sessions into projects you can read in seconds: which agents are working, what changed, what was tested. It runs on your Mac and follows you to your phone.</p>
   <div class="ctas">
     <button class="install" data-copy="npx ${escape(PACKAGE)}">
       <span class="prompt">$</span> <code>npx ${escape(PACKAGE)}</code>
@@ -172,7 +173,7 @@ export function landingPage({ relay }) {
   </div>
   <p class="hero-alt">Run it in Terminal on your Mac. It installs and opens the desktop app.</p>
   <div class="shot">
-    <img class="desktop" src="/_mono/static/app-project.jpg" alt="Mono on Mac: a project with its summary, agents, tests and story map" width="1200" height="750" />
+    <img class="desktop" src="/_mono/static/app-project.jpg" alt="Mono on Mac: a project with its agents climbing their vines, tests and summary" width="1200" height="750" />
     <img class="phone" src="/_mono/static/app-mobile.jpg" alt="Mono on iPhone: the same project" loading="lazy" />
   </div>
 </div></header>
