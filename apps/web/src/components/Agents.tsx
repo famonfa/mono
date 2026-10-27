@@ -77,11 +77,12 @@ export function ContextMeter({ session, label = false }: { session: SessionSumma
   );
 }
 
-const TRIAGE_TABS: { value: SessionTriage; label: string }[] = [
-  { value: "ongoing", label: "Ongoing" },
-  { value: "on-hold", label: "On hold" },
-  { value: "finished", label: "Finished" },
-  { value: "previous", label: "Previous" },
+/** `short` is what fits when the list is narrow (a project's session column). */
+const TRIAGE_TABS: { value: SessionTriage; label: string; short: string }[] = [
+  { value: "ongoing", label: "Ongoing", short: "Ongoing" },
+  { value: "on-hold", label: "On hold", short: "Hold" },
+  { value: "finished", label: "Finished", short: "Done" },
+  { value: "previous", label: "Previous", short: "Prev" },
 ];
 
 const triageOf = (s: SessionSummary): SessionTriage => s.triage ?? "ongoing";
@@ -97,8 +98,9 @@ export function useTriageFilter(sessions: SessionSummary[], key: string) {
   const tabs = (
     <div className="triage-tabs" role="tablist">
       {TRIAGE_TABS.map((t) => (
-        <button key={t.value} type="button" role="tab" aria-selected={triage === t.value} className={triage === t.value ? "active" : ""} onClick={() => setTriage(t.value)}>
-          {t.label}
+        <button key={t.value} type="button" role="tab" aria-selected={triage === t.value} className={triage === t.value ? "active" : ""} onClick={() => setTriage(t.value)} title={t.label}>
+          <span className="triage-label">{t.label}</span>
+          <span className="triage-label short">{t.short}</span>
           {counts[t.value] > 0 && <span className="triage-count">{counts[t.value]}</span>}
         </button>
       ))}
