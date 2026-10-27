@@ -27,5 +27,11 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.308",
     "ws": "^8.22.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/famonfa/mono.git",
+    "directory": "apps/server"
+  },
+  "homepage": "https://github.com/famonfa/mono"
 }
