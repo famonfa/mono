@@ -1,8 +1,9 @@
-import { useLayoutEffect, useRef, useState, type SyntheticEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type SyntheticEvent } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Folder, Search, Settings } from "lucide-react";
+import { ChevronDown, Folder, FolderGit2, FolderOpen, Plus, Search, Settings, X } from "lucide-react";
 import { api } from "../api";
 import { useApp } from "../app-context";
+import { desktop } from "../desktop";
 import type { SessionSummary } from "../sessions";
 import type { Project, Task } from "../types";
 
@@ -79,6 +80,14 @@ export function ProjectSwitcher() {
   const trigger = useRef<HTMLButtonElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const current = projects.find((p) => p.id === project);
+  // A repo that was just added gets selected once the reloaded list has it.
+  const pending = useRef<string | null>(null);
+  useEffect(() => {
+    if (pending.current && projects.some((p) => p.id === pending.current)) {
+      setProject(pending.current);
+      pending.current = null;
+    }
+  }, [projects, setProject]);
 
   const tree = projectTree(projects);
   const depthOf = (p: Project | null) => (p ? tree.find((t) => t.project.id === p.id)?.depth ?? 0 : 0);
@@ -94,6 +103,30 @@ export function ProjectSwitcher() {
     setProject(p?.id ?? ALL_PROJECTS);
     setOpen(false);
     setQuery("");
+  };
+
+  const addRepo = () => {
+    setOpen(false);
+    const typed = /^[/~]/.test(query.trim()) ? query.trim() : "";
+    setQuery("");
+    openDialog({
+      title: "Add repo",
+      submitLabel: "Add repo",
+      fields: [{ name: "path", label: "Folder", defaultValue: typed, render: (value, set) => <PathField value={value} onChange={set} /> }],
+      onSubmit: async ({ path }) => {
+        if (!path.trim()) throw new Error("Pick a folder");
+        const added = await api.addProject(path.trim().replace(/(.)\/+$/, "$1"));
+        pending.current = added.id;
+        reloadProjects();
+      },
+    });
+  };
+
+  const removeRepo = async (p: Project) => {
+    if (!window.confirm(`Remove "${p.title}" from Mono? The folder and its sessions stay as they are; you can add it again.`)) return;
+    await api.removeProject(p.id);
+    if (p.id === project) setProject(ALL_PROJECTS);
+    reloadProjects();
   };
 
   const editProject = (p: Project) => {
@@ -151,7 +184,8 @@ export function ProjectSwitcher() {
                       e.preventDefault();
                       setActive((a) => Math.max(0, a - 1));
                     }
-                    if (e.key === "Enter" && options[active] !== undefined) choose(options[active]);
+                    if (e.key === "Enter" && /^[/~]/.test(query.trim()) && !options.length) addRepo();
+                    else if (e.key === "Enter" && options[active] !== undefined) choose(options[active]);
                   }}
                 />
               </div>
@@ -168,25 +202,103 @@ export function ProjectSwitcher() {
                     <ProjectIcon project={p ?? undefined} size={20} />
                     <span className="project-item-name">{p?.title ?? "All repos"}</span>
                     {p && (
-                      <button
-                        className="icon-btn tiny project-gear"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          editProject(p);
-                        }}
-                        title="Settings"
-                      >
-                        <Settings size={13} />
-                      </button>
+                      <>
+                        <button
+                          className="icon-btn tiny project-gear"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            editProject(p);
+                          }}
+                          title="Settings"
+                        >
+                          <Settings size={13} />
+                        </button>
+                        <button
+                          className="icon-btn tiny project-remove"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void removeRepo(p);
+                          }}
+                          title="Remove from Mono"
+                        >
+                          <X size={13} />
+                        </button>
+                      </>
                     )}
                   </div>
                 ))}
-                {!options.length && <div className="menu-empty">No matching projects</div>}
+                {!options.length && <div className="menu-empty">No matching repos</div>}
               </div>
+              <button className="project-add" onClick={addRepo}>
+                <Plus size={14} />
+                <span>{/^[/~]/.test(query.trim()) ? `Add ${query.trim()}` : "Add repo…"}</span>
+              </button>
             </div>
           </div>,
           document.body,
         )}
     </>
+  );
+}
+
+/** A folder path with autocomplete as you type (`~/Co` → ~/Code/), plus the native picker in the desktop app. */
+function PathField({ value, onChange }: { value: string; onChange: (path: string) => void }) {
+  const [suggestions, setSuggestions] = useState<{ path: string; repo: boolean }[]>([]);
+  const [active, setActive] = useState(-1);
+  const [focused, setFocused] = useState(true);
+
+  useEffect(() => {
+    if (!value.trim()) return setSuggestions([]);
+    const timer = setTimeout(() => void api.suggestFolders(value).then(setSuggestions, () => setSuggestions([])), 120);
+    return () => clearTimeout(timer);
+  }, [value]);
+  useEffect(() => setActive(-1), [suggestions]);
+
+  const pick = (path: string) => onChange(`${path}/`);
+  const browse = async () => {
+    const picked = await desktop?.pickFolder?.();
+    if (picked) onChange(picked);
+  };
+  const shown = focused ? suggestions.filter((s) => s.path !== value.replace(/(.)\/+$/, "$1")) : [];
+
+  return (
+    <div className="path-field">
+      <div className="path-field-row">
+        <input
+          className="dialog-input mono"
+          placeholder="~/Code/my-app"
+          value={value}
+          autoFocus
+          spellCheck={false}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setTimeout(() => setFocused(false), 120)}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown" && shown.length) (e.preventDefault(), setActive((a) => Math.min(shown.length - 1, a + 1)));
+            if (e.key === "ArrowUp" && shown.length) (e.preventDefault(), setActive((a) => Math.max(-1, a - 1)));
+            const target = shown[active] ?? (e.key === "Tab" ? shown[0] : undefined);
+            if ((e.key === "Enter" && !e.metaKey && !e.ctrlKey && active >= 0 && target) || (e.key === "Tab" && target)) {
+              e.preventDefault();
+              pick(target.path);
+            }
+          }}
+        />
+        {desktop?.pickFolder && (
+          <button type="button" className="btn ghost" onClick={() => void browse()}>
+            <FolderOpen size={13} /> Browse…
+          </button>
+        )}
+      </div>
+      {shown.length > 0 && (
+        <div className="path-suggestions">
+          {shown.map((s, i) => (
+            <div key={s.path} className={`path-suggestion ${i === active ? "active" : ""}`} onMouseDown={(e) => (e.preventDefault(), pick(s.path))} onMouseEnter={() => setActive(i)}>
+              {s.repo ? <FolderGit2 size={13} /> : <Folder size={13} />}
+              <span>{s.path}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

@@ -20,6 +20,9 @@ export const api = {
   // A server started before the rename only knows /api/projects (the web build is served live, the server isn't).
   listProjects: () => request<Project[]>("/api/repos").catch(() => request<Project[]>("/api/projects")),
   saveProject: (id: string, patch: { title?: string; color?: string }) => request<Project>(`/api/repos/${enc(id)}`, { method: "PUT", body: JSON.stringify(patch) }),
+  addProject: (path: string) => request<Project>("/api/repos", { method: "POST", body: JSON.stringify({ path }) }),
+  removeProject: (id: string) => request(`/api/repos/${enc(id)}`, { method: "DELETE" }),
+  suggestFolders: (q: string) => request<{ path: string; repo: boolean }[]>(`/api/folders?q=${enc(q)}`),
   getTask: (id: string) => request<Task>(`/api/tasks/${enc(id)}`),
   createTask: (task: Partial<Task> & { id: string }) => request<Task>("/api/tasks", { method: "POST", body: JSON.stringify(task) }),
   saveTask: (id: string, patch: Partial<Task>) => request<Task>(`/api/tasks/${enc(id)}`, { method: "PUT", body: JSON.stringify(patch) }),

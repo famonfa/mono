@@ -6,6 +6,8 @@ type DesktopBridge = {
   installUpdate: () => Promise<void>;
   connectPhone: () => Promise<void>;
   /** File menu's New Tab (⌘T) and Close Tab (⌘W); missing in builds before tabs. */
+  /** Native folder picker; missing in builds before it. */
+  pickFolder?: () => Promise<string | null>;
   onTabCommand?: (fn: (command: "new" | "close") => void) => () => void;
 };
 

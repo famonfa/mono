@@ -189,6 +189,11 @@ app.whenReady().then(async () => {
   ipcMain.handle("mono:update", () => available);
   ipcMain.handle("mono:install-update", () => installUpdate());
   ipcMain.handle("mono:connect-phone", () => connectPhone({ fromApp: true }));
+  ipcMain.handle("mono:pick-folder", async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, { properties: ["openDirectory", "createDirectory"], buttonLabel: "Add repo" });
+    return canceled ? null : filePaths[0];
+  });
 });
 
 app.on("window-all-closed", () => process.platform !== "darwin" && app.quit());

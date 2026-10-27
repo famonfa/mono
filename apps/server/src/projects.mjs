@@ -75,9 +75,11 @@ export function allProjects({ fresh = false } = {}) {
   const seen = new Set();
   const projects = [];
   const t3 = readT3Projects();
+  const added = new Set((overrides.extra ?? []).map((e) => realpath(e.root)));
+  const hidden = new Set(overrides.hidden ?? []);
   for (const { title, root } of [...(t3.length ? t3 : readClaudeProjects()), ...(overrides.extra ?? [])]) {
     const real = realpath(root);
-    if (seen.has(real) || !fs.existsSync(real)) continue;
+    if (seen.has(real) || hidden.has(real) || !fs.existsSync(real)) continue;
     seen.add(real);
     const custom = overrides[real] ?? {};
     let id = slug(title) || slug(path.basename(real));
@@ -91,6 +93,8 @@ export function allProjects({ fresh = false } = {}) {
       initials: (name[0] + name[name.length - 1]).toUpperCase(),
       color: custom.color ?? hashColor(name),
       favicon: custom.color ? undefined : favicon,
+      // Added by hand in Mono: listed even when it sits inside another project.
+      added: added.has(real),
     });
   }
   for (const project of projects) project.parentId = parentOf(project, projects)?.id ?? null;
@@ -112,17 +116,18 @@ function parentOf(project, projects) {
 }
 
 /**
- * Projects shown in the app: only outermost ones. A repo inside a monorepo is a folder of
- * the monorepo, not a project of its own: the monorepo is the single home for that family and holds the skills.
+ * Projects shown in the app: the outermost ones, plus any added by hand. A repo inside a monorepo is a folder
+ * of the monorepo, not a project of its own (the monorepo holds the skills), unless the user added it.
  */
 export function listProjects(opts) {
-  return allProjects(opts).filter((p) => !p.parentId);
+  const listed = allProjects(opts).filter((p) => !p.parentId || p.added);
+  return listed.map((p) => ({ ...p, parentId: parentOf(p, listed)?.id ?? null }));
 }
 
 function topProjectId(id) {
   const projects = allProjects();
   let current = projects.find((p) => p.id === id);
-  while (current?.parentId) current = projects.find((p) => p.id === current.parentId);
+  while (current?.parentId && !current.added) current = projects.find((p) => p.id === current.parentId);
   return current?.id ?? null;
 }
 
@@ -148,14 +153,72 @@ export function launchRootFor(dir) {
   return containing.sort((a, b) => a.root.length - b.root.length)[0]?.root ?? real;
 }
 
+function writeOverrides(overrides) {
+  fs.mkdirSync(path.dirname(OVERRIDES_FILE), { recursive: true });
+  fs.writeFileSync(OVERRIDES_FILE, JSON.stringify(overrides, null, 2));
+}
+
 export function saveOverride(projectId, patch) {
   const project = listProjects().find((p) => p.id === projectId);
   if (!project) throw new Error(`Project not found: ${projectId}`);
   const overrides = readOverrides();
   overrides[project.root] = { ...overrides[project.root], ...patch };
-  fs.mkdirSync(path.dirname(OVERRIDES_FILE), { recursive: true });
-  fs.writeFileSync(OVERRIDES_FILE, JSON.stringify(overrides, null, 2));
+  writeOverrides(overrides);
   return allProjects({ fresh: true }).find((p) => p.root === project.root);
+}
+
+/** Adds a folder to Mono's repos (any folder, git or not). Adding one that was removed brings it back. */
+export function addProject(dir) {
+  const real = realpath(dir);
+  if (!fs.existsSync(real) || !fs.statSync(real).isDirectory()) throw new Error(`Not a folder: ${dir}`);
+  const overrides = readOverrides();
+  overrides.hidden = (overrides.hidden ?? []).filter((root) => root !== real);
+  if (!(overrides.extra ?? []).some((e) => realpath(e.root) === real)) overrides.extra = [...(overrides.extra ?? []), { title: path.basename(real) || real, root: real }];
+  writeOverrides(overrides);
+  return listProjects({ fresh: true }).find((p) => p.root === real);
+}
+
+/** Takes a repo off Mono's list. Folders and their sessions are untouched; adding it again restores it. */
+export function removeProject(projectId) {
+  const project = allProjects().find((p) => p.id === projectId);
+  if (!project) throw new Error(`Project not found: ${projectId}`);
+  const overrides = readOverrides();
+  const extra = overrides.extra ?? [];
+  overrides.extra = extra.filter((e) => realpath(e.root) !== project.root);
+  // Repos that come from elsewhere (the other app's list, Claude Code's history) are hidden instead.
+  if (overrides.extra.length === extra.length) overrides.hidden = [...new Set([...(overrides.hidden ?? []), project.root])];
+  writeOverrides(overrides);
+  allProjects({ fresh: true });
+  return { ok: true };
+}
+
+/** Folders matching a typed path (`~/Co` → ~/Code, ~/Courses), for the add-repo autocomplete. */
+export function suggestFolders(query) {
+  const typed = String(query ?? "").trim() || "~/";
+  const expanded = typed === "~" ? HOME_DIR + path.sep : typed.startsWith("~/") ? path.join(os.homedir(), typed.slice(2)) + (typed.endsWith("/") ? path.sep : "") : typed;
+  if (!path.isAbsolute(expanded)) return [];
+  const dir = expanded.endsWith(path.sep) ? expanded : path.dirname(expanded);
+  const prefix = expanded.endsWith(path.sep) ? "" : path.basename(expanded).toLowerCase();
+  let entries = [];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const home = os.homedir();
+  return entries
+    .filter((e) => (e.isDirectory() || e.isSymbolicLink()) && e.name.toLowerCase().startsWith(prefix) && (prefix.startsWith(".") || !e.name.startsWith(".")))
+    .map((e) => path.join(dir, e.name))
+    .filter((full) => {
+      try {
+        return fs.statSync(full).isDirectory();
+      } catch {
+        return false;
+      }
+    })
+    .sort((a, b) => a.localeCompare(b))
+    .slice(0, 40)
+    .map((full) => ({ path: full.startsWith(home + path.sep) ? `~${full.slice(home.length)}` : full, repo: fs.existsSync(path.join(full, ".git")) }));
 }
 
 const repoRootCache = new Map();

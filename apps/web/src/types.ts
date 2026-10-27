@@ -135,4 +135,4 @@ export const BOARD_KIND: Record<BoardKind, { label: string; icon: string }> = {
   free: { label: "Free", icon: "✏️" },
 };
 
-export type Project = { id: string; title: string; root: string; initials: string; color: string; hasIcon: boolean; parentId: string | null };
+export type Project = { id: string; title: string; root: string; initials: string; color: string; hasIcon: boolean; parentId: string | null; added?: boolean };

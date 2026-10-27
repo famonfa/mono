@@ -239,6 +239,7 @@ export function createApi(broadcast) {
       if (resource === "chats") return await handleChats(res, method, parts, body);
       if (resource === "groups") return await handleGroups(res, method, parts, body);
       if (resource === "search" && method === "GET") return send(res, 200, brain.search(url.searchParams.get("q") ?? "", { projectId: url.searchParams.get("project") || undefined }));
+      if (resource === "folders" && method === "GET") return send(res, 200, projects.suggestFolders(url.searchParams.get("q")));
       if (resource === "models" && method === "GET") return send(res, 200, chats.listModels());
       if (resource === "commands" && method === "GET" && url.searchParams.get("name")) {
         const found = readCommand(url.searchParams.get("cwd") ? chats.expandHome(url.searchParams.get("cwd")) : null, url.searchParams.get("name"));
@@ -257,7 +258,9 @@ export function createApi(broadcast) {
           const icon = projects.projectIcon(id);
           return icon && serveStatic(res, path.dirname(icon), path.basename(icon)) ? undefined : send(res, 404, { error: "not found" });
         }
+        if (!id && method === "POST") return send(res, 200, projects.addProject(chats.expandHome(String(body.path ?? "").trim())));
         if (id && !sub && method === "PUT") return send(res, 200, projects.saveOverride(id, { title: body.title || undefined, color: body.color || undefined }));
+        if (id && !sub && method === "DELETE") return send(res, 200, projects.removeProject(id));
         if (id && sub === "worktrees" && method === "GET") {
           return projects.listProjects().some((p) => p.id === id) ? send(res, 200, chats.worktreesForProject(id)) : send(res, 404, { error: "not found" });
         }

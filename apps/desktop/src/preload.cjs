@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("monoDesktop", {
   },
   installUpdate: () => ipcRenderer.invoke("mono:install-update"),
   connectPhone: () => ipcRenderer.invoke("mono:connect-phone"),
+  pickFolder: () => ipcRenderer.invoke("mono:pick-folder"),
   /** New Tab / Close Tab from the File menu; the page owns the tabs. */
   onTabCommand: (fn) => {
     const listener = (_event, command) => fn(command);
