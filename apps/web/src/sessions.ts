@@ -246,6 +246,8 @@ export function useRefreshJob(taskId: string, onFinished?: () => void) {
     if (previous.current === "running" && job.status !== "running") onFinished?.();
     previous.current = job.status;
   }, [job.status, onFinished]);
-  const start = async () => setJob(await sessionsApi.startRefresh(taskId));
+  // A rejected start shows up as a failed job, so "View error" explains it instead of the click doing nothing.
+  const start = () =>
+    sessionsApi.startRefresh(taskId).then(setJob, (e: Error) => setJob({ status: "failed", output: `Couldn't start the update: ${e.message}` }));
   return { job, start };
 }
