@@ -192,33 +192,57 @@ export function removeProject(projectId) {
   return { ok: true };
 }
 
-/** Folders matching a typed path (`~/Co` → ~/Code, ~/Courses), for the add-repo autocomplete. */
-export function suggestFolders(query) {
-  const typed = String(query ?? "").trim() || "~/";
-  const expanded = typed === "~" ? HOME_DIR + path.sep : typed.startsWith("~/") ? path.join(os.homedir(), typed.slice(2)) + (typed.endsWith("/") ? path.sep : "") : typed;
-  if (!path.isAbsolute(expanded)) return [];
-  const dir = expanded.endsWith(path.sep) ? expanded : path.dirname(expanded);
-  const prefix = expanded.endsWith(path.sep) ? "" : path.basename(expanded).toLowerCase();
-  let entries = [];
+const HOME = os.homedir();
+const shortPath = (full) => (full === HOME ? "~" : full.startsWith(HOME + path.sep) ? `~${full.slice(HOME.length)}` : full);
+const longPath = (dir) => (dir === "~" ? HOME : dir.startsWith("~/") ? path.join(HOME, dir.slice(2)) : dir);
+const isRepo = (dir) => fs.existsSync(path.join(dir, ".git"));
+// macOS asks for permission the first time anything reads these, so only open them when the user does.
+const PROTECTED = new Set(["Desktop", "Documents", "Downloads", "Library", "Pictures", "Movies", "Music", "Public", "Applications"].map((name) => path.join(HOME, name)));
+const SKIP = new Set(["node_modules", ".git"]);
+
+function subfolders(dir) {
   try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((e) => !e.name.startsWith(".") && !SKIP.has(e.name) && (e.isDirectory() || e.isSymbolicLink()))
+      .map((e) => path.join(dir, e.name))
+      .filter((full) => {
+        try {
+          return fs.statSync(full).isDirectory();
+        } catch {
+          return false;
+        }
+      });
   } catch {
     return [];
   }
-  const home = os.homedir();
-  return entries
-    .filter((e) => (e.isDirectory() || e.isSymbolicLink()) && e.name.toLowerCase().startsWith(prefix) && (prefix.startsWith(".") || !e.name.startsWith(".")))
-    .map((e) => path.join(dir, e.name))
-    .filter((full) => {
-      try {
-        return fs.statSync(full).isDirectory();
-      } catch {
-        return false;
-      }
-    })
-    .sort((a, b) => a.localeCompare(b))
-    .slice(0, 40)
-    .map((full) => ({ path: full.startsWith(home + path.sep) ? `~${full.slice(home.length)}` : full, repo: fs.existsSync(path.join(full, ".git")) }));
+}
+
+/** One folder's subfolders for the add-repo browser: which are repos, and how many repos sit right inside the rest. */
+export function listFolder(dir) {
+  const real = path.resolve(longPath(String(dir || "~")));
+  if (!fs.existsSync(real) || !fs.statSync(real).isDirectory()) throw new Error(`Not a folder: ${dir}`);
+  const listed = new Set(listProjects().map((p) => p.root));
+  const entries = subfolders(real)
+    .sort((a, b) => path.basename(a).localeCompare(path.basename(b), undefined, { numeric: true, sensitivity: "base" }))
+    .slice(0, 300)
+    .map((full) => {
+      const repo = isRepo(full);
+      const repos = repo || PROTECTED.has(full) ? 0 : subfolders(full).filter(isRepo).length;
+      return { name: path.basename(full), path: shortPath(full), repo, repos, added: listed.has(realpath(full)) };
+    });
+  return { path: shortPath(real), name: real === HOME ? "~" : path.basename(real) || real, repo: isRepo(real), added: listed.has(realpath(real)), parent: real === path.parse(real).root ? null : shortPath(path.dirname(real)), entries };
+}
+
+/** Repos Claude Code has been used in that aren't on the list yet: the likeliest ones to add. */
+export function suggestedRepos() {
+  const listed = new Set(listProjects().map((p) => p.root));
+  return readClaudeProjects()
+    .map(({ root }) => realpath(root))
+    .filter((root, i, all) => !listed.has(root) && all.indexOf(root) === i)
+    .map((root) => ({ name: path.basename(root), path: shortPath(root) }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .slice(0, 12);
 }
 
 const repoRootCache = new Map();

@@ -135,4 +135,8 @@ export const BOARD_KIND: Record<BoardKind, { label: string; icon: string }> = {
   free: { label: "Free", icon: "✏️" },
 };
 
+/** A folder in the add-repo browser; paths are short (`~/Code/app`). */
+export type FolderEntry = { name: string; path: string; repo: boolean; repos: number; added: boolean };
+export type FolderListing = { path: string; name: string; repo: boolean; added: boolean; parent: string | null; entries: FolderEntry[] };
+
 export type Project = { id: string; title: string; root: string; initials: string; color: string; hasIcon: boolean; parentId: string | null; added?: boolean };

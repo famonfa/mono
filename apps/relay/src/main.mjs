@@ -28,7 +28,7 @@ const PUBLIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".
 /** Desktop app zips that `npx @famonfa/mono` installs (uploaded by publish-desktop.sh, kept across deploys). */
 const DOWNLOADS_DIR = process.env.DOWNLOADS_DIR ?? path.resolve("downloads");
 const DOWNLOADS = new Set(["Mono-arm64.zip", "Mono-x64.zip"]);
-const STATIC_TYPES = { ".jpg": "image/jpeg", ".png": "image/png", ".svg": "image/svg+xml", ".webp": "image/webp" };
+const STATIC_TYPES = { ".jpg": "image/jpeg", ".png": "image/png", ".svg": "image/svg+xml", ".webp": "image/webp", ".js": "text/javascript; charset=utf-8" };
 
 if (SECRET.length < 32) throw new Error("SESSION_SECRET must be at least 32 characters (openssl rand -hex 32)");
 if (!access.hasAdmins()) throw new Error("Missing ADMIN_EMAILS (your Google email; admins can block members from /_mono/admin)");
@@ -274,6 +274,13 @@ async function relayRoute(req, res, url) {
     if (!type || !fs.existsSync(file)) return send(res, 404, { error: "not found" });
     res.setHeader("Content-Type", type);
     res.setHeader("Cache-Control", "public, max-age=86400");
+    // Caddy doesn't compress this site (it would buffer the event stream), so big scripts ship a .gz next to them.
+    const gzipped = `${file}.gz`;
+    if (/\bgzip\b/.test(req.headers["accept-encoding"] ?? "") && fs.existsSync(gzipped)) {
+      res.setHeader("Content-Encoding", "gzip");
+      res.setHeader("Vary", "Accept-Encoding");
+      return fs.createReadStream(gzipped).pipe(res);
+    }
     return fs.createReadStream(file).pipe(res);
   }
 

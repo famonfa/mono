@@ -239,7 +239,7 @@ export function createApi(broadcast) {
       if (resource === "chats") return await handleChats(res, method, parts, body);
       if (resource === "groups") return await handleGroups(res, method, parts, body);
       if (resource === "search" && method === "GET") return send(res, 200, brain.search(url.searchParams.get("q") ?? "", { projectId: url.searchParams.get("project") || undefined }));
-      if (resource === "folders" && method === "GET") return send(res, 200, projects.suggestFolders(url.searchParams.get("q")));
+      if (resource === "folders" && method === "GET") return send(res, 200, id === "suggested" ? projects.suggestedRepos() : projects.listFolder(url.searchParams.get("dir") ?? "~"));
       if (resource === "models" && method === "GET") return send(res, 200, chats.listModels());
       if (resource === "commands" && method === "GET" && url.searchParams.get("name")) {
         const found = readCommand(url.searchParams.get("cwd") ? chats.expandHome(url.searchParams.get("cwd")) : null, url.searchParams.get("name"));

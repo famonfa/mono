@@ -1,3 +1,5 @@
+import fs from "node:fs";
+
 /** npm package people install on their Mac. */
 const PACKAGE = process.env.MONO_PACKAGE ?? "@famonfa/mono";
 
@@ -12,12 +14,31 @@ for (const block of document.querySelectorAll("[data-copy]")) {
 }
 </script>`;
 
+/** Busts the day-long static cache when the mascot bundle is rebuilt. */
+const MONKEY_VERSION = (() => {
+  try {
+    return Math.round(fs.statSync(new URL("../public/monkey.js", import.meta.url)).mtimeMs).toString(36);
+  } catch {
+    return "0";
+  }
+})();
+
 const escape = (text) => String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
+/** Screenshot rows under the hero: [eyebrow, title, text, image, alt]. */
+const SHOWCASE = [
+  ["Boards", "See the change, not the diff.", "Before/after flows color what's new, changed or risky. Drag cards around, or ask Claude to edit the canvas.", "app-flow.jpg", "A checkout flow, before and after"],
+  ["Tests", "Know what was actually tested.", "One lane per test path, with the result on the last card. Pass and fail only when it really ran.", "app-tests.jpg", "Test flows with passed and failed paths"],
+  ["Agents", "Every agent, live.", "Every Claude Code session on your Mac in one list: what it's doing, how full its context is, which project it belongs to. File each one as ongoing, on hold or finished.", "app-agents.jpg", "Agents list with working and idle sessions"],
+  ["Groups", "Run agents side by side.", "A group is a canvas of sessions. Launch several at once, let Claude plan the split, and watch the wires light up while they work.", "app-group.jpg", "A group canvas with three wired sessions"],
+];
+
 const FEATURES = [
-  ["Boards that write themselves", "With the /workspace skill, agents document each task as a story map, before/after flow, test plan and technical map. Drag to edit."],
-  ["Live sessions", "Every Claude Code session on your Mac in one place: what it's doing, what it touched, what finished while you were away."],
+  ["A brain you can search", "Projects hold docs, canvases and folders, any depth. Agents run ws search to read your notes and decisions before they act."],
+  ["Tabs", "Work on several things at once. ⌘T opens one, ⌘W closes it, ⌘1–9 jumps."],
+  ["Designs on the board", "Import Figma frames next to the flow they belong to."],
   ["From your phone", "Resume a session, approve a permission or send the next prompt from any browser or the mobile app."],
+  ["Your colors", "Light or dark, any accent color, tinted backgrounds."],
   ["Your code stays on your Mac", "Agents run on your machine with your Claude Code and your repos. The relay only passes messages."],
 ];
 
@@ -29,10 +50,10 @@ export function landingPage({ relay }) {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0b0b0d" />
-<title>Mono · Your Claude Code agents, at a glance</title>
-<meta name="description" content="Mono turns your Claude Code agents' work into boards you can read at a glance. Runs on your Mac, works from your phone." />
-<meta property="og:title" content="Mono · Your Claude Code agents, at a glance" />
-<meta property="og:image" content="${escape(relay)}/_mono/static/app-board.jpg" />
+<title>Mono · Your agents' work, at a glance</title>
+<meta name="description" content="Mono turns your Claude Code sessions into projects you can read in seconds: boards, docs and live agents. Runs on your Mac, works from your phone." />
+<meta property="og:title" content="Mono · Your agents' work, at a glance" />
+<meta property="og:image" content="${escape(relay)}/_mono/static/app-project.jpg" />
 <link rel="icon" href="/_mono/static/icon.png" />
 <style>
   :root { --bg: #0b0b0d; --panel: #141417; --border: rgb(255 255 255 / 0.08); --text: #ededef; --muted: #9b9ba3; --accent: #84cc16; --accent-2: #65a30d; }
@@ -93,7 +114,7 @@ export function landingPage({ relay }) {
   .install .copied-hint, .install.copied .copy-hint { display: none; }
   .install.copied .copied-hint { display: inline; color: var(--accent); }
   .hero-alt { position: relative; margin: 18px 0 0; color: var(--muted); font-size: 14px; }
-  .hero-alt code, .alt code { color: var(--text); font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 3px 7px; border-radius: 6px; background: rgb(255 255 255 / 0.06); }
+  .hero-alt code, .alt code, .sub code { color: var(--text); font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 3px 7px; border-radius: 6px; background: rgb(255 255 255 / 0.06); }
   .alt { margin: 18px 0 0; color: var(--muted); font-size: 14px; }
   pre { margin: 0; padding: 12px 14px; border-radius: 10px; background: #0f0f12; border: 1px solid var(--border); font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: #d4d4d8; white-space: pre-wrap; word-break: break-all; }
   pre .c { color: #6b6b74; }
@@ -102,7 +123,23 @@ export function landingPage({ relay }) {
   .final p { color: var(--muted); margin: 0 auto 26px; max-width: 480px; }
   footer { padding: 48px 0 56px; color: var(--muted); font-size: 14px; text-align: center; }
 
+  .rows { display: grid; gap: 120px; }
+  .row { display: grid; grid-template-columns: 5fr 7fr; gap: 56px; align-items: center; }
+  .row.flip .copy { order: 2; }
+  .row .tag { color: var(--accent); font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+  .row h3 { margin: 10px 0 12px; font-size: clamp(24px, 3vw, 32px); letter-spacing: -0.02em; line-height: 1.15; }
+  .row p { margin: 0; color: var(--muted); font-size: 17px; }
+  .row img { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 30px 90px rgb(0 0 0 / 0.55); }
+  .grid.three { grid-template-columns: repeat(3, 1fr); }
+
+  #monkey { position: fixed; top: 0; right: 0; z-index: 5; width: 240px; height: 100vh; height: 100dvh; pointer-events: none; opacity: 0; transition: opacity 0.8s ease; }
+  #monkey.ready { opacity: 1; }
+  @media (max-width: 1180px) { #monkey { width: 130px; } }
+
   @media (max-width: 820px) {
+    .row, .grid.three { grid-template-columns: 1fr; gap: 24px; }
+    .row.flip .copy { order: 0; }
+    .rows { gap: 80px; }
     nav a.link { display: none; }
     header.hero { padding-top: 64px; }
     .grid, .steps { grid-template-columns: 1fr; }
@@ -122,9 +159,9 @@ export function landingPage({ relay }) {
 </div></nav>
 
 <header class="hero"><div class="wrap">
-  <span class="eyebrow"><i></i> Free for Mac</span>
-  <h1>Your Claude Code agents, <span>at a glance.</span></h1>
-  <p class="lead">Mono turns your agents' work into boards you can read in seconds. It runs on your Mac, with your Claude Code.</p>
+  <span class="eyebrow"><i></i> Free for Mac · Works with Claude Code</span>
+  <h1>Your agents' work, <span>at a glance.</span></h1>
+  <p class="lead">Mono turns your Claude Code sessions into projects you can read in seconds: boards, docs and live agents. It runs on your Mac and follows you to your phone.</p>
   <div class="ctas">
     <button class="install" data-copy="npx ${escape(PACKAGE)}">
       <span class="prompt">$</span> <code>npx ${escape(PACKAGE)}</code>
@@ -134,15 +171,26 @@ export function landingPage({ relay }) {
   </div>
   <p class="hero-alt">Run it in Terminal on your Mac. It installs and opens the desktop app.</p>
   <div class="shot">
-    <img class="desktop" src="/_mono/static/app-board.jpg" alt="Mono on Mac: a task's checkout flow, before and after" width="1200" height="750" />
-    <img class="phone" src="/_mono/static/app-mobile.jpg" alt="Mono on iPhone: task summary" loading="lazy" />
+    <img class="desktop" src="/_mono/static/app-project.jpg" alt="Mono on Mac: a project with its summary, agents, tests and story map" width="1200" height="750" />
+    <img class="phone" src="/_mono/static/app-mobile.jpg" alt="Mono on iPhone: the same project" loading="lazy" />
   </div>
 </div></header>
 
 <section id="como"><div class="wrap">
   <h2>See the work, not the transcript.</h2>
-  <p class="sub">Agents run for hours. Know in a minute what changed, what was tested and what's left.</p>
-  <div class="grid">
+  <p class="sub">Agents run for hours. Know in a minute what changed, what was tested and what's left. Run <code>/workspace</code> in Claude Code and the agent documents its own task.</p>
+  <div class="rows">
+    ${SHOWCASE.map(([tag, title, text, image, alt], i) => `<div class="row${i % 2 ? " flip" : ""}">
+      <div class="copy"><span class="tag">${escape(tag)}</span><h3>${escape(title)}</h3><p>${escape(text)}</p></div>
+      <img src="/_mono/static/${image}" alt="${escape(alt)}" width="1200" height="750" loading="lazy" />
+    </div>`).join("")}
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2>And the rest.</h2>
+  <p class="sub">Small things that add up when you live in it all day.</p>
+  <div class="grid three">
     ${FEATURES.map(([title, text]) => `<div class="card"><h3>${escape(title)}</h3><p>${escape(text)}</p></div>`).join("")}
   </div>
 </div></section>
@@ -163,6 +211,8 @@ export function landingPage({ relay }) {
   </div>
 </div></section>
 
+<canvas id="monkey" aria-hidden="true"></canvas>
+<script type="module" src="/_mono/static/monkey.js?v=${MONKEY_VERSION}"></script>
 ${COPY_SCRIPT}
 <footer><div class="wrap">Mono 🐒 · <a href="/_mono/privacidad">Privacy</a></div></footer>
 </body>

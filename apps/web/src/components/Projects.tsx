@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState, type SyntheticEvent } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Folder, FolderGit2, FolderOpen, Plus, Search, Settings, X } from "lucide-react";
+import { ArrowUp, ChevronDown, ChevronRight, Folder, FolderGit2, FolderOpen, Plus, Search, Settings, X } from "lucide-react";
 import { api } from "../api";
 import { useApp } from "../app-context";
 import { desktop } from "../desktop";
 import type { SessionSummary } from "../sessions";
-import type { Project, Task } from "../types";
+import type { FolderListing, Project, Task } from "../types";
 
 export const ALL_PROJECTS = "all";
 const COLORS = ["#eb5757", "#f2994a", "#d9a23b", "#4cb782", "#26b5ce", "#5e6ad2", "#bb87fc", "#e15a97"];
@@ -105,21 +105,11 @@ export function ProjectSwitcher() {
     setQuery("");
   };
 
+  const [adding, setAdding] = useState<string | null>(null);
   const addRepo = () => {
     setOpen(false);
-    const typed = /^[/~]/.test(query.trim()) ? query.trim() : "";
+    setAdding(/^[/~]/.test(query.trim()) ? query.trim() : "~");
     setQuery("");
-    openDialog({
-      title: "Add repo",
-      submitLabel: "Add repo",
-      fields: [{ name: "path", label: "Folder", defaultValue: typed, render: (value, set) => <PathField value={value} onChange={set} /> }],
-      onSubmit: async ({ path }) => {
-        if (!path.trim()) throw new Error("Pick a folder");
-        const added = await api.addProject(path.trim().replace(/(.)\/+$/, "$1"));
-        pending.current = added.id;
-        reloadProjects();
-      },
-    });
   };
 
   const removeRepo = async (p: Project) => {
@@ -237,68 +227,166 @@ export function ProjectSwitcher() {
           </div>,
           document.body,
         )}
+      {adding !== null && (
+        <AddRepoDialog
+          start={adding}
+          onClose={() => setAdding(null)}
+          onAdded={(added) => {
+            setAdding(null);
+            pending.current = added.id;
+            reloadProjects();
+          }}
+        />
+      )}
     </>
   );
 }
 
-/** A folder path with autocomplete as you type (`~/Co` → ~/Code/), plus the native picker in the desktop app. */
-function PathField({ value, onChange }: { value: string; onChange: (path: string) => void }) {
-  const [suggestions, setSuggestions] = useState<{ path: string; repo: boolean }[]>([]);
-  const [active, setActive] = useState(-1);
-  const [focused, setFocused] = useState(true);
+/** "~/Code/app" → ~ › Code › app, each one a place to jump back to. */
+function crumbs(dir: string) {
+  const root = dir.startsWith("~") ? "~" : "/";
+  const parts = dir.slice(root.length).split("/").filter(Boolean);
+  return [{ label: root, path: root }, ...parts.map((part, i) => ({ label: part, path: `${root === "~" ? "~/" : "/"}${parts.slice(0, i + 1).join("/")}` }))];
+}
 
+/** Add a repo by browsing folders: click to go in, the path bar to go back, Add on the one you want. */
+function AddRepoDialog({ start, onClose, onAdded }: { start: string; onClose: () => void; onAdded: (project: Project) => void }) {
+  const [dir, setDir] = useState(start);
+  const [listing, setListing] = useState<FolderListing | null>(null);
+  const [suggested, setSuggested] = useState<{ name: string; path: string }[]>([]);
+  const [filter, setFilter] = useState("");
+  const [active, setActive] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const list = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+
+  useEffect(() => void api.suggestedRepos().then(setSuggested, () => {}), []);
   useEffect(() => {
-    if (!value.trim()) return setSuggestions([]);
-    const timer = setTimeout(() => void api.suggestFolders(value).then(setSuggestions, () => setSuggestions([])), 120);
-    return () => clearTimeout(timer);
-  }, [value]);
-  useEffect(() => setActive(-1), [suggestions]);
+    setFilter("");
+    setActive(0);
+    input.current?.focus();
+    api.listFolder(dir).then(
+      (l) => (setListing(l), setError(null)),
+      (e: Error) => (dir !== "~" ? setDir("~") : setError(e.message)),
+    );
+  }, [dir]);
+  // Braces matter: newer Chrome returns a promise from scrollIntoView, and an effect must not return one.
+  useEffect(() => {
+    list.current?.querySelector(".fb-row.active")?.scrollIntoView({ block: "nearest" });
+  }, [active]);
 
-  const pick = (path: string) => onChange(`${path}/`);
+  const entries = (listing?.entries ?? []).filter((e) => e.name.toLowerCase().includes(filter.toLowerCase()));
+  const showSuggested = listing?.path === "~" && !filter && suggested.length > 0;
+  const add = async (path: string) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      onAdded(await api.addProject(path));
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  };
   const browse = async () => {
     const picked = await desktop?.pickFolder?.();
-    if (picked) onChange(picked);
+    if (picked) void add(picked);
   };
-  const shown = focused ? suggestions.filter((s) => s.path !== value.replace(/(.)\/+$/, "$1")) : [];
 
-  return (
-    <div className="path-field">
-      <div className="path-field-row">
-        <input
-          className="dialog-input mono"
-          placeholder="~/Code/my-app"
-          value={value}
-          autoFocus
-          spellCheck={false}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setTimeout(() => setFocused(false), 120)}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "ArrowDown" && shown.length) (e.preventDefault(), setActive((a) => Math.min(shown.length - 1, a + 1)));
-            if (e.key === "ArrowUp" && shown.length) (e.preventDefault(), setActive((a) => Math.max(-1, a - 1)));
-            const target = shown[active] ?? (e.key === "Tab" ? shown[0] : undefined);
-            if ((e.key === "Enter" && !e.metaKey && !e.ctrlKey && active >= 0 && target) || (e.key === "Tab" && target)) {
-              e.preventDefault();
-              pick(target.path);
-            }
-          }}
-        />
-        {desktop?.pickFolder && (
-          <button type="button" className="btn ghost" onClick={() => void browse()}>
-            <FolderOpen size={13} /> Browse…
+  return createPortal(
+    <div className="overlay" onMouseDown={onClose}>
+      <div
+        className="dialog folder-browser"
+        onMouseDown={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onClose();
+          else if (e.key === "ArrowDown") (e.preventDefault(), setActive((a) => Math.min(entries.length - 1, a + 1)));
+          else if (e.key === "ArrowUp") (e.preventDefault(), setActive((a) => Math.max(0, a - 1)));
+          else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) listing && !listing.added && void add(listing.path);
+          else if (e.key === "Enter" && entries[active]) (e.preventDefault(), setDir(entries[active].path));
+          else if (e.key === "Backspace" && !filter && listing?.parent) (e.preventDefault(), setDir(listing.parent));
+          else return;
+          input.current?.focus();
+        }}
+      >
+        <div className="dialog-title">Add repo</div>
+        <div className="fb-bar">
+          <button className="icon-btn" disabled={!listing?.parent} onClick={() => listing?.parent && setDir(listing.parent)} title="Up (⌫)">
+            <ArrowUp size={14} />
           </button>
-        )}
-      </div>
-      {shown.length > 0 && (
-        <div className="path-suggestions">
-          {shown.map((s, i) => (
-            <div key={s.path} className={`path-suggestion ${i === active ? "active" : ""}`} onMouseDown={(e) => (e.preventDefault(), pick(s.path))} onMouseEnter={() => setActive(i)}>
-              {s.repo ? <FolderGit2 size={13} /> : <Folder size={13} />}
-              <span>{s.path}</span>
+          <div className="fb-crumbs">
+            {listing &&
+              crumbs(listing.path).map((c, i, all) => (
+                <span key={c.path} className="fb-crumb">
+                  {i > 0 && <ChevronRight size={12} />}
+                  <button className={i === all.length - 1 ? "current" : ""} onClick={() => setDir(c.path)}>
+                    {c.label}
+                  </button>
+                </span>
+              ))}
+          </div>
+          <div className="fb-filter">
+            <Search size={13} />
+            <input ref={input} autoFocus placeholder="Filter" value={filter} onChange={(e) => (setFilter(e.target.value), setActive(0))} />
+          </div>
+        </div>
+
+        <div className="fb-list" ref={list}>
+          {showSuggested && (
+            <>
+              <div className="fb-section">Repos you've used with Claude Code</div>
+              {suggested.map((s) => (
+                <div key={s.path} className="fb-row suggested" onClick={() => void add(s.path)} title={`Add ${s.path}`}>
+                  <FolderGit2 size={15} className="fb-icon repo" />
+                  <span className="fb-name">{s.name}</span>
+                  <span className="fb-hint">{s.path}</span>
+                  <button className="btn ghost fb-add">Add</button>
+                </div>
+              ))}
+              <div className="fb-section">Home</div>
+            </>
+          )}
+          {entries.map((e, i) => (
+            <div key={e.path} className={`fb-row ${i === active ? "active" : ""} ${e.repo ? "is-repo" : ""}`} onClick={() => setDir(e.path)} onMouseEnter={() => setActive(i)} title={e.path}>
+              {e.repo ? <FolderGit2 size={15} className="fb-icon repo" /> : <Folder size={15} className="fb-icon" />}
+              <span className="fb-name">{e.name}</span>
+              <span className="fb-hint">{e.repos ? `${e.repos} ${e.repos === 1 ? "repo" : "repos"}` : ""}</span>
+              {e.added ? (
+                <span className="fb-added">Added</span>
+              ) : (
+                <button
+                  className="btn ghost fb-add"
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    void add(e.path);
+                  }}
+                >
+                  Add
+                </button>
+              )}
+              <ChevronRight size={14} className="fb-chevron" />
             </div>
           ))}
+          {listing && !entries.length && <div className="menu-empty">{filter ? "No matching folders" : "No folders inside"}</div>}
         </div>
-      )}
-    </div>
+
+        {error && <div className="dialog-error">{error}</div>}
+        <div className="dialog-actions">
+          {desktop?.pickFolder && (
+            <button type="button" className="btn ghost" onClick={() => void browse()}>
+              <FolderOpen size={13} /> Browse…
+            </button>
+          )}
+          <span className="spacer" />
+          <button type="button" className="btn ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="btn primary" disabled={!listing || listing.added || busy} onClick={() => listing && void add(listing.path)}>
+            {busy ? "Adding…" : listing?.added ? "Already added" : `Add ${listing?.name === "~" ? "home folder" : `“${listing?.name ?? ""}”`}`} <kbd className="kbd on-primary">⌘↵</kbd>
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }

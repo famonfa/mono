@@ -5,9 +5,14 @@
   "type": "module",
   "scripts": {
     "start": "node --no-warnings=ExperimentalWarning src/main.mjs",
-    "dev": "node --env-file=.env src/main.mjs"
+    "dev": "node --env-file=.env src/main.mjs",
+    "build:landing": "esbuild landing/monkey.js --bundle --minify --format=esm --target=es2020 --outfile=public/monkey.js && gzip -9kf public/monkey.js"
   },
   "dependencies": {
     "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "three": "^0.186.1"
   }
 }
