@@ -160,7 +160,6 @@ function focusContext(launchCwd, focusCwd) {
 }
 
 
-/** Worktrees that belong to a task: matching branch names or `.worktrees/<task>/`, plus the avocado root as fallback. */
 /** The project's own folder plus every git worktree of it, for sessions started without a task. */
 function gitWorktrees(root) {
   const found = [{ path: root, repo: path.basename(root), branch: null, root: true }];
@@ -175,7 +174,7 @@ function gitWorktrees(root) {
   return found;
 }
 
-/** A project's folder and worktrees, followed by those of the projects nested in it (avocado → instamenu, KDS…). */
+/** A project's folder and worktrees, followed by those of the projects nested in it (a monorepo → its apps). */
 export function worktreesForProject(projectId) {
   const ids = descendantIds(projectId);
   const projects = allProjects();

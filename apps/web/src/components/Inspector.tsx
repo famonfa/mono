@@ -97,7 +97,7 @@ export function Inspector({ task, node, edge, onNodeChange, onEdgeChange, onDele
                   onChange={(e) => set({ repo: e.target.value || undefined })}
                 />
                 <datalist id="repos">
-                  {[...new Set(["instamenu", "instamenu-api", "KDS", ...(task.repos ?? []).map((r) => r.name)])].map((r) => (
+                  {[...new Set((task.repos ?? []).map((r) => r.name))].map((r) => (
                     <option key={r} value={r} />
                   ))}
                 </datalist>

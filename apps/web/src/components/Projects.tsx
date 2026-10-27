@@ -35,7 +35,7 @@ export function ProjectIcon({ project, size = 18 }: { project?: Project; size?: 
   );
 }
 
-/** The selected project plus every project nested in it (avocado → instamenu, KDS…); null means all. */
+/** The selected project plus every project nested in it (a monorepo → its apps); null means all. */
 export function projectScope(project: string, projects: Project[]): Set<string> | null {
   if (project === ALL_PROJECTS) return null;
   const scope = new Set([project]);

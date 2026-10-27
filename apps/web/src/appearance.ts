@@ -7,7 +7,7 @@ export type Appearance = { theme: Theme; palette: string; custom: string; tint: 
 
 export const PALETTES = [
   { id: "indigo", label: "Indigo", accent: "#5e6ad2" },
-  { id: "avocado", label: "Avocado", accent: "#5fb85a" },
+  { id: "leaf", label: "Leaf", accent: "#5fb85a" },
   { id: "ocean", label: "Ocean", accent: "#1fa8c9" },
   { id: "violet", label: "Violet", accent: "#9b6bf2" },
   { id: "rose", label: "Rose", accent: "#e15a97" },

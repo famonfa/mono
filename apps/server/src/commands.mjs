@@ -86,7 +86,7 @@ function pluginEntries() {
 /** Slash commands a session started from `cwd` can use: project skills/commands win over personal ones, then plugins and built-ins. */
 export function listCommands(cwd) {
   const root = cwd ? launchRootFor(cwd) : null;
-  // A nested project (avocado/instamenu) launches from the outer root but can ship its own .claude too.
+  // A nested project (monorepo/app) launches from the outer root but can ship its own .claude too.
   const dirs = [...new Set([cwd, root].filter(Boolean).map((d) => path.resolve(d)))];
   const key = dirs.join("|");
   const hit = cache.get(key);

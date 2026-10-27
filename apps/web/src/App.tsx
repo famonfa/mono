@@ -75,7 +75,7 @@ export function App() {
         submitLabel: "Create project",
         fields: [
           { name: "title", label: "Title" },
-          { name: "id", label: "ID (e.g. IME-3001)", mono: true },
+          { name: "id", label: "ID (e.g. WEB-101)", mono: true },
           { name: "status", label: "Status", defaultValue: status, options: STATUS_ORDER.map((s) => ({ value: s, label: STATUS_META[s].label, icon: <StatusIcon status={s} /> })) },
           { name: "cwd", label: "Folder", render: (value, set) => <FolderPicker value={value} onChange={set} /> },
         ],

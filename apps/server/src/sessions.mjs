@@ -7,7 +7,8 @@ export const PROJECTS_DIR = path.join(os.homedir(), ".claude", "projects");
 const STALE_TURN_MS = 15 * 60_000;
 const RECENT_MS = 2 * 60 * 60_000;
 const TAIL_BYTES = 4 * 1024 * 1024;
-const MENTION = /\b(IME-\d{3,5}|PR-\d{2,5})\b/g;
+// Anything shaped like a project id (WEB-101, PR-1481, T-MVJS050W): sessions that mention one get linked to it.
+const MENTION = /\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)\b/g;
 
 /** Incremental per-file state: only bytes appended since the last read are parsed. */
 const metaCache = new Map();

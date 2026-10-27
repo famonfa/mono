@@ -102,7 +102,7 @@ const HOME_DIR = realpath(os.homedir());
 const isInside = (dir, root) => dir === root || dir.startsWith(root + path.sep);
 
 /**
- * The nearest project that contains this one (avocado contains instamenu, KDS…). The home folder is a
+ * The nearest project that contains this one (a monorepo contains its apps). The home folder is a
  * catch-all project, so it never acts as a parent.
  */
 function parentOf(project, projects) {
@@ -112,8 +112,8 @@ function parentOf(project, projects) {
 }
 
 /**
- * Projects shown in the app: only outermost ones. A repo inside avocado (instamenu, KDS…) is a folder of
- * avocado, not a project of its own — avocado is the single home for that family and holds the skills.
+ * Projects shown in the app: only outermost ones. A repo inside a monorepo is a folder of
+ * the monorepo, not a project of its own: the monorepo is the single home for that family and holds the skills.
  */
 export function listProjects(opts) {
   return allProjects(opts).filter((p) => !p.parentId);
@@ -139,7 +139,7 @@ export function descendantIds(projectId) {
 
 /**
  * Where a session must start so it loads the shared skills and CLAUDE.md: the outermost project that
- * contains the folder (avocado for anything under it). Claude Code doesn't load skills from parent folders.
+ * contains the folder (the monorepo for anything under it). Claude Code doesn't load skills from parent folders.
  */
 export function launchRootFor(dir) {
   const real = realpath(dir);
@@ -160,7 +160,7 @@ export function saveOverride(projectId, patch) {
 
 const repoRootCache = new Map();
 
-/** For a path inside a git worktree, the main checkout it belongs to (so `.worktrees/X/KDS` counts as KDS). */
+/** For a path inside a git worktree, the main checkout it belongs to (so `.worktrees/X/app` counts as app). */
 function mainRepoRoot(dir) {
   if (repoRootCache.has(dir)) return repoRootCache.get(dir);
   let root = null;

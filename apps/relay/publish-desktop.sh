@@ -3,7 +3,7 @@
 # uploads them to the relay and records the version there, so `npx @famonfa/mono` installs it and
 # installed apps offer the update. Run locally or from CI (MONO_RELAY_HOST=user@ip).
 set -eu
-HOST=${MONO_RELAY_HOST:-pelado-oracle}
+HOST=${MONO_RELAY_HOST:-mono-relay}
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 RELEASE="$ROOT/apps/desktop/release"
 VERSION=$(node -p "require('$ROOT/apps/desktop/package.json').version")

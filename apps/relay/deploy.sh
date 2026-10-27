@@ -1,11 +1,11 @@
 #!/bin/sh
-# Deploys the relay to the Oracle Cloud VM it shares with Omno (ssh host `pelado-oracle`).
+# Deploys the relay to its Oracle Cloud VM (ssh host `mono-relay`).
 # First run also creates /srv/mono-relay/.env (with a fresh SESSION_SECRET), the systemd unit and the Caddy site.
-# Omno's own service and Caddy site are never touched.
+# Other services and Caddy sites on the VM are never touched.
 set -eu
-HOST=${MONO_RELAY_HOST:-pelado-oracle}
+HOST=${MONO_RELAY_HOST:-mono-relay}
 DOMAIN=${MONO_RELAY_DOMAIN:-mono.155-181-39-178.sslip.io}
-ADMINS=${ADMIN_EMAILS:-facundo@avocadopos.com}
+ADMINS=${ADMIN_EMAILS:-monsegurfacundo@gmail.com}
 DIR=/srv/mono-relay
 cd "$(dirname "$0")"
 
@@ -43,7 +43,7 @@ WorkingDirectory=$DIR
 ExecStart=/usr/bin/node --env-file=$DIR/.env --no-warnings src/main.mjs
 Restart=always
 RestartSec=3
-# Shares the VM with Omno: cap it so it can never starve the film club.
+# Shares the VM with other services: cap it so it can never starve them.
 MemoryMax=512M
 CPUQuota=50%
 
