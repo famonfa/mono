@@ -140,3 +140,10 @@ export type FolderEntry = { name: string; path: string; repo: boolean; repos: nu
 export type FolderListing = { path: string; name: string; repo: boolean; added: boolean; parent: string | null; entries: FolderEntry[] };
 
 export type Project = { id: string; title: string; root: string; initials: string; color: string; hasIcon: boolean; parentId: string | null; added?: boolean };
+
+export type ActivityCommit = { sha: string; branch: string; subject: string };
+export type ActivityEvent =
+  | { kind: "session"; ts: string; startTs?: string; sessionId: string; title: string; status: "working" | "idle" | "inactive"; turns: number; lastPrompt?: string | null; lastText?: string | null; branch?: string | null; prs: string[]; commits: ActivityCommit[] }
+  | { kind: "evidence"; ts: string; assets: string[] }
+  | { kind: "pages"; ts: string; pages: { id: string; title: string }[] };
+export type Activity = { since: string; events: ActivityEvent[] };

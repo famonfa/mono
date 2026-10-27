@@ -12,6 +12,7 @@ import * as designs from "./designs.mjs";
 import * as brain from "./brain.mjs";
 import { listCommands, readCommand } from "./commands.mjs";
 import { refreshStatus, startRefresh } from "./refresh.mjs";
+import { projectActivity } from "./activity.mjs";
 import { prStatus } from "./prs.mjs";
 import { planSessions } from "./spawn.mjs";
 
@@ -302,6 +303,10 @@ export function createApi(broadcast) {
       if (id && sub === "designs" && subId === "figma") {
         if (method === "GET") return send(res, 200, { hasToken: designs.hasFigmaToken() });
         if (method === "POST") return send(res, 200, await designs.importFigma(id, body.url, { token: body.token?.trim() || undefined }));
+      }
+      if (id && sub === "activity" && method === "GET") {
+        const activity = projectActivity(id, { days: Number(url.searchParams.get("days")) || undefined });
+        return activity ? send(res, 200, activity) : send(res, 404, { error: "not found" });
       }
       if (id && sub === "refresh") {
         if (method === "POST") return send(res, 200, startRefresh(id));

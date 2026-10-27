@@ -473,8 +473,14 @@ function touchProject(id) {
 const DATA_KEYS = ["label", "detail", "status", "test", "repo", "files", "image", "lane", "activity", "color", "kind", "link", "video", "design"];
 
 /** Accepts the flat node shape the AI writes ({id, type, label, status, ...}) and returns a React Flow node. */
+// What agents tend to write instead of the field names boards use.
+const DATA_ALIASES = { title: "label", name: "label", text: "label", body: "detail", description: "detail" };
+
 export function normalizeNode(node) {
   const data = { ...(node.data ?? {}) };
+  for (const [alias, key] of Object.entries(DATA_ALIASES)) {
+    if (node[alias] !== undefined && node[key] === undefined && data[key] === undefined) data[key] = node[alias];
+  }
   for (const key of DATA_KEYS) {
     if (node[key] !== undefined && data[key] === undefined) data[key] = node[key];
   }
@@ -520,7 +526,8 @@ export function mergeBoard(existing, incoming, { relayout = false, patch = false
   const nodes = incomingNodes.map((node) => {
     const prev = prevNodes.get(node.id);
     if (!prev) return node;
-    const data = prev.data?.edited ? prev.data : { ...node.data, edited: undefined };
+    // A patch only carries what changed (often just a status), so it updates fields instead of replacing them.
+    const data = prev.data?.edited ? prev.data : patch ? { ...prev.data, ...node.data } : { ...node.data, edited: undefined };
     const merged = { ...node, data };
     if (!relayout && prev.position) {
       merged.position = prev.position;

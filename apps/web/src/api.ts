@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { onServerEvent } from "./events";
-import type { Board, FigmaFrame, FolderListing, PageContent, Project, SearchHit, Task } from "./types";
+import type { Activity, Board, FigmaFrame, FolderListing, PageContent, Project, SearchHit, Task } from "./types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -25,6 +25,7 @@ export const api = {
   listFolder: (dir: string) => request<FolderListing>(`/api/folders?dir=${enc(dir)}`),
   suggestedRepos: () => request<{ name: string; path: string }[]>("/api/folders/suggested"),
   getTask: (id: string) => request<Task>(`/api/tasks/${enc(id)}`),
+  activity: (id: string) => request<Activity>(`/api/tasks/${enc(id)}/activity`),
   createTask: (task: Partial<Task> & { id: string }) => request<Task>("/api/tasks", { method: "POST", body: JSON.stringify(task) }),
   saveTask: (id: string, patch: Partial<Task>) => request<Task>(`/api/tasks/${enc(id)}`, { method: "PUT", body: JSON.stringify(patch) }),
   trashTask: (id: string) => request(`/api/tasks/${enc(id)}`, { method: "DELETE" }),

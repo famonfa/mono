@@ -7,11 +7,12 @@ import { href, navigate } from "../router";
 import { BOARD_KIND, type BoardKind, type Task } from "../types";
 import { formatDate, Menu, slugify, timeAgo } from "../ui";
 import { sessionsApi, useRefreshJob } from "../sessions";
-import { SessionRow, StatusDot } from "./Agents";
+import { StatusDot } from "./Agents";
 import { BoardView } from "./BoardView";
 import { isVideo, StatusStrip } from "./Evidence";
 import { Markdown } from "./Markdown";
 import { ProjectTile } from "./Home";
+import { ProjectActivity, ProjectAgents } from "./ProjectAgents";
 import { ProjectIcon } from "./Projects";
 
 /** Projects › project › page, plus who is working on it right now. Overview, sessions and pages live in the sidebar. */
@@ -195,6 +196,8 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
 
           <StatusStrip task={task} />
 
+          <ProjectAgents task={task} />
+
           <div className="tldr">
             {TLDR.map((t) => (
               <div key={t.key} className="tldr-block">
@@ -211,6 +214,8 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
               </div>
             ))}
           </div>
+
+          <ProjectActivity task={task} />
 
           <BoardsPanel task={task} onCreate={createBoard} />
 
@@ -235,14 +240,6 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
               </button>
             )}
           </div>
-
-          {linkedSessions.length > 0 && (
-            <Section title="Agents" count={linkedSessions.length}>
-              {linkedSessions.map((s) => (
-                <SessionRow key={s.id} session={s} compact />
-              ))}
-            </Section>
-          )}
 
           {task.assets.length > 0 && (
             <Section title="Files" count={task.assets.length}>

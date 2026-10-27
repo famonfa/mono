@@ -5870,3 +5870,298 @@ button.page-toggle:hover {
 .palette-item:has(.palette-hit) .spacer {
   display: none;
 }
+
+/* ── Project agents on stage + activity log (Resumen) ─────────────────────── */
+.project-agents,
+.project-activity {
+  margin-top: 26px;
+}
+
+.project-agents {
+  margin-bottom: 22px;
+}
+
+.project-agents-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+
+.project-agents-count {
+  color: var(--text-3);
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.project-agents-head .btn-quiet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.project-agents-head .btn-quiet:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.project-agents-head .count {
+  color: var(--text-3);
+}
+
+.project-agents-empty {
+  color: var(--text-3);
+  font-size: 13px;
+  padding: 6px 0;
+}
+
+.agent-stage {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: linear-gradient(to bottom, color-mix(in srgb, #4d7c0f 9%, transparent), transparent 70%);
+  overflow: hidden;
+}
+
+.agent-stage-canvas {
+  display: block;
+  width: 100%;
+  height: 220px;
+}
+
+.agent-stage-cards {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  border-top: 1px solid var(--border);
+}
+
+.agent-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 10px 12px 12px;
+}
+
+.agent-card + .agent-card {
+  border-left: 1px solid var(--border);
+}
+
+.agent-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  color: inherit;
+}
+
+.agent-card-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.agent-card.working .agent-card-state {
+  color: var(--energy, var(--accent));
+}
+
+.agent-card-title {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-card-main:hover .agent-card-title {
+  text-decoration: underline;
+}
+
+.agent-card-doing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.agent-card-doing span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-card-subs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+}
+
+.agent-card-subs-head {
+  font-size: 11px;
+  color: var(--text-4);
+  margin-bottom: 2px;
+}
+
+.agent-card-sub {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 6px;
+  align-items: center;
+  padding: 2px 4px;
+  margin: 0 -4px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.agent-card-sub.working {
+  color: var(--text-2);
+}
+
+.agent-card-sub:hover {
+  background: var(--bg-hover);
+}
+
+.agent-card-sub-title,
+.agent-card-sub-doing {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-card-sub-doing {
+  grid-column: 2;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.agent-stage-more {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.activity-recap {
+  font-size: 13px;
+  color: var(--text-2);
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  margin-bottom: 12px;
+}
+
+.activity-recap.quiet {
+  background: var(--bg-hover);
+  color: var(--text-3);
+}
+
+.activity-day {
+  margin-bottom: 10px;
+}
+
+.activity-day-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+  text-transform: capitalize;
+  margin: 8px 0 4px;
+}
+
+.activity-row {
+  display: grid;
+  grid-template-columns: 42px 18px minmax(0, 1fr);
+  align-items: start;
+  gap: 6px;
+  padding: 5px 0;
+}
+
+.activity-time {
+  font-size: 11px;
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
+  padding-top: 2px;
+}
+
+.activity-icon {
+  display: grid;
+  place-items: center;
+  height: 18px;
+  color: var(--text-3);
+}
+
+.activity-row.new .activity-time {
+  color: var(--accent);
+}
+
+.activity-title {
+  font-size: 13px;
+  color: var(--text);
+}
+
+a.activity-title:hover,
+.activity-title a:hover {
+  text-decoration: underline;
+}
+
+.activity-title a {
+  color: inherit;
+}
+
+.activity-text {
+  font-size: 12px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.activity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-thumbs {
+  display: flex;
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.activity-thumbs img {
+  width: 92px;
+  height: 58px;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+}
