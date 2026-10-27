@@ -3130,20 +3130,16 @@ code,
   border-radius: 7px;
   background: var(--bg-hover);
   margin-bottom: 8px;
-  container-type: inline-size;
-  overflow: hidden;
+  /* In the session column (a scrolling flex column) a long list must not squeeze the strip away. */
+  flex-shrink: 0;
 }
 
 .topbar .triage-tabs {
   margin: 0 0 0 4px;
-  /* In a toolbar the strip sizes to its tabs; a size container would collapse it. */
-  container-type: normal;
-  overflow: visible;
 }
 
 .triage-tabs button {
   flex: 1 1 auto;
-  min-width: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3166,30 +3162,13 @@ code,
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 0 0 1px var(--border);
 }
 
-/* Four tabs in a narrow session list: tighter first, then the labels truncate instead of the strip clipping. */
-.triage-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.triage-tabs button svg {
+  flex-shrink: 0;
 }
 
-.triage-label.short {
+/* The session column is narrow: other tabs are icon + count, only the active one spells its name. */
+.session-list .triage-tabs button:not(.active) .triage-label {
   display: none;
-}
-
-@container (max-width: 320px) {
-  .triage-tabs button {
-    gap: 3px;
-    padding: 0 5px;
-  }
-
-  .triage-label {
-    display: none;
-  }
-
-  .triage-label.short {
-    display: inline;
-  }
 }
 
 .triage-count {

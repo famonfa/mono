@@ -12,10 +12,12 @@ import {
   GitBranch,
   GitPullRequest,
   Globe,
+  History,
   ListTodo,
   Loader2,
   MessageSquare,
   Pause,
+  Play,
   Plus,
   RotateCcw,
   Search,
@@ -77,12 +79,11 @@ export function ContextMeter({ session, label = false }: { session: SessionSumma
   );
 }
 
-/** `short` is what fits when the list is narrow (a project's session column). */
-const TRIAGE_TABS: { value: SessionTriage; label: string; short: string }[] = [
-  { value: "ongoing", label: "Ongoing", short: "Ongoing" },
-  { value: "on-hold", label: "On hold", short: "Hold" },
-  { value: "finished", label: "Finished", short: "Done" },
-  { value: "previous", label: "Previous", short: "Prev" },
+const TRIAGE_TABS: { value: SessionTriage; label: string; icon: ReactNode }[] = [
+  { value: "ongoing", label: "Ongoing", icon: <Play size={12} /> },
+  { value: "on-hold", label: "On hold", icon: <Pause size={12} /> },
+  { value: "finished", label: "Finished", icon: <CheckCheck size={12} /> },
+  { value: "previous", label: "Previous", icon: <History size={12} /> },
 ];
 
 const triageOf = (s: SessionSummary): SessionTriage => s.triage ?? "ongoing";
@@ -98,9 +99,9 @@ export function useTriageFilter(sessions: SessionSummary[], key: string) {
   const tabs = (
     <div className="triage-tabs" role="tablist">
       {TRIAGE_TABS.map((t) => (
-        <button key={t.value} type="button" role="tab" aria-selected={triage === t.value} className={triage === t.value ? "active" : ""} onClick={() => setTriage(t.value)} title={t.label}>
+        <button key={t.value} type="button" role="tab" aria-selected={triage === t.value} className={triage === t.value ? "active" : ""} onClick={() => setTriage(t.value)} title={t.label} aria-label={t.label}>
+          {t.icon}
           <span className="triage-label">{t.label}</span>
-          <span className="triage-label short">{t.short}</span>
           {counts[t.value] > 0 && <span className="triage-count">{counts[t.value]}</span>}
         </button>
       ))}
