@@ -132,9 +132,10 @@ export function landingPage({ relay }) {
   .row img { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 30px 90px rgb(0 0 0 / 0.55); }
   .grid.three { grid-template-columns: repeat(3, 1fr); }
 
-  #monkey { position: fixed; top: 0; right: 0; z-index: 5; width: 240px; height: 100vh; height: 100dvh; pointer-events: none; opacity: 0; transition: opacity 0.8s ease; }
+  #monkey { position: fixed; top: 0; right: 0; z-index: 5; width: 270px; height: 100vh; height: 100dvh; pointer-events: none; opacity: 0; transition: opacity 0.8s ease; }
   #monkey.ready { opacity: 1; }
-  @media (max-width: 1180px) { #monkey { width: 130px; } }
+  @media (max-width: 1180px) { #monkey { width: 180px; } }
+  @media (max-width: 820px) { #monkey { width: 96px; } }
 
   @media (max-width: 820px) {
     .row, .grid.three { grid-template-columns: 1fr; gap: 24px; }

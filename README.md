@@ -54,6 +54,8 @@ npm run desktop   # build + Electron
 launchctl kickstart -k gui/$(id -u)/com.famonfa.mono   # restart the server after changing apps/server
 ```
 
+The landing's climbing monkey (Three.js) lives in `apps/relay/landing/monkey.js`; rebuild `apps/relay/public/monkey.js` with `npm run build:landing -w @mono/relay` after changing it.
+
 To test the relay locally without Google: `PORT=4700 SESSION_SECRET=$(openssl rand -hex 32) ADMIN_EMAILS=me@x.com DEV_LOGIN=1 npm run relay`, then `mono connect http://localhost:4700`.
 
 ## Server modules

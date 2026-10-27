@@ -150,12 +150,12 @@ function resize() {
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
   renderer.setSize(w, h, false);
-  const unit = innerWidth < 1180 ? 100 : 62; // pixels per world unit: a smaller monkey on narrow screens
+  const unit = innerWidth < 820 ? 38 : innerWidth < 1180 ? 52 : 72; // pixels per world unit: a smaller monkey on narrow screens
   const hw = w / unit / 2;
   const hh = h / unit / 2;
   Object.assign(camera, { left: -hw, right: hw, top: hh, bottom: -hh });
   camera.updateProjectionMatrix();
-  view = { w, h, unit, top: hh, bottom: -hh, x: hw * 0.25 };
+  view = { w, h, unit, top: hh, bottom: -hh, x: hw * (w < 120 ? 0.5 : 0.25) }; // phones: hug the edge, away from the text
 }
 resize();
 addEventListener("resize", resize);
@@ -186,14 +186,14 @@ function drawVine(t, scrolled) {
     pts[i].set(vineX(y, t), y, 0);
   }
   vine.geometry.dispose();
-  vine.geometry = new TubeGeometry(new CatmullRomCurve3(pts), 90, 0.06, 8);
+  vine.geometry = new TubeGeometry(new CatmullRomCurve3(pts), 90, 0.07, 10);
   // Leaves drift up a little as you scroll down, so the descent reads as movement.
   for (const leaf of leaves) {
     const { at, side, size } = leaf.userData;
     const loop = leaves.length * 1.17;
     const y = view.top + 1 - ((((at - scrolled * 0.004) % loop) + loop) % loop);
     leaf.position.set(vineX(y, t), y, 0.02);
-    leaf.scale.setScalar(size * 0.6);
+    leaf.scale.setScalar(size * 0.85);
     leaf.rotation.set(0, side * 0.5, side * (1.2 + Math.sin(t * 1.3 + at) * 0.08));
   }
 }
@@ -207,7 +207,7 @@ function frame(now) {
 
   // Where the monkey should hang: from just under the nav at the top to near the bottom at the end of the page.
   const p = progress();
-  const target = view.top - 1.9 - p * (view.top - view.bottom - 3.4);
+  const target = view.top - 2.3 - p * (view.top - view.bottom - 3.8);
   if (state.y === null) state.y = target;
   const prevY = state.y;
   state.y += (target - state.y) * (still ? 1 : 1 - Math.exp(-dt * 6));
@@ -230,20 +230,21 @@ function frame(now) {
   const moving = Math.min(Math.abs(moved) / dt / 2.5, 1);
 
   // Body hangs left of the vine, tilting with the sway.
-  monkey.position.set(x - 0.32, y, -0.3);
+  monkey.position.set(x - 0.52, y, -0.45);
   monkey.rotation.z = -state.sway * 0.35 + Math.sin(phase) * 0.06;
-  body.rotation.y = 0.35 + Math.sin(phase * 0.5) * 0.08;
+  body.rotation.y = 0.22 + Math.sin(phase * 0.5) * 0.08;
   body.position.y = Math.abs(Math.sin(phase)) * 0.05;
 
   // Hands alternate up the vine as it climbs down; at the end of the page the outer hand lets go to wave.
   state.wave += ((p > 0.985 ? 1 : 0) - state.wave) * Math.min(dt * 4, 1);
   monkey.updateMatrixWorld();
-  const local = (wx, wy) => monkey.worldToLocal(v(wx, wy, 0.12));
+  const local = (wx, wy, wz = 0.12) => monkey.worldToLocal(v(wx, wy, wz));
   for (let i = 0; i < 2; i++) {
     const s = i ? 1 : -1;
-    const shoulder = v(0.3 * s, 0.32 + body.position.y, 0.05);
-    const reach = 0.95 + 0.28 * Math.sin(phase + i * Math.PI);
-    let hand = local(vineX(y + reach, t), y + reach);
+    // The outer arm reaches behind the head (and a bit higher) so it never crosses the face.
+    const shoulder = v(0.3 * s, 0.32 + body.position.y, i ? 0.12 : -0.1);
+    const reach = (i ? 0.95 : 1.1) + 0.28 * Math.sin(phase + i * Math.PI);
+    let hand = local(vineX(y + reach, t), y + reach, i ? 0.12 : -0.1);
     if (i === 0 && state.wave > 0.01) {
       const waveHand = v(-0.95, 1.05 + Math.sin(t * 9) * 0.06, 0.25 + Math.sin(t * 9) * 0.12);
       hand = hand.lerp(waveHand, state.wave);
