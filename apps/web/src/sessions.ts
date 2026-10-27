@@ -4,7 +4,8 @@ import type { PrStatus } from "./types";
 
 export type SessionStatus = "working" | "idle" | "inactive";
 /** Where the user filed a session: ongoing until put on hold or finished. */
-export type SessionTriage = "ongoing" | "on-hold" | "finished";
+/** "previous" is never filed: it's where unfiled sessions land after a few idle days. */
+export type SessionTriage = "ongoing" | "on-hold" | "finished" | "previous";
 
 export type ToolAction = { tool: string; title: string; ts?: string };
 
@@ -70,7 +71,7 @@ async function get<T>(url: string): Promise<T> {
 }
 
 export const sessionsApi = {
-  list: (days = 3) => get<SessionSummary[]>(`/api/sessions?days=${days}`),
+  list: () => get<SessionSummary[]>("/api/sessions"),
   detail: (id: string, opts: { since?: number; agent?: string } = {}) => {
     const params = new URLSearchParams();
     if (opts.since !== undefined) params.set("since", String(opts.since));
@@ -127,7 +128,7 @@ export const fileSession = (id: string, triage: SessionTriage) =>
 export const deleteSession = (id: string) => withOverride(id, "deleted", send(`/api/sessions/${encodeURIComponent(id)}`, "DELETE"));
 
 /** Session list that refreshes on transcript writes (throttled) and every 30s so statuses age out. */
-export function useSessions(days = 3) {
+export function useSessions() {
   const [raw, setSessions] = useState<SessionSummary[]>([]);
   const [version, bump] = useReducer((n: number) => n + 1, 0);
   useEffect(() => {
@@ -150,8 +151,8 @@ export function useSessions(days = 3) {
 
   const load = useCallback(() => {
     lastLoad.current = Date.now();
-    sessionsApi.list(days).then(setSessions, () => {});
-  }, [days]);
+    sessionsApi.list().then(setSessions, () => {});
+  }, []);
 
   useEffect(() => {
     load();

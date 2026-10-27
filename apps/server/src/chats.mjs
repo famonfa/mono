@@ -272,9 +272,9 @@ export function readSessionFocus() {
 }
 
 const TRIAGE_FILE = path.join(store.DATA_DIR, "session-triage.json");
-const TRIAGE = new Set(["on-hold", "finished"]);
+const TRIAGE = new Set(["ongoing", "on-hold", "finished"]);
 
-/** What the user filed each session under; sessions without an entry are ongoing. */
+/** What the user filed each session under; sessions without an entry are ongoing, or previous once idle a while. */
 export function readSessionTriage() {
   try {
     return JSON.parse(fs.readFileSync(TRIAGE_FILE, "utf8"));

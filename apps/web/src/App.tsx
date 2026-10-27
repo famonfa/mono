@@ -37,7 +37,7 @@ export function App() {
   const { data, reload: reloadTasks, setData } = useLiveData(api.listTasks, []);
   const tasks = useMemo(() => data ?? [], [data]);
   const { theme, toggleTheme, appearance, setAppearance } = useAppearance();
-  const sessions = useSessions(3);
+  const sessions = useSessions();
   const { data: projectData, reload: reloadProjects } = useLiveData(api.listProjects, []);
   const projects = useMemo(() => projectData ?? [], [projectData]);
   const [project, setProjectState] = useState(() => localStorage.getItem("ws-project") ?? ALL_PROJECTS);

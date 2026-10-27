@@ -7,6 +7,7 @@ export const PROJECTS_DIR = path.join(os.homedir(), ".claude", "projects");
 const STALE_TURN_MS = 15 * 60_000;
 const RECENT_MS = 2 * 60 * 60_000;
 const TAIL_BYTES = 4 * 1024 * 1024;
+const META_SLICE = 8 * 1024 * 1024;
 // Anything shaped like a project id (WEB-101, PR-1481, T-MVJS050W): sessions that mention one get linked to it.
 const MENTION = /\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)\b/g;
 
@@ -33,7 +34,8 @@ function splitLines(buf) {
       from = i + 1;
     }
   }
-  return { lines, rest: buf.subarray(from) };
+  // A copy: a view would keep the whole read buffer alive in the meta cache.
+  return { lines, rest: Buffer.from(buf.subarray(from)) };
 }
 
 function parse(line) {
@@ -159,14 +161,16 @@ function readMeta(file) {
   const stat = fs.statSync(file);
   let entry = metaCache.get(file);
   if (!entry || stat.size < entry.offset) entry = { offset: 0, rest: Buffer.alloc(0), meta: emptyMeta(file) };
-  if (stat.size > entry.offset) {
-    const chunk = Buffer.concat([entry.rest, readFrom(file, entry.offset, stat.size)]);
+  // In slices, so a first read of a long transcript doesn't load it into memory whole.
+  while (stat.size > entry.offset) {
+    const end = Math.min(stat.size, entry.offset + META_SLICE);
+    const chunk = Buffer.concat([entry.rest, readFrom(file, entry.offset, end)]);
     const { lines, rest } = splitLines(chunk);
     for (const line of lines) {
       const rec = parse(line);
       if (rec) applyRecord(entry.meta, rec);
     }
-    entry.offset = stat.size;
+    entry.offset = end;
     entry.rest = rest;
   }
   entry.mtimeMs = stat.mtimeMs;
@@ -225,7 +229,7 @@ function listSubagents(sessionFile) {
     .sort((a, b) => (b.lastTs ?? "").localeCompare(a.lastTs ?? ""));
 }
 
-function sessionFiles(maxAgeMs) {
+function sessionFiles(maxAgeMs = Infinity) {
   const now = Date.now();
   const out = [];
   let dirs = [];
@@ -281,8 +285,9 @@ function summarize({ id, dir, file }, withSubagents = true) {
   };
 }
 
-export function listSessions({ days = 3 } = {}) {
-  return sessionFiles(days * 24 * 60 * 60_000)
+/** Every session, or only those active in the last `days`. Sessions never age out: the user files them as finished. */
+export function listSessions({ days } = {}) {
+  return sessionFiles(days ? days * 24 * 60 * 60_000 : Infinity)
     .map((s) => summarize(s))
     .sort((a, b) => (b.lastTs ?? "").localeCompare(a.lastTs ?? ""));
 }

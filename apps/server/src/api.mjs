@@ -97,18 +97,22 @@ function isTrusted(req) {
   return (req.headers["content-type"] ?? "").includes("application/json") || req.method === "DELETE";
 }
 
+// Unfiled sessions idle this long move to Previous; filing one (even as ongoing) keeps it where the user put it.
+const PREVIOUS_AFTER_MS = 3 * 24 * 60 * 60_000;
+
 function sessionList(days) {
+  const tasks = store.listTasks();
   const list = sessions.listSessions({ days });
   const live = new Set(chats.liveChatIds());
   const focus = chats.readSessionFocus();
   const triage = chats.readSessionTriage();
-  for (const task of store.listTasks()) {
+  for (const task of tasks) {
     for (const s of sessions.sessionsForTask(task, list)) (s.taskIds ??= []).push(task.id);
   }
   for (const s of list) {
     s.ownedByWorkspace = live.has(s.id);
     s.focusCwd = focus[s.id] ?? null;
-    s.triage = triage[s.id] ?? "ongoing";
+    s.triage = triage[s.id] ?? (Date.now() - Date.parse(s.lastTs ?? s.firstTs ?? 0) > PREVIOUS_AFTER_MS ? "previous" : "ongoing");
     s.projectId = projects.projectForPath(focus[s.id] ?? s.firstCwd ?? s.cwd);
   }
   return list;
@@ -267,7 +271,7 @@ export function createApi(broadcast) {
         return send(res, 404, { error: "not found" });
       }
       if (resource === "sessions") {
-        if (!id) return send(res, 200, sessionList(Number(url.searchParams.get("days") ?? 3)));
+        if (!id) return send(res, 200, sessionList(Number(url.searchParams.get("days")) || undefined));
         if (sub === "triage" && method === "PUT") {
           chats.setSessionTriage(id, body.triage);
           broadcast("ws:sessions", { ids: [id] });

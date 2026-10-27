@@ -832,7 +832,7 @@ export function TaskSessions({ task, sessionId }: { task: Task; sessionId?: stri
             <TriageActions session={s} />
           </a>
         ))}
-        {!visible.length && <p className="hint session-empty">{!linked.length ? "No linked sessions" : triage === "on-hold" ? "Nothing on hold" : triage === "finished" ? "Nothing finished yet" : "No ongoing sessions"}</p>}
+        {!visible.length && <p className="hint session-empty">{!linked.length ? "No linked sessions" : triage === "on-hold" ? "Nothing on hold" : triage === "finished" ? "Nothing finished yet" : triage === "previous" ? "No older sessions" : "No ongoing sessions"}</p>}
       </aside>
       )}
       {showPane && (

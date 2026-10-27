@@ -81,11 +81,12 @@ const TRIAGE_TABS: { value: SessionTriage; label: string }[] = [
   { value: "ongoing", label: "Ongoing" },
   { value: "on-hold", label: "On hold" },
   { value: "finished", label: "Finished" },
+  { value: "previous", label: "Previous" },
 ];
 
 const triageOf = (s: SessionSummary): SessionTriage => s.triage ?? "ongoing";
 
-/** Ongoing / On hold / Finished tabs over a session list; the choice is remembered per list. */
+/** Ongoing / On hold / Finished / Previous tabs over a session list; the choice is remembered per list. */
 export function useTriageFilter(sessions: SessionSummary[], key: string) {
   const [triage, setTriageState] = useState<SessionTriage>(() => (localStorage.getItem(`ws-triage-${key}`) as SessionTriage) || "ongoing");
   const setTriage = (t: SessionTriage) => {
@@ -122,7 +123,7 @@ export function TriageActions({ session }: { session: SessionSummary }) {
   return (
     <span className="triage-actions">
       {current !== "ongoing" && move("ongoing", "Move to ongoing", <RotateCcw size={13} />)}
-      {current === "ongoing" && move("on-hold", "Put on hold", <Pause size={13} />)}
+      {(current === "ongoing" || current === "previous") && move("on-hold", "Put on hold", <Pause size={13} />)}
       {current !== "finished" && move("finished", "Mark finished", <CheckCheck size={13} />)}
       <button
         type="button"
@@ -198,7 +199,6 @@ export function AgentsPage({ sessions: all }: { sessions: SessionSummary[] }) {
     <div className="home">
       <header className="topbar">
         <div className="topbar-title">Agents</div>
-        <span className="topbar-sub">Last 3 days</span>
         {tabs}
         <span className="spacer" />
         <a className="btn primary" href={href.newSession()}>
@@ -226,7 +226,7 @@ export function AgentsPage({ sessions: all }: { sessions: SessionSummary[] }) {
             </section>
           );
         })}
-        {!sessions.length && <div className="empty">{triage === "ongoing" ? "No recent sessions" : triage === "on-hold" ? "Nothing on hold" : "Nothing finished yet"}</div>}
+        {!sessions.length && <div className="empty">{triage === "ongoing" ? "No recent sessions" : triage === "on-hold" ? "Nothing on hold" : triage === "previous" ? "No older sessions" : "Nothing finished yet"}</div>}
       </div>
     </div>
   );
