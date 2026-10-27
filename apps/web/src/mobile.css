@@ -40,6 +40,14 @@
     padding-top: env(safe-area-inset-top);
   }
 
+  .tabstrip {
+    display: none;
+  }
+
+  .panel > .sidebar-reopen {
+    display: inline-grid;
+  }
+
   .sidebar-reopen {
     top: calc(6px + env(safe-area-inset-top));
     left: 6px;

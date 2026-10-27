@@ -11,6 +11,12 @@ contextBridge.exposeInMainWorld("monoDesktop", {
   },
   installUpdate: () => ipcRenderer.invoke("mono:install-update"),
   connectPhone: () => ipcRenderer.invoke("mono:connect-phone"),
+  /** New Tab / Close Tab from the File menu; the page owns the tabs. */
+  onTabCommand: (fn) => {
+    const listener = (_event, command) => fn(command);
+    ipcRenderer.on("mono:tab", listener);
+    return () => ipcRenderer.removeListener("mono:tab", listener);
+  },
 });
 
 // The window has no title bar: mark the page so its CSS leaves room for the traffic lights,

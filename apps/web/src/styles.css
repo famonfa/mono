@@ -441,8 +441,19 @@ code,
   padding-right: 4px;
 }
 
+.main-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.main-col > .panel {
+  flex: 1;
+}
+
 .panel {
-  margin: 8px 8px 8px 0;
+  margin: 0 8px 8px 0;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -3923,10 +3934,106 @@ textarea,
   animation: fade var(--duration) var(--ease-standard);
 }
 
-.app.collapsed .topbar,
-.app.collapsed .board-toolbar,
-.app.collapsed .doc-toolbar {
-  padding-left: 44px;
+/* On wide screens the button lives in the tab strip; phones (mobile.css) keep it in the panel. */
+.panel > .sidebar-reopen {
+  display: none;
+}
+
+/* Tabs */
+.tabstrip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  padding: 0 8px 0 0;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.app.collapsed .tabstrip {
+  padding-left: 8px;
+}
+
+.tabstrip-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  min-width: 72px;
+  max-width: 200px;
+  padding: 0 6px 0 10px;
+  border-radius: 7px;
+  color: var(--text-3);
+  font-size: 12.5px;
+  cursor: default;
+  user-select: none;
+  flex: 0 1 auto;
+  transition: background 0.12s, color 0.12s;
+}
+
+.tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-2);
+}
+
+.tab.active {
+  background: var(--bg-panel);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--border), 0 1px 2px rgb(0 0 0 / 0.06);
+}
+
+.tab.dragging {
+  opacity: 0.5;
+}
+
+.tab-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.tab-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-close {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  color: var(--text-3);
+  flex-shrink: 0;
+  opacity: 0;
+}
+
+.tab:hover .tab-close,
+.tab.active .tab-close {
+  opacity: 1;
+}
+
+.tab-close:hover {
+  background: var(--bg-active);
+  color: var(--text);
+}
+
+.tab-new {
+  flex-shrink: 0;
 }
 
 /* Kanban canvas */

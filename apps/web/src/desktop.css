@@ -27,16 +27,19 @@
 }
 
 .is-desktop:has(.app.collapsed) .desktop-drag {
-  width: 100px;
+  width: 80px;
 }
 
-.is-desktop .sidebar-reopen {
-  top: 10px;
-  left: 84px;
+/* The tab strip is the title bar: drag the window from its empty space, and clear the traffic
+   lights while the sidebar is hidden. */
+.is-desktop .tabstrip {
+  -webkit-app-region: drag;
 }
 
-.is-desktop .app.collapsed .topbar,
-.is-desktop .app.collapsed .board-toolbar,
-.is-desktop .app.collapsed .doc-toolbar {
-  padding-left: 124px;
+.is-desktop .tabstrip :is(.tab, button) {
+  -webkit-app-region: no-drag;
+}
+
+.is-desktop .app.collapsed .tabstrip {
+  padding-left: 80px;
 }

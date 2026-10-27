@@ -15,7 +15,7 @@ export type Route =
   | { view: "folder"; taskId: string; path: string }
   | { view: "sessions"; taskId: string; sessionId?: string };
 
-function parse(hash: string): Route {
+export function parse(hash: string): Route {
   const [kind, taskId, sub, name] = hash.replace(/^#\/?/, "").split("/").map(decodeURIComponent);
   if (kind === "activas" || kind === "hechas") return { view: "home", filter: kind };
   if (kind === "nueva-sesion") return { view: "newSession" };

@@ -118,9 +118,19 @@ function buildMenu() {
         { role: "quit", label: "Quit Mono" },
       ],
     },
+    {
+      // ⌘W closes the tab, not the window; the page closes the window when it was the last tab.
+      label: "File",
+      submenu: [
+        { label: "New Tab", accelerator: "CmdOrCtrl+T", click: (_item, win) => win?.webContents.send("mono:tab", "new") },
+        { label: "Close Tab", accelerator: "CmdOrCtrl+W", click: (_item, win) => win?.webContents.send("mono:tab", "close") },
+        { type: "separator" },
+        { role: "close", label: "Close Window", accelerator: "CmdOrCtrl+Shift+W" },
+      ],
+    },
     { role: "editMenu" },
     { role: "viewMenu" },
-    { role: "windowMenu" },
+    { role: "window", submenu: [{ role: "minimize" }, { role: "zoom" }, { type: "separator" }, { role: "front" }] },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }

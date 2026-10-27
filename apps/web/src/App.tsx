@@ -12,6 +12,7 @@ import { GroupView } from "./components/GroupCanvas";
 import { Home } from "./components/Home";
 import { FolderView } from "./components/PageTree";
 import { SidebarProjects } from "./components/SidebarProjects";
+import { TabStrip } from "./components/TabStrip";
 import { ALL_PROJECTS, inProject, projectScope, ProjectSwitcher, sessionInProject } from "./components/Projects";
 import { SkillsPage, useSkillList } from "./components/Skills";
 import { TaskOverview, TaskTopBar } from "./components/TaskView";
@@ -24,6 +25,7 @@ import { lastSessionId, useSessions } from "./sessions";
 import type { Task, TaskStatus } from "./types";
 import { useAppearance } from "./appearance";
 import { Dialog, useHotkey, type DialogRequest } from "./ui";
+import { useTabs } from "./tabs";
 import { useUnread } from "./unread";
 import { markViewed } from "./viewed";
 
@@ -55,6 +57,7 @@ export function App() {
     if (window.matchMedia("(max-width: 760px)").matches) setCollapsed(true);
   }, [route]);
   const pendingG = useRef(0);
+  const tabs = useTabs();
 
   const updateTask = useCallback(
     async (id: string, patch: Partial<Task>) => {
@@ -134,6 +137,16 @@ export function App() {
         <Sidebar route={route} onToggle={() => setCollapsed((c) => !c)} />
         {/* Only visible on phones (mobile.css), where the sidebar is a drawer over the content. */}
         {!collapsed && <div className="drawer-backdrop" onClick={() => setCollapsed(true)} />}
+        <div className="main-col">
+        <TabStrip
+          tabs={tabs.tabs}
+          active={tabs.active}
+          onSelect={tabs.select}
+          onClose={tabs.close}
+          onNew={() => tabs.open()}
+          onMove={tabs.move}
+          onShowSidebar={collapsed ? () => setCollapsed(false) : undefined}
+        />
         <main className="panel">
           {collapsed && (
             <button className="icon-btn sidebar-reopen" onClick={() => setCollapsed(false)} title="Show sidebar ([)">
@@ -157,6 +170,7 @@ export function App() {
             <TaskShell key={route.taskId} route={route} />
           )}
         </main>
+        </div>
       </div>
       {palette && <CommandPalette route={route} onClose={() => setPalette(false)} />}
       {dialog && <Dialog request={dialog} onClose={() => setDialog(null)} />}
