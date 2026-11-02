@@ -44,6 +44,8 @@ export type SessionSummary = {
   focusCwd?: string | null;
   firstCwd?: string | null;
   triage?: SessionTriage;
+  /** Launched by someone you shared the project with. */
+  guest?: { email: string; name: string | null };
 };
 
 export type SessionEvent = {

@@ -137,7 +137,7 @@ function sameOrigin(req) {
 
 /** hostId → { ws, email, name, connectedAt, pending } */
 const hosts = new Map();
-/** hostId → Set<res>: SSE clients survive host reconnects so EventSource never gives up. */
+/** hostId → Map<res, guest|null>: SSE clients survive host reconnects so EventSource never gives up. */
 const listeners = new Map();
 
 function onlineCounts() {
@@ -147,6 +147,130 @@ function onlineCounts() {
 }
 
 const hostsFor = (email) => [...hosts.entries()].filter(([, h]) => h.email === email).map(([id, h]) => ({ id, name: h.name, connectedAt: h.connectedAt }));
+
+// ---------- sharing ----------
+
+const shareLink = (id) => `${PUBLIC_URL}/s/${id}`;
+const withLink = (share) => share && { ...share, link: shareLink(share.id) };
+const sharedWith = (email) => access.sharedWith(email).map((s) => ({ ...withLink(s), online: hosts.get(s.hostId)?.email === s.owner, hostName: hosts.get(s.hostId)?.name ?? null }));
+
+/** What a guest's requests carry to the owner's Mac: who they are and the only scope they may touch. */
+function guestScope(email, shareId, profile = {}) {
+  const share = access.getShare(shareId);
+  const role = share && access.roleOn(shareId, email);
+  if (!role) return null;
+  return { email, name: profile.name ?? null, shareId: share.id, owner: share.owner, hostId: share.hostId, projectId: share.projectId || null, pageId: share.pageId, sessionId: share.sessionId, title: share.title, role };
+}
+
+/**
+ * A guest's event stream only gets what their scope can show: data changes of the shared project,
+ * session list pings (ids only; the list itself is filtered by the Mac) and chats the Mac tagged as theirs.
+ */
+function guestFrame(frame, guest) {
+  const match = /^event: ([^\n]+)\ndata: (.*)\n\n$/s.exec(frame);
+  if (!match) return null;
+  const [, event, raw] = match;
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (event === "ws:sessions") return frame;
+  if (event === "ws:data") {
+    const tasks = guest.projectId && !guest.sessionId ? (data.tasks ?? []).filter((t) => t === guest.projectId) : [];
+    return tasks.length ? `event: ws:data\ndata: ${JSON.stringify({ tasks })}\n\n` : null;
+  }
+  if (event === "ws:chat") {
+    const visible = data.sessionId === guest.sessionId || data.shareId === guest.shareId || (!guest.pageId && !guest.sessionId && data.projectId === guest.projectId);
+    if (!visible) return null;
+    const { projectId, shareId, ...rest } = data;
+    return `event: ws:chat\ndata: ${JSON.stringify(rest)}\n\n`;
+  }
+  return null;
+}
+
+/** The Mac's own calls (from its local server): authenticated with the host token `mono connect` stored. */
+function hostCaller(req) {
+  const token = verify((req.headers.authorization ?? "").replace(/^Bearer\s+/i, ""));
+  return token?.t === "host" && allowed(token.email) ? { email: token.email, hostId: token.hostId } : null;
+}
+
+async function hostApi(req, res, route) {
+  const caller = hostCaller(req);
+  if (!caller) return send(res, 401, { error: "This Mac isn't connected to the relay" });
+  const { email, hostId } = caller;
+  const parts = route.split("/").filter(Boolean).map(decodeURIComponent);
+  const [resource, id, sub, subId] = parts;
+  const url = new URL(req.url, PUBLIC_URL);
+  const body = ["POST", "PUT"].includes(req.method) ? await readForm(req) : {};
+  try {
+    if (resource === "shared" && req.method === "GET") return send(res, 200, sharedWith(email));
+    if (resource !== "shares") return send(res, 404, { error: "not found" });
+    if (!id && req.method === "GET") return send(res, 200, access.sharesFor(email, hostId, url.searchParams.get("project")).map(withLink));
+    if (!id && req.method === "POST") {
+      return send(res, 200, withLink(access.ensureShare({ owner: email, hostId, projectId: body.projectId ? String(body.projectId) : null, pageId: body.pageId ? String(body.pageId) : null, sessionId: body.sessionId ? String(body.sessionId) : null, title: body.title })));
+    }
+    if (id && sub === "people" && !subId && req.method === "POST") return send(res, 200, withLink(access.grant(id, email, body.email, body.role ?? "viewer")));
+    if (id && sub === "people" && subId && req.method === "DELETE") {
+      const share = withLink(access.revoke(id, email, subId));
+      disconnectGuest(id, subId);
+      return send(res, 200, share);
+    }
+    if (id && sub === "general" && req.method === "PUT") {
+      const share = withLink(access.setGeneral(id, email, body.general ?? null));
+      if (!share.general) disconnectGuest(id);
+      return send(res, 200, share);
+    }
+    if (id && !sub && req.method === "DELETE") {
+      access.deleteShare(id, email);
+      disconnectGuest(id);
+      return send(res, 200, { ok: true });
+    }
+    return send(res, 404, { error: "not found" });
+  } catch (error) {
+    return send(res, 400, { error: error.message });
+  }
+}
+
+/** Closes the event streams of guests who just lost access (their next request is refused anyway). */
+function disconnectGuest(shareId, email) {
+  for (const clients of listeners.values()) {
+    for (const [res, guest] of clients) {
+      if (guest?.shareId === shareId && (!email || guest.email === String(email).toLowerCase()) && !access.roleOn(shareId, guest.email)) res.end();
+    }
+  }
+}
+
+/** `/s/<id>`: a shared link. Signed-in people with access drive the owner's Mac inside that scope. */
+function openShare(req, res, url, id) {
+  const email = sessionEmail(req);
+  if (!email) return redirect(res, `/_mono/login?next=${encodeURIComponent(url.pathname)}`);
+  const share = access.getShare(id);
+  if (!share) return html(res, messagePage("Link not found", "This share was removed. Ask for a new link."), 404);
+  const target = shareTarget(share);
+  if (share.owner === email) {
+    // The owner opening their own link just goes to that Mac.
+    pickHost(res, email, share.hostId);
+    return redirect(res, target);
+  }
+  if (!access.roleOn(id, email)) {
+    return html(res, messagePage("No access", `${email} can't open this. Ask ${share.ownerName ?? share.owner} to share it with you.`, { href: "/_mono/logout", label: "Use another account" }), 403);
+  }
+  access.markOpened(id, email);
+  if (hosts.get(share.hostId)?.email !== share.owner) {
+    return html(res, messagePage("Their Mac is offline", `${share.title} lives on ${share.ownerName ?? share.owner}'s Mac, which isn't connected right now. Try again later.`, { href: "/_mono/hosts", label: "Back" }), 503);
+  }
+  setCookie(res, "mono_host", sign({ t: "pick", email, hostId: share.hostId, shareId: share.id }), SESSION_DAYS * 86_400);
+  return redirect(res, target);
+}
+
+const shareTarget = (share) => {
+  const enc = encodeURIComponent;
+  if (share.sessionId) return `/#/agentes/${enc(share.sessionId)}`;
+  if (share.pageId) return `/#/t/${enc(share.projectId)}/f/${enc(share.pageId)}`;
+  return `/#/t/${enc(share.projectId)}`;
+};
 
 function forward(hostId, request) {
   const host = hosts.get(hostId);
@@ -197,7 +321,12 @@ wss.on("connection", (ws) => {
       clearTimeout(pending.timer);
       pending.resolve(msg);
     }
-    if (msg.type === "event") for (const res of listeners.get(hostId) ?? []) res.write(msg.frame);
+    if (msg.type === "event") {
+      for (const [res, guest] of listeners.get(hostId) ?? []) {
+        const frame = guest ? guestFrame(msg.frame, guest) : msg.frame;
+        if (frame) res.write(frame);
+      }
+    }
   });
   ws.on("close", () => {
     clearTimeout(hello);
@@ -232,6 +361,7 @@ function finishLogin(res, rawEmail, next, profile) {
   if (!allowed(email) && !access.signUp(email)) {
     return html(res, messagePage("No access", `${email || "This email"} can't use Mono.`, { href: "/_mono/logout", label: "Use another account" }), 403);
   }
+  access.saveProfile(email, profile);
   startSession(res, email, profile);
   return redirect(res, safeNext(next));
 }
@@ -354,14 +484,25 @@ async function relayRoute(req, res, url) {
     return redirect(res, "/");
   }
 
+  if (route.startsWith("/host-api/")) return hostApi(req, res, route.slice("/host-api".length));
+
   // Everything below needs a signed-in user.
   if (!email) return route === "/me" ? send(res, 401, { error: "Not signed in" }) : redirect(res, `/_mono/login?next=${encodeURIComponent(url.pathname + url.search)}`);
 
   if (route === "/me") {
-    const picked = pickedHost(req, email);
+    const pick = pickFrom(req, email);
     const mine = hostsFor(email);
-    const host = mine.find((h) => h.id === picked) ?? (mine.length === 1 ? mine[0] : null);
-    return send(res, 200, { mode: "remote", email, ...sessionProfile(req), admin: access.isAdmin(email), host: host && { id: host.id, name: host.name }, hosts: mine.map(({ id, name }) => ({ id, name })) });
+    const shared = sharedWith(email);
+    if (pick?.shareId) {
+      const guest = guestScope(email, pick.shareId);
+      const share = guest && shared.find((s) => s.id === pick.shareId);
+      if (share) {
+        const { people, general, ...view } = share;
+        return send(res, 200, { mode: "remote", email, ...sessionProfile(req), admin: access.isAdmin(email), host: { id: share.hostId, name: share.hostName ?? `${share.ownerName ?? share.owner}'s Mac` }, hosts: mine.map(({ id, name }) => ({ id, name })), share: { ...view, role: guest.role }, shared });
+      }
+    }
+    const host = mine.find((h) => h.id === pick?.hostId) ?? (mine.length === 1 ? mine[0] : null);
+    return send(res, 200, { mode: "remote", email, ...sessionProfile(req), admin: access.isAdmin(email), host: host && { id: host.id, name: host.name }, hosts: mine.map(({ id, name }) => ({ id, name })), share: null, shared });
   }
 
   if (route === "/mobile/done") {
@@ -388,7 +529,7 @@ async function relayRoute(req, res, url) {
     return html(res, messagePage("Connected", `${pairing.name} is linked to your account. You can return to the terminal.`, { href: "/", label: "Open Mono" }));
   }
 
-  if (route === "/hosts" && req.method === "GET") return html(res, hostsPage({ email, hosts: hostsFor(email), current: pickedHost(req, email), admin: access.isAdmin(email), relay: PUBLIC_URL }));
+  if (route === "/hosts" && req.method === "GET") return html(res, hostsPage({ email, hosts: hostsFor(email), current: pickedHost(req, email), admin: access.isAdmin(email), relay: PUBLIC_URL, shared: sharedWith(email) }));
 
   if (route.startsWith("/admin")) {
     if (!access.isAdmin(email)) return html(res, messagePage("No permission", "Only admins can manage members."), 403);
@@ -428,7 +569,17 @@ async function tunnel(req, res, url) {
   if (!email && url.pathname === "/" && req.method === "GET") return html(res, landingPage({ relay: PUBLIC_URL }));
   if (!email) return isApi ? send(res, 401, { error: "Not signed in" }) : redirect(res, `/_mono/login?next=${encodeURIComponent(url.pathname + url.search)}`);
 
-  let hostId = pickedHost(req, email);
+  const pick = pickFrom(req, email);
+  let hostId = pick?.hostId ?? null;
+  let guest = null;
+  if (pick?.shareId) {
+    guest = guestScope(email, pick.shareId, sessionProfile(req));
+    if (!guest || guest.hostId !== hostId) {
+      // Access was removed: forget the shared Mac and go back to your own.
+      setCookie(res, "mono_host", "", 0);
+      return isApi ? send(res, 403, { error: "You no longer have access to this share" }) : redirect(res, "/_mono/hosts");
+    }
+  }
   if (!hostId) {
     const mine = hostsFor(email);
     if (mine.length !== 1) return isApi ? send(res, 503, { error: "Pick a Mac" }) : redirect(res, "/_mono/hosts");
@@ -439,8 +590,8 @@ async function tunnel(req, res, url) {
   if (url.pathname === "/api/events") {
     res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive", "X-Accel-Buffering": "no" });
     res.write("retry: 2000\n\n");
-    if (!listeners.has(hostId)) listeners.set(hostId, new Set());
-    listeners.get(hostId).add(res);
+    if (!listeners.has(hostId)) listeners.set(hostId, new Map());
+    listeners.get(hostId).set(res, guest);
     const ping = setInterval(() => res.write(": ping\n\n"), 25_000);
     req.on("close", () => {
       clearInterval(ping);
@@ -449,7 +600,10 @@ async function tunnel(req, res, url) {
     return;
   }
 
-  if (!hosts.has(hostId)) return isApi ? send(res, 503, { error: "Your Mac is offline. Check that it's on and running `mono`." }) : redirect(res, "/_mono/hosts");
+  if (!hosts.has(hostId)) {
+    const offline = guest ? `${guest.title} lives on ${guest.owner}'s Mac, which is offline right now.` : "Your Mac is offline. Check that it's on and running `mono`.";
+    return isApi ? send(res, 503, { error: offline }) : guest ? html(res, messagePage("Their Mac is offline", offline, { href: "/_mono/hosts", label: "Back" }), 503) : redirect(res, "/_mono/hosts");
+  }
   if (req.method !== "GET" && !sameOrigin(req)) return send(res, 403, { error: "forbidden" });
 
   try {
@@ -459,6 +613,7 @@ async function tunnel(req, res, url) {
       path: url.pathname + url.search,
       headers: { "content-type": req.headers["content-type"] },
       body: body?.length ? body.toString("base64") : null,
+      ...(guest ? { guest } : {}),
     });
     for (const [key, value] of Object.entries(reply.headers ?? {})) res.setHeader(key, value);
     res.statusCode = reply.status;
@@ -469,9 +624,15 @@ async function tunnel(req, res, url) {
 }
 
 /** The chosen machine is remembered in a signed cookie, so it still resolves while that Mac is offline. */
-function pickedHost(req, email) {
+function pickFrom(req, email) {
   const pick = verify(parseCookies(req).mono_host);
-  return pick?.t === "pick" && pick.email === email ? pick.hostId : null;
+  return pick?.t === "pick" && pick.email === email ? pick : null;
+}
+
+/** The Mac of your own you picked (a shared Mac you're visiting doesn't count). */
+function pickedHost(req, email) {
+  const pick = pickFrom(req, email);
+  return pick && !pick.shareId ? pick.hostId : null;
 }
 
 const pickHost = (res, email, hostId) => setCookie(res, "mono_host", sign({ t: "pick", email, hostId }), SESSION_DAYS * 86_400);
@@ -480,6 +641,8 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, PUBLIC_URL);
   try {
     if (url.pathname.startsWith("/_mono/")) return await relayRoute(req, res, url);
+    const shared = /^\/s\/([A-Za-z0-9_-]{6,40})\/?$/.exec(url.pathname);
+    if (shared && req.method === "GET") return openShare(req, res, url, shared[1]);
     return await tunnel(req, res, url);
   } catch (error) {
     console.error(error);

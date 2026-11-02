@@ -24,6 +24,7 @@ import {
   Sparkles,
   Terminal,
   Trash2,
+  Users,
   Wrench,
   X,
 } from "lucide-react";
@@ -36,6 +37,7 @@ import { formatDate, Menu } from "../ui";
 import { markSeen, useMarkSeen, useUnread } from "../unread";
 import { SessionChat } from "./Chat";
 import { SendToGroup } from "./GroupCanvas";
+import { ShareDialog } from "./ShareDialog";
 import { Markdown } from "./Markdown";
 
 const STATUS_LABEL: Record<SessionStatus, string> = { working: "Working", idle: "Idle", inactive: "Inactive" };
@@ -153,6 +155,7 @@ export function SessionRow({ session, compact = false }: { session: SessionSumma
     <a className={`agent-row ${compact ? "compact" : ""} ${unread ? "unread" : ""}`} href={href.session(session.id)} title={unread ? "Unread" : undefined}>
       <StatusDot status={unread ? "unread" : session.status} />
       <span className="agent-title">{session.title}</span>
+      {session.guest && <span className="session-by" title={session.guest.email}>by {session.guest.name ?? session.guest.email}</span>}
       {!compact && <span className="agent-project">{session.project}</span>}
       <span className="agent-action">
         {session.lastAction && (
@@ -483,7 +486,8 @@ function SubagentItem({ sessionId, agent, active }: { sessionId: string; agent: 
 }
 
 export function SessionView({ sessionId, agentId, sessions }: { sessionId: string; agentId?: string; sessions: SessionSummary[] }) {
-  const { tasks, updateTask } = useApp();
+  const { tasks, updateTask, guest } = useApp();
+  const [sharing, setSharing] = useState(false);
   const feed = useSessionFeed(sessionId, agentId);
   const summary = sessions.find((s) => s.id === sessionId) ?? feed.session;
   const agent = summary?.subagents.find((a) => a.id === agentId);
@@ -518,10 +522,16 @@ export function SessionView({ sessionId, agentId, sessions }: { sessionId: strin
           )}
         </nav>
         <span className="spacer" />
-        <SendToGroup sessionId={sessionId} title={summary?.title} />
+        {!guest && <SendToGroup sessionId={sessionId} title={summary?.title} />}
+        {!guest && (
+          <button className="topbar-share" onClick={() => setSharing(true)} title="Let someone watch this session">
+            <Users size={13} /> Share
+          </button>
+        )}
         <span className={`status-pill-live ${status}`}>
           <StatusDot status={status} size={7} /> {STATUS_LABEL[status]}
         </span>
+        {sharing && <ShareDialog scope={{ sessionId, projectId: summary?.taskIds?.[0] ?? null, title: summary?.title ?? "Session" }} onClose={() => setSharing(false)} />}
       </header>
       <div className="task-content">
         <div className="issue">

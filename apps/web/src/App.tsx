@@ -1,5 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Layers, LayoutGrid, MessageSquarePlus, Moon, PanelLeft, Plus, Search, Sparkles, SquarePen, Sun } from "lucide-react";
+import { Bot, Layers, LayoutGrid, MessageSquarePlus, Moon, PanelLeft, Plus, Search, Sparkles, SquarePen, Sun, Users } from "lucide-react";
+import { guestShare, useAccount, type SharedItem } from "./account";
+import { ROLE_META, sharesApi } from "./shares";
 import { api, useLiveData } from "./api";
 import { AppContext, useApp, type AppContextValue } from "./app-context";
 import { AgentsPage, SessionView, StatusDot } from "./components/Agents";
@@ -58,6 +60,10 @@ export function App() {
   }, [route]);
   const pendingG = useRef(0);
   const tabs = useTabs();
+  const account = useAccount();
+  const guest = guestShare(account);
+  const canEdit = !guest || (!guest.sessionId && guest.role !== "viewer");
+  const canRunAgents = !guest || (!guest.sessionId && guest.role === "agents");
 
   const updateTask = useCallback(
     async (id: string, patch: Partial<Task>) => {
@@ -108,13 +114,17 @@ export function App() {
     toggleTheme,
     appearance,
     setAppearance,
+    account,
+    guest,
+    canEdit,
+    canRunAgents,
   };
 
   const overlayOpen = Boolean(dialog || palette);
   useHotkey("k", () => setPalette((p) => !p), { meta: true });
-  useHotkey("c", () => newTask(), { enabled: !overlayOpen });
+  useHotkey("c", () => newTask(), { enabled: !overlayOpen && !guest });
   useHotkey("[", () => setCollapsed((c) => !c), { enabled: !overlayOpen });
-  useHotkey("s", () => navigate(href.newSession()), { enabled: !overlayOpen });
+  useHotkey("s", () => navigate(href.newSession()), { enabled: !overlayOpen && !guest });
   useHotkey("g", () => (pendingG.current = Date.now()), { enabled: !overlayOpen });
   useHotkey(
     "h",
@@ -180,6 +190,11 @@ export function App() {
 }
 
 function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
+  const { guest } = useApp();
+  return guest ? <GuestSidebar route={route} guest={guest} onToggle={onToggle} /> : <OwnerSidebar route={route} onToggle={onToggle} />;
+}
+
+function OwnerSidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
   const { tasks: allTasks, sessions: allSessions, project, projects, openPalette, newTask, openDialog, theme, toggleTheme } = useApp();
   const currentRoot = projects.find((p) => p.id === project)?.root;
   const skills = useSkillList(currentRoot);
@@ -241,10 +256,88 @@ function Sidebar({ route, onToggle }: { route: Route; onToggle: () => void }) {
 
       <div className="sidebar-groups">
         <GroupsSection route={route} />
+        <SharedWithMe />
       </div>
       <UserWidget />
       <SidebarFooter onToggle={onToggle} />
     </aside>
+  );
+}
+
+/** What you see inside someone else's share: only that project, folder or session, and a way back. */
+function GuestSidebar({ route, guest, onToggle }: { route: Route; guest: SharedItem; onToggle: () => void }) {
+  const { tasks, sessions, openPalette } = useApp();
+  return (
+    <aside className="sidebar">
+      <div className="sidebar-top">
+        <span className="sidebar-guest-title">{guest.title}</span>
+        <span className="spacer" />
+        {!guest.sessionId && (
+          <button className="icon-btn" onClick={openPalette} title="Search (⌘K)">
+            <Search size={15} />
+          </button>
+        )}
+      </div>
+      <div className="guest-banner">
+        Shared by <b>{guest.ownerName ?? guest.owner}</b> · {ROLE_META[guest.role].label}
+        <br />
+        <a href="/_mono/hosts">Back to my Macs</a>
+      </div>
+      {guest.sessionId ? (
+        <nav className="sidebar-nav">
+          {sessions.map((s) => (
+            <a key={s.id} href={href.session(s.id)} className={route.view === "session" && route.sessionId === s.id ? "active" : ""}>
+              <Bot size={15} />
+              <span className="recent-title">{s.title}</span>
+            </a>
+          ))}
+        </nav>
+      ) : (
+        <div className="sidebar-projects">
+          <SidebarProjects route={route} tasks={tasks} />
+        </div>
+      )}
+      <div className="sidebar-groups">
+        <SharedWithMe />
+      </div>
+      <UserWidget />
+      <SidebarFooter onToggle={onToggle} />
+    </aside>
+  );
+}
+
+/** Projects, folders and sessions other people shared with you (Drive's "Shared with me"). */
+function SharedWithMe() {
+  const { account, guest } = useApp();
+  const [local, setLocal] = useState<SharedItem[]>([]);
+  const remote = account?.mode === "remote";
+  useEffect(() => {
+    // Through the relay the account already lists them; on the Mac itself, this Mac asks the relay.
+    if (remote || account?.mode !== "local" || !account.remote) return;
+    sharesApi.sharedWithMe().then(setLocal, () => setLocal([]));
+  }, [remote, account?.mode]);
+  const shared = (remote ? account.shared : local) ?? [];
+  if (!shared.length) return null;
+  return (
+    <>
+      <div className="sidebar-section sidebar-section-row">Shared with me</div>
+      <nav className="sidebar-nav">
+        {shared.map((s) => (
+          <a
+            key={s.id}
+            href={remote ? `/s/${s.id}` : s.link}
+            target={remote ? undefined : "_blank"}
+            rel="noreferrer"
+            className={`shared-row ${s.online === false ? "offline" : ""} ${guest?.id === s.id ? "active" : ""}`}
+            title={`${s.title} · shared by ${s.ownerName ?? s.owner} · ${ROLE_META[s.role].label}${s.online === false ? " · their Mac is offline" : ""}`}
+          >
+            <span className="share-avatar">{s.ownerPicture ? <img src={s.ownerPicture} alt="" referrerPolicy="no-referrer" /> : (s.ownerName ?? s.owner)[0]?.toUpperCase()}</span>
+            <span className="recent-title">{s.title}</span>
+            <Users size={12} className="page-shared" />
+          </a>
+        ))}
+      </nav>
+    </>
   );
 }
 

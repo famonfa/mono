@@ -470,6 +470,9 @@ function QuestionCard({ sessionId, request, onAnswered }: { sessionId: string; r
 
 /** Live feed + permission prompts + composer for one session. Used in the task tab and in Agents. */
 export function SessionChat({ sessionId, summary }: { sessionId: string; summary?: SessionSummary }) {
+  const { guest, canRunAgents } = useApp();
+  // Guests only drive the agents launched in their share (the server checks which share exactly).
+  const drivable = !guest || (canRunAgents && Boolean(summary?.guest));
   const feed = useSessionFeed(sessionId);
   const [chat, setChat] = useChatState(sessionId);
   const [pendingText, setPendingText] = useState<string | null>(null);
@@ -488,8 +491,8 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
   const [cwdError, setCwdError] = useState<string | null>(null);
   const [worktrees, setWorktrees] = useState<Worktree[]>([]);
   useEffect(() => {
-    if (summary?.projectId) void chatApi.projectWorktrees(summary.projectId).then(setWorktrees, () => setWorktrees([]));
-  }, [summary?.projectId]);
+    if (summary?.projectId && !guest) void chatApi.projectWorktrees(summary.projectId).then(setWorktrees, () => setWorktrees([]));
+  }, [summary?.projectId, guest]);
   const currentCwd = cwdOverride ?? summary?.focusCwd ?? chat?.cwd ?? summary?.firstCwd ?? summary?.cwd ?? undefined;
   const changeCwd = async (next: string) => {
     setCwdError(null);
@@ -527,7 +530,7 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
       {feed.truncated && <div className="msg-notice top">Showing the most recent part of the session</div>}
       <Feed events={feed.events} sessionId={sessionId} live={running} isSubagent={false} pendingText={pendingText} />
       <div className="chat-dock">
-        {chat?.pending.map((p) =>
+        {drivable && chat?.pending.map((p) =>
           p.toolName === "AskUserQuestion" ? (
             <QuestionCard key={p.id} sessionId={sessionId} request={p} onAnswered={setChat} />
           ) : (
@@ -535,6 +538,9 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
           ),
         )}
         {chat?.error && <div className="composer-error">Session ended with an error: {chat.error}</div>}
+        {!drivable ? (
+          <div className="composer-hint guest-readonly">Shared with you to watch. Only {guest?.ownerName ?? guest?.owner} can message it.</div>
+        ) : (
         <Composer
           draftKey={`session-${sessionId}`}
           placeholder={running ? "Queue another message…" : "Message this session…"}
@@ -547,8 +553,8 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
           footer={
             <>
               <ModelPicker models={models} model={config.model} effort={config.effort} onChange={changeConfig} />
-              <PermissionMenu value={config.permissionMode ?? "bypassPermissions"} onChange={(permissionMode) => changeConfig({ permissionMode })} />
-              {currentCwd && (
+              {!guest && <PermissionMenu value={config.permissionMode ?? "bypassPermissions"} onChange={(permissionMode) => changeConfig({ permissionMode })} />}
+              {currentCwd && !guest && (
                 <Menu
                   value={currentCwd}
                   placeholder="Search folders or branches, or type a path (/… or ~/…)"
@@ -565,6 +571,7 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
             </>
           }
         />
+        )}
       </div>
     </div>
   );
@@ -574,7 +581,7 @@ const worktreeLabel = (w: Worktree) => (w.root ? `${w.repo} (root)` : `${w.repo}
 
 /** Starts a session for a task (with its context) or a standalone one in any project folder. */
 export function NewSession({ task }: { task?: Task }) {
-  const { projects, project } = useApp();
+  const { projects, project, guest, canRunAgents } = useApp();
   const [projectId, setProjectId] = useState<string>("");
   const [worktrees, setWorktrees] = useState<Worktree[]>([]);
   const [cwd, setCwd] = useState<string>("");
@@ -591,6 +598,7 @@ export function NewSession({ task }: { task?: Task }) {
   }, [task, projectId, projects, project]);
 
   useEffect(() => {
+    if (guest) return;
     const load = task ? chatApi.worktrees(task.id) : projectId ? chatApi.projectWorktrees(projectId) : null;
     load?.then((list) => {
       setWorktrees(list);
@@ -600,6 +608,31 @@ export function NewSession({ task }: { task?: Task }) {
 
   const selected = worktrees.find((w) => w.path === cwd);
   const selectedProject = projects.find((p) => p.id === projectId);
+
+  if (guest && !canRunAgents) return <div className="empty">Your access to this project doesn't include running agents.</div>;
+  if (guest) {
+    return (
+      <div className="new-session">
+        <div className="new-session-inner">
+          <div className="new-session-icon">
+            <Bot size={22} />
+          </div>
+          <h2>New agent in {guest.title}</h2>
+          <p>Runs on {guest.ownerName ?? guest.owner}'s Mac and can only read and edit {guest.pageId ? "this folder's" : "this project's"} pages and canvases.</p>
+          <Composer
+            autoFocus
+            draftKey={`new-guest-${guest.id}`}
+            placeholder="What should we do?"
+            onSend={async (prompt) => {
+              const state = await chatApi.start({ taskId: task?.id ?? guest.projectId ?? undefined, prompt, model: config.model, effort: config.effort });
+              navigate(task ? href.taskSession(task.id, state.sessionId) : href.session(state.sessionId));
+            }}
+            footer={<ModelPicker models={models} model={config.model} effort={config.effort} onChange={updateConfig} />}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="new-session">

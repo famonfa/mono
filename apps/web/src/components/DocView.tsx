@@ -35,7 +35,7 @@ const readFile = (file: File) =>
  * It is still a markdown file on disk, so agents read and write it as before; saves happen as you type.
  */
 export function DocView({ task, doc }: { task: Task; doc: string }) {
-  const { theme, openDialog } = useApp();
+  const { theme, openDialog, canEdit, canRunAgents } = useApp();
   const [exporting, setExporting] = useState(false);
   const { data, error } = useLiveData(() => api.getDoc(task.id, doc), [task.id, doc], task.id);
   const [title, setTitle] = useState("");
@@ -78,7 +78,7 @@ export function DocView({ task, doc }: { task: Task; doc: string }) {
   };
 
   const scheduleSave = () => {
-    if (loading.current) return;
+    if (loading.current || !canEdit) return;
     setState("saving");
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => void save(), SAVE_DELAY);
@@ -142,6 +142,7 @@ export function DocView({ task, doc }: { task: Task; doc: string }) {
         <textarea
           className="doc-title"
           rows={1}
+          readOnly={!canEdit}
           placeholder="Untitled"
           value={title}
           onChange={(e) => {
@@ -163,6 +164,7 @@ export function DocView({ task, doc }: { task: Task; doc: string }) {
         />
         <BlockNoteView
           editor={editor}
+          editable={canEdit}
           theme={theme === "dark" ? "dark" : "light"}
           onChange={scheduleSave}
           // Kept when focus moves to the AI bar, so "rewrite this" knows what "this" is.
@@ -170,9 +172,11 @@ export function DocView({ task, doc }: { task: Task; doc: string }) {
           className="doc-editor-blocks"
         />
       </div>
-      <div className="doc-assistant">
-        <PageAssistant task={task} target={{ kind: "doc", id: doc.replace(/\.md$/, ""), selection }} onSent={() => setSelection("")} />
-      </div>
+      {canRunAgents && (
+        <div className="doc-assistant">
+          <PageAssistant task={task} target={{ kind: "doc", id: doc.replace(/\.md$/, ""), selection }} onSent={() => setSelection("")} />
+        </div>
+      )}
     </div>
   );
 }

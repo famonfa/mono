@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronRight, Folder, FolderOpen, MoreHorizontal, PenLine, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Folder, FolderOpen, MoreHorizontal, PenLine, Plus, Trash2, Users } from "lucide-react";
 import { api } from "../api";
 import { useApp } from "../app-context";
 import { BoardIcon, DocIcon } from "../icons";
@@ -7,6 +7,8 @@ import { ancestors, flattenPages, pageHref } from "../pages";
 import { href, navigate } from "../router";
 import { BOARD_KIND, type BoardKind, type Page, type Task } from "../types";
 import { Menu, slugify } from "../ui";
+import { isShared, useProjectShares } from "../shares";
+import { ShareDialog, type ShareScope } from "./ShareDialog";
 
 export function PageIcon({ page, open = false, size = 14 }: { page: Page; open?: boolean; size?: number }) {
   if (page.kind === "board") return <BoardIcon kind={page.boardKind ?? "free"} size={size} />;
@@ -144,6 +146,12 @@ export function usePageActions(task: Task) {
 /** A project's pages as a Notion-style tree, nested `depth` levels into the sidebar; any page can hold pages. */
 export function PageList({ task, activeId, depth = 0 }: { task: Task; activeId?: string; depth?: number }) {
   const actions = usePageActions(task);
+  const { guest, canEdit } = useApp();
+  // Only the owner shares (a guest can't re-share what they were given).
+  const shares = useProjectShares(task.id, !guest);
+  const shared = new Set(shares.filter((s) => s.pageId && !s.sessionId && isShared(s)).map((s) => s.pageId!));
+  const [sharing, setSharing] = useState<ShareScope | null>(null);
+  const onShare = guest ? undefined : (page: Page) => setSharing({ projectId: task.id, pageId: page.id, title: page.title });
   const storageKey = `ws-tree-${task.id}`;
   const [open, setOpen] = useState<Set<string>>(() => {
     try {
@@ -168,14 +176,18 @@ export function PageList({ task, activeId, depth = 0 }: { task: Task; activeId?:
   return (
     <>
       {(task.pages ?? []).map((p) => (
-        <PageNode key={p.id} task={task} page={p} depth={depth} activeId={activeId} open={open} toggle={toggle} onCreate={createIn} actions={actions} />
+        <PageNode key={p.id} task={task} page={p} depth={depth} activeId={activeId} open={open} toggle={toggle} onCreate={createIn} actions={actions} shared={shared} onShare={onShare} />
       ))}
-      <button className="page-row page-new" style={{ paddingLeft: 8 + depth * 14 }} onClick={() => createIn(null)}>
-        <span className="page-toggle leaf">
-          <Plus size={13} />
-        </span>
-        New page
-      </button>
+      {/* In a shared folder, new pages go inside it (the guest can't write next to it). */}
+      {canEdit && !guest?.pageId && (
+        <button className="page-row page-new" style={{ paddingLeft: 8 + depth * 14 }} onClick={() => createIn(null)}>
+          <span className="page-toggle leaf">
+            <Plus size={13} />
+          </span>
+          New page
+        </button>
+      )}
+      {sharing && <ShareDialog scope={sharing} onClose={() => setSharing(null)} />}
     </>
   );
 }
@@ -189,6 +201,8 @@ function PageNode({
   toggle,
   onCreate,
   actions,
+  shared,
+  onShare,
 }: {
   task: Task;
   page: Page;
@@ -198,7 +212,10 @@ function PageNode({
   toggle: (id: string) => void;
   onCreate: (parent: string) => void;
   actions: ReturnType<typeof usePageActions>;
+  shared: Set<string>;
+  onShare?: (page: Page) => void;
 }) {
+  const { canEdit } = useApp();
   const expanded = open.has(page.id);
   const hasChildren = page.children.length > 0;
   const [drop, setDrop] = useState<Drop | null>(null);
@@ -207,7 +224,7 @@ function PageNode({
       <div
         className={`page-row ${page.id === activeId ? "active" : ""} ${drop ? `drop-${drop}` : ""}`}
         style={{ paddingLeft: 8 + depth * 14 }}
-        draggable
+        draggable={canEdit}
         onDragStart={(e) => {
           dragged = { taskId: task.id, page };
           e.dataTransfer.effectAllowed = "move";
@@ -252,25 +269,32 @@ function PageNode({
         )}
         <a className="page-link" href={pageHref(task.id, page)} title={page.id} draggable={false}>
           <span className="page-title">{page.title}</span>
+          {shared.has(page.id) && <Users size={11} className="page-shared" aria-label="Shared" />}
         </a>
-        <span className="page-actions">
-          <button className="icon-btn tiny" onClick={() => onCreate(page.id)} title="Add a page inside">
-            <Plus size={12} />
-          </button>
-          <Menu
-            placeholder="Page…"
-            options={[
-              { value: "edit", label: "Rename or move", icon: <PenLine size={13} /> },
-              { value: "trash", label: "Move to trash", icon: <Trash2 size={13} /> },
-            ]}
-            onChange={(action) => (action === "edit" ? actions.edit(page) : actions.trash(page))}
-            className="icon-btn tiny"
-          >
-            <MoreHorizontal size={12} />
-          </Menu>
-        </span>
+        {canEdit && (
+          <span className="page-actions">
+            <button className="icon-btn tiny" onClick={() => onCreate(page.id)} title="Add a page inside">
+              <Plus size={12} />
+            </button>
+            <Menu
+              placeholder="Page…"
+              options={[
+                { value: "edit", label: "Rename or move", icon: <PenLine size={13} /> },
+                ...(onShare ? [{ value: "share", label: "Share…", icon: <Users size={13} /> }] : []),
+                { value: "trash", label: "Move to trash", icon: <Trash2 size={13} /> },
+              ]}
+              onChange={(action) => (action === "edit" ? actions.edit(page) : action === "share" ? onShare?.(page) : actions.trash(page))}
+              className="icon-btn tiny"
+            >
+              <MoreHorizontal size={12} />
+            </Menu>
+          </span>
+        )}
       </div>
-      {expanded && page.children.map((c) => <PageNode key={c.id} task={task} page={c} depth={depth + 1} activeId={activeId} open={open} toggle={toggle} onCreate={onCreate} actions={actions} />)}
+      {expanded &&
+        page.children.map((c) => (
+          <PageNode key={c.id} task={task} page={c} depth={depth + 1} activeId={activeId} open={open} toggle={toggle} onCreate={onCreate} actions={actions} shared={shared} onShare={onShare} />
+        ))}
     </>
   );
 }
@@ -278,6 +302,7 @@ function PageNode({
 /** A folder page: what's inside it, plus a way to add more. */
 export function FolderView({ task, path }: { task: Task; path: string }) {
   const actions = usePageActions(task);
+  const { canEdit } = useApp();
   const page = flattenPages(task.pages ?? []).find((p) => p.id === path);
   if (!page) return <div className="empty">Page not found.</div>;
   return (
@@ -297,9 +322,11 @@ export function FolderView({ task, path }: { task: Task; path: string }) {
             <ChevronRight size={14} className="sub-chevron" />
           </a>
         ))}
-        <button className="sub-row empty-row" onClick={() => actions.create(page.id)}>
-          <Plus size={14} /> New page
-        </button>
+        {canEdit && (
+          <button className="sub-row empty-row" onClick={() => actions.create(page.id)}>
+            <Plus size={14} /> New page
+          </button>
+        )}
       </div>
     </div>
   );

@@ -109,7 +109,7 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"saved" | "pending" | "saving">("saved");
   const flow = useReactFlow<WsNode, WsEdge>();
-  const { openDialog, theme } = useApp();
+  const { openDialog, theme, canEdit, canRunAgents } = useApp();
   const wrapper = useRef<HTMLDivElement>(null);
   const loaded = useRef(false);
   const knownIds = useRef<Set<string>>(new Set());
@@ -127,7 +127,7 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
         setNodes(prepared);
         setEdges(data.edges ?? []);
         loaded.current = true;
-        if (changed) await api.saveBoard(task.id, { ...data, nodes: toStored(prepared) });
+        if (changed && canEdit) await api.saveBoard(task.id, { ...data, nodes: toStored(prepared) });
         const added = prepared.some((n) => !knownIds.current.has(n.id));
         knownIds.current = new Set(prepared.map((n) => n.id));
         if (fit) requestAnimationFrame(() => flow.fitView({ padding: 0.15, duration: 0 }));
@@ -165,7 +165,8 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
 
   const persist = useCallback(
     (nextNodes: WsNode[], nextEdges: WsEdge[], nextBoard = board) => {
-      if (!loaded.current || !nextBoard) return;
+      // Shared with you to view: moving things around stays on your screen.
+      if (!loaded.current || !nextBoard || !canEdit) return;
       setSaveState("pending");
       clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
@@ -174,7 +175,7 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
         setSaveState("saved");
       }, 500);
     },
-    [board, task.id],
+    [board, task.id, canEdit],
   );
 
   useEffect(() => {
@@ -278,7 +279,7 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
   );
 
   const onPaneDoubleClick = (event: React.MouseEvent) => {
-    if (!(event.target as HTMLElement).classList.contains("react-flow__pane")) return;
+    if (!canEdit || !(event.target as HTMLElement).classList.contains("react-flow__pane")) return;
     addNode("card", {}, flow.screenToFlowPosition({ x: event.clientX - 120, y: event.clientY - 30 }));
   };
 
@@ -392,8 +393,8 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
         )}
         {board?.description && <span className="board-description">{board.description}</span>}
         <span className="spacer" />
-        <span className={`save-state ${saveState}`}>{saveState === "saved" ? "Saved" : "Saving…"}</span>
-        <div className="tool-group">
+        {canEdit ? <span className={`save-state ${saveState}`}>{saveState === "saved" ? "Saved" : "Saving…"}</span> : <span className="save-state saved">View only</span>}
+        {canEdit && <div className="tool-group">
           <button className="tool" onClick={() => addNode("card")} title="Or double-click the canvas">
             <Plus size={14} /> Card
           </button>
@@ -413,14 +414,18 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
               <ImageIcon size={14} />
             </button>
           )}
-          <button className="tool" onClick={importFigma} title="Import from Figma">
-            <Frame size={14} />
-          </button>
-        </div>
+          {!task.shared && (
+            <button className="tool" onClick={importFigma} title="Import from Figma">
+              <Frame size={14} />
+            </button>
+          )}
+        </div>}
         <div className="tool-group">
-          <button className="tool" onClick={relayout} title="Auto-layout">
-            <Sparkles size={14} />
-          </button>
+          {canEdit && (
+            <button className="tool" onClick={relayout} title="Auto-layout">
+              <Sparkles size={14} />
+            </button>
+          )}
           <button className="tool" onClick={() => flow.fitView({ padding: 0.15, duration: 300 })} title="Fit view">
             <Maximize size={14} />
           </button>
@@ -440,10 +445,11 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
               onNodeDragStop={onNodeDragStop}
+              nodesConnectable={canEdit}
               zoomOnDoubleClick={false}
               zoomOnScroll={!embedded}
               preventScrolling={!embedded}
-              deleteKeyCode={["Backspace", "Delete"]}
+              deleteKeyCode={canEdit ? ["Backspace", "Delete"] : null}
               multiSelectionKeyCode="Shift"
               minZoom={0.1}
               maxZoom={2.5}
@@ -460,11 +466,11 @@ function BoardCanvas({ task, boardId, embedded = false }: Props) {
               />}
             </ReactFlow>
           </BoardContext.Provider>
-          {!embedded && (
+          {!embedded && canRunAgents && (
             <CanvasAssistant task={task} boardId={boardId} selected={nodes.filter((n) => n.selected && n.type !== "lane").map((n) => ({ id: n.id, label: String(n.data.label ?? n.id) }))} />
           )}
         </div>
-        {(selectedNode || selectedEdge) && (
+        {canEdit && (selectedNode || selectedEdge) && (
         <Inspector
           task={task}
           node={selectedNode}

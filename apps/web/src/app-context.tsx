@@ -3,6 +3,7 @@ import type { Project, TaskStatus, Task } from "./types";
 import type { DialogRequest } from "./ui";
 import type { Appearance } from "./appearance";
 import type { SessionSummary } from "./sessions";
+import type { Account, SharedItem } from "./account";
 
 export type AppContextValue = {
   tasks: Task[];
@@ -20,6 +21,11 @@ export type AppContextValue = {
   toggleTheme: () => void;
   appearance: Appearance;
   setAppearance: (patch: Partial<Appearance>) => void;
+  account: Account | null;
+  /** Inside something another person shared with you: the app only shows (and lets you do) what they allowed. */
+  guest: SharedItem | null;
+  canEdit: boolean;
+  canRunAgents: boolean;
 };
 
 export const AppContext = createContext<AppContextValue>(null as never);

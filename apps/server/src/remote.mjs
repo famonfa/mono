@@ -113,9 +113,31 @@ export function startRemote({ port }) {
   };
 }
 
+/**
+ * The relay's own API, called as this Mac (shares live there). Authenticated with the host token
+ * `mono connect` saved, so it works from the local app too, where there's no relay sign-in.
+ */
+export async function relayApi(method, route, body) {
+  const config = readRemote();
+  if (!config?.relay || !config?.token) throw new Error("Connect this Mac to the relay to share (mono connect)");
+  const res = await fetch(new URL(`/_mono/host-api${route}`, config.relay), {
+    method,
+    headers: { authorization: `Bearer ${config.token}`, ...(body ? { "content-type": "application/json" } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(15_000),
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(out.error ?? `Relay answered ${res.status}`);
+  return out;
+}
+
+/** Header the local API reads to know a request comes from a guest (see guest.mjs). Only the relay sets it. */
+export const GUEST_HEADER = "x-mono-guest";
+
 function proxy(ws, msg, port) {
   const headers = { host: `localhost:${port}` };
   if (msg.headers?.["content-type"]) headers["content-type"] = msg.headers["content-type"];
+  if (msg.guest) headers[GUEST_HEADER] = Buffer.from(JSON.stringify(msg.guest)).toString("base64url");
   if (msg.method !== "GET" && msg.method !== "HEAD") headers.origin = `http://localhost:${port}`;
   const body = msg.body ? Buffer.from(msg.body, "base64") : null;
   if (body) headers["content-length"] = body.length;

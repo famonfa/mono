@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, Bot, ChevronRight, Maximize2, Loader2, Sparkles, ExternalLink, Film, GitBranch, GitPullRequest, Image as ImageIcon, Link2, Plus, Target, Wrench, X } from "lucide-react";
+import { AlertTriangle, Bot, ChevronRight, Maximize2, Loader2, Sparkles, ExternalLink, Film, GitBranch, GitPullRequest, Image as ImageIcon, Link2, Plus, Target, Users, Wrench, X } from "lucide-react";
 import { api, fileUrl } from "../api";
 import { useApp } from "../app-context";
 import { BoardIcon, RISK_META, RiskIcon, STATUS_META, STATUS_MENU_ORDER, STATUS_ORDER, StatusIcon, type Risk } from "../icons";
@@ -14,11 +14,17 @@ import { Markdown } from "./Markdown";
 import { ProjectTile } from "./Home";
 import { ProjectActivity, ProjectAgents } from "./ProjectAgents";
 import { ProjectIcon } from "./Projects";
+import { ShareDialog } from "./ShareDialog";
+import { isShared, ROLE_META, useProjectShares } from "../shares";
 
 /** Projects › project › page, plus who is working on it right now. Overview, sessions and pages live in the sidebar. */
 export function TaskTopBar({ task, crumb }: { task: Task; crumb?: string }) {
-  const { sessions } = useApp();
+  const { sessions, guest } = useApp();
   const working = sessions.filter((s) => s.status === "working" && s.taskIds?.includes(task.id));
+  const [sharing, setSharing] = useState(false);
+  const shares = useProjectShares(task.id, !guest);
+  const projectShare = shares.find((s) => !s.pageId && !s.sessionId);
+  const people = projectShare && isShared(projectShare) ? projectShare.people.length + (projectShare.general ? 1 : 0) : 0;
   return (
     <header className="topbar task-topbar">
       <nav className="breadcrumb">
@@ -42,6 +48,16 @@ export function TaskTopBar({ task, crumb }: { task: Task; crumb?: string }) {
           {working.length === 1 ? "1 agent working" : `${working.length} agents working`}
         </a>
       )}
+      {guest ? (
+        <span className="topbar-share" title={`Shared by ${guest.ownerName ?? guest.owner}`}>
+          <Users size={13} /> {ROLE_META[guest.role].label}
+        </span>
+      ) : (
+        <button className="topbar-share" onClick={() => setSharing(true)} title={people ? `Shared with ${people}` : "Share this project"}>
+          <Users size={13} /> Share{people ? ` · ${people}` : ""}
+        </button>
+      )}
+      {sharing && <ShareDialog scope={{ projectId: task.id, title: task.title }} onClose={() => setSharing(false)} />}
     </header>
   );
 }
@@ -63,6 +79,7 @@ function EditableText({
   className?: string;
   multiline?: boolean;
 }) {
+  const { canEdit } = useApp();
   const [draft, setDraft] = useState(value ?? "");
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => setDraft(value ?? ""), [value]);
@@ -82,6 +99,7 @@ function EditableText({
     <textarea
       ref={ref}
       rows={1}
+      readOnly={!canEdit}
       className={`editable ${className}`}
       placeholder={placeholder}
       autoFocus={autoFocus}
@@ -138,7 +156,7 @@ function RefreshButton({ task, onDone, onAuto }: { task: Task; onDone: () => voi
 }
 
 export function TaskOverview({ task, onChange }: { task: Task; onChange: () => void }) {
-  const { updateTask, openDialog, sessions, projects } = useApp();
+  const { updateTask, openDialog, sessions, projects, guest, canEdit } = useApp();
   const linkedSessions = sessions.filter((s) => s.taskIds?.includes(task.id));
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [editingSummary, setEditingSummary] = useState(false);
@@ -267,8 +285,9 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
         </div>
       </div>
 
-      <aside className="properties">
-        <RefreshButton task={task} onDone={onChange} onAuto={(autoRefresh) => save({ autoRefresh })} />
+      {/* Shared to view: properties read as text. The AI refresh and repos are the owner's. */}
+      <aside className={`properties ${canEdit ? "" : "readonly"}`}>
+        {!guest && <RefreshButton task={task} onDone={onChange} onAuto={(autoRefresh) => save({ autoRefresh })} />}
         <div className="prop-group">
           <div className="prop-title">Properties</div>
           <Prop label="Icon">
@@ -306,7 +325,7 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
               <RiskIcon risk={task.risk as Risk | undefined} /> {task.risk ? RISK_META[task.risk as Risk].label : "Not set"}
             </Menu>
           </Prop>
-          <Prop label="Repos">
+          {!guest && <Prop label="Repos">
             <div className="prop-tags">
               {(task.projectIds ?? []).map((id) => {
                 const project = projects.find((p) => p.id === id);
@@ -328,7 +347,7 @@ export function TaskOverview({ task, onChange }: { task: Task; onChange: () => v
                 <Plus size={13} />
               </Menu>
             </div>
-          </Prop>
+          </Prop>}
           <Prop label="Tags">
             <div className="prop-tags">
               {task.tags?.map((t) => (

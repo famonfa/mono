@@ -91,7 +91,20 @@ const installSteps = (relay) => `<ol class="steps">
   <li>In the app: <b>Mono → Connect phone…</b>, approve the code with Google, then come back here.</li>
 </ol>`;
 
-export function hostsPage({ email, hosts, current, admin, relay }) {
+const ROLE_LABELS = { viewer: "Viewer", editor: "Editor", agents: "Editor + agents" };
+
+/** What others shared with you: opening one drives their Mac, limited to that project, folder or session. */
+function sharedList(shared) {
+  if (!shared?.length) return "";
+  return `<h2>Shared with you</h2><div class="hosts">${shared
+    .map(
+      (s) => `<div class="host"><div><b>${s.online ? '<span class="dot"></span>' : ""}${escape(s.title)}</b><small>${escape(s.ownerName ?? s.owner)} · ${ROLE_LABELS[s.role] ?? s.role}${s.online ? "" : " · their Mac is offline"}</small></div>
+      <a class="btn" href="/s/${escape(s.id)}">Open</a></div>`,
+    )
+    .join("")}</div>`;
+}
+
+export function hostsPage({ email, hosts, current, admin, relay, shared = [] }) {
   const list = hosts.length
     ? `<div class="hosts">${hosts
         .map(
@@ -100,7 +113,7 @@ export function hostsPage({ email, hosts, current, admin, relay }) {
         )
         .join("")}</div><details><summary>Connect another Mac</summary>${installSteps(relay)}</details>`
     : `<p>No Macs connected yet.</p>${installSteps(relay)}`;
-  return layout("Your Macs", `<h1>Your Macs</h1>${list}<p class="foot">${escape(email)} · ${admin ? `<a href="/_mono/admin">Members</a> · ` : ""}<a href="/_mono/logout">Sign out</a></p>`);
+  return layout("Your Macs", `<h1>Your Macs</h1>${list}${sharedList(shared)}<p class="foot">${escape(email)} · ${admin ? `<a href="/_mono/admin">Members</a> · ` : ""}<a href="/_mono/logout">Sign out</a></p>`);
 }
 
 export function adminPage({ email, admins, users, blocked, online, notice }) {

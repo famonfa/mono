@@ -8,6 +8,7 @@ import * as store from "./store.mjs";
 import { projectContext } from "./brain.mjs";
 import { sessionCwd } from "./sessions.mjs";
 import { allProjects, descendantIds, launchRootFor } from "./projects.mjs";
+import { agentScope, pathInScope, recordGuestSession } from "./guest.mjs";
 
 const HOME = os.homedir();
 
@@ -246,6 +247,64 @@ function publicState(chat) {
     taskId: chat.taskId,
     pending: [...chat.pending.values()].map(({ resolve, ...p }) => p),
     error: chat.error,
+    ...(chat.guest ? { guest: { email: chat.guest.email, name: chat.guest.name ?? null } } : {}),
+  };
+}
+
+/** Who may follow a chat's live state through the relay: guests of its project, or of the share that launched it. */
+export function chatAudience(sessionId) {
+  const chat = chats.get(sessionId);
+  return chat ? { projectId: chat.guest?.projectId ?? chat.taskId ?? null, shareId: chat.guest?.shareId ?? null } : {};
+}
+
+// ---------- agents launched by guests ----------
+
+/** Files only: no shell, no web, no MCPs. Every path is checked against the share before it runs. */
+const GUEST_TOOLS = ["Read", "Write", "Edit", "Glob", "Grep", "TodoWrite"];
+const GUEST_PATH_KEYS = { Read: "file_path", Write: "file_path", Edit: "file_path", Glob: "path", Grep: "path" };
+/** What a guest's agent inherits from this Mac's environment: enough to run Claude Code, none of the owner's tokens. */
+const GUEST_ENV_KEYS = ["HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TMPDIR", "SHELL", "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CONFIG_DIR"];
+
+const guestEnv = () => ({ ...Object.fromEntries(GUEST_ENV_KEYS.filter((k) => process.env[k]).map((k) => [k, process.env[k]])), PATH });
+
+function guestDecision(scope, cwd, toolName, toolInput) {
+  const deny = (reason) => ({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: reason } });
+  if (toolName === "TodoWrite") return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow" } };
+  const key = GUEST_PATH_KEYS[toolName];
+  if (!key) return deny(`${toolName} isn't available in a shared project`);
+  const given = toolInput?.[key];
+  if (!given && !scope.cwd) return deny(`Pass an explicit ${key} inside ${scope.roots[0]}`);
+  const target = path.resolve(cwd, String(given ?? cwd));
+  if (!pathInScope(scope, target)) return deny(`Only ${scope.roots[0]} is shared with you`);
+  return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow" } };
+}
+
+function guestContext(guest, scope) {
+  const where = guest.pageId ? `the page "${guest.pageId}" of the Mono project ${guest.projectId}` : `the Mono project ${guest.projectId}`;
+  return [
+    `${guest.name ?? guest.email} is working with you on ${where} (shared with them by its owner, ${guest.owner}).`,
+    `You can only read and write inside ${scope.roots[0]}${scope.files.length ? ` (and ${scope.files.map((f) => path.basename(f)).join(", ")})` : ""}: docs are .md files and canvases are .board.json files (nodes and edges).`,
+    "There's no shell, web access or other projects here. Keep the owner's notes unless asked to change them.",
+  ].join("\n");
+}
+
+/** Options for a session a guest drives: confined to their share and isolated from the owner's settings. */
+function guestOptions(guest) {
+  const scope = agentScope(guest);
+  const cwd = scope.cwd ?? scope.parent;
+  return {
+    cwd,
+    focus: cwd,
+    append: guestContext(guest, scope),
+    options: {
+      permissionMode: "default",
+      tools: GUEST_TOOLS,
+      settingSources: [],
+      strictMcpConfig: true,
+      mcpServers: {},
+      env: guestEnv(),
+      hooks: { PreToolUse: [{ hooks: [async (input) => guestDecision(scope, cwd, input.tool_name, input.tool_input)] }] },
+    },
   };
 }
 
@@ -316,22 +375,28 @@ function linkSessionToTask(taskId, sessionId) {
  * `context` is extra system prompt and `onResult` sees each finished turn, for sessions Mono drives itself
  * (a group's planner and the sessions it launches).
  */
-export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort, permissionMode, attachments = [], context, onResult }) {
-  const mode = modeOrDefault(permissionMode);
+/**
+ * `guest` (from guest.mjs) makes it a guest's agent: it starts in their share, can't touch anything
+ * outside it, and gets none of the owner's settings, MCPs or environment.
+ */
+export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort, permissionMode, attachments = [], context, onResult, guest }) {
+  const mode = guest ? "default" : modeOrDefault(permissionMode);
   if (!CLAUDE_BIN) throw new Error("Claude Code not found on this Mac. Install it (https://docs.claude.com/en/docs/claude-code/setup) and restart Mono.");
   if (resume && chats.get(resume) && !chats.get(resume).closed) throw new Error("Session is already open in the workspace");
+  if (guest && attachments.length) throw new Error("Attachments aren't available in a shared project");
+  const confined = guest ? guestOptions(guest) : null;
   const task = taskId ? store.getTask(taskId) : null;
-  const launch = cwd ? expandHome(cwd) : defaultCwd();
+  const launch = confined ? (resume && cwd ? cwd : confined.cwd) : cwd ? expandHome(cwd) : defaultCwd();
   if (!isDir(launch)) throw new Error(`Folder not found: ${launch}`);
   // A resumed session keeps launching from its original folder (that's where Claude Code stores the transcript);
   // a reassigned folder only changes where it works.
-  const focus = resume && focusCwd && isDir(focusCwd) ? focusCwd : launch;
-  const workdir = resume ? launch : launchRootFor(focus);
-  const append = [task && projectContext(task), focusContext(workdir, focus), context].filter(Boolean).join("\n\n");
+  const focus = confined ? launch : resume && focusCwd && isDir(focusCwd) ? focusCwd : launch;
+  const workdir = confined || resume ? launch : launchRootFor(focus);
+  const append = confined ? confined.append : [task && projectContext(task), focusContext(workdir, focus), context].filter(Boolean).join("\n\n");
 
   const input = new InputQueue();
   input.push(userMessage(prompt, attachments));
-  const chat = { sessionId: resume ?? null, taskId, cwd: focus, launchCwd: workdir, model, effort, permissionMode: mode, state: "running", pending: new Map(), input, closed: false, q: null };
+  const chat = { sessionId: resume ?? null, taskId, cwd: focus, launchCwd: workdir, model, effort, permissionMode: mode, state: "running", pending: new Map(), input, closed: false, q: null, guest: guest ?? null };
   let reqCounter = 0;
 
   const q = query({
@@ -341,15 +406,17 @@ export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort
       ...(focus !== workdir ? { additionalDirectories: [focus] } : {}),
       ...(resume ? { resume } : {}),
       permissionMode: mode,
-      allowDangerouslySkipPermissions: true,
+      allowDangerouslySkipPermissions: !guest,
       ...(model ? { model } : {}),
       ...effortOptions(effort),
       settingSources: ["user", "project", "local"],
       systemPrompt: { type: "preset", preset: "claude_code", ...(append ? { append } : {}) },
       ...(CLAUDE_BIN ? { pathToClaudeCodeExecutable: CLAUDE_BIN } : {}),
       env: { ...process.env, PATH },
+      ...(confined ? confined.options : {}),
       canUseTool: (toolName, toolInput, { signal, suggestions, decisionReason, blockedPath }) =>
         new Promise((resolve) => {
+          if (guest) return resolve({ behavior: "deny", message: `${toolName} isn't available in a shared project` });
           const id = `req-${++reqCounter}`;
           chat.pending.set(id, { id, toolName, input: toolInput, decisionReason, blockedPath, canAlwaysAllow: Boolean(suggestions?.length), suggestions, resolve });
           setState(chat, "requires_action");
@@ -376,6 +443,7 @@ export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort
           if (msg.type === "system" && msg.subtype === "init") {
             chats.set(chat.sessionId, chat);
             if (!resume) saveSessionFocus(chat.sessionId, focus);
+            if (guest && !resume) recordGuestSession(chat.sessionId, guest);
             linkSessionToTask(taskId, chat.sessionId);
             if (!started) {
               started = true;
@@ -405,7 +473,7 @@ export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort
   });
 }
 
-export function sendMessage(sessionId, text, { workingSessions = [], model, effort, permissionMode, attachments = [] } = {}) {
+export function sendMessage(sessionId, text, { workingSessions = [], model, effort, permissionMode, attachments = [], guest } = {}) {
   const chat = chats.get(sessionId);
   if (chat && !chat.closed) {
     chat.input.push(userMessage(text, attachments));
@@ -417,7 +485,7 @@ export function sendMessage(sessionId, text, { workingSessions = [], model, effo
   }
   const cwd = sessionCwd(sessionId);
   if (!cwd) throw new Error("Original folder for this session not found");
-  return startChat({ resume: sessionId, cwd, focusCwd: readSessionFocus()[sessionId], prompt: text, taskId: chat?.taskId, model, effort, permissionMode, attachments });
+  return startChat({ resume: sessionId, cwd, focusCwd: readSessionFocus()[sessionId], prompt: text, taskId: chat?.taskId ?? guest?.projectId, model, effort, permissionMode, attachments, guest });
 }
 
 export function chatState(sessionId) {

@@ -101,6 +101,8 @@ export type Task = {
   boards: BoardSummary[];
   docs: string[];
   assets: string[];
+  /** Set when a guest sees someone else's project: their role and, for a folder share, which folder. */
+  shared?: { role: "viewer" | "editor" | "agents"; pageId: string | null; owner: string };
 };
 
 export const CHANGE_STATUS: Record<ChangeStatus, { label: string; color: string }> = {

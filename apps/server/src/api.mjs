@@ -2,7 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { PKG_DIR, REPO_ROOT } from "./paths.mjs";
-import { remoteStatus } from "./remote.mjs";
+import { relayApi, remoteStatus } from "./remote.mjs";
+import * as guests from "./guest.mjs";
 import * as store from "./store.mjs";
 import * as sessions from "./sessions.mjs";
 import * as chats from "./chats.mjs";
@@ -110,7 +111,9 @@ function sessionList(days) {
   for (const task of tasks) {
     for (const s of sessions.sessionsForTask(task, list)) (s.taskIds ??= []).push(task.id);
   }
+  const launched = guests.readGuestSessions();
   for (const s of list) {
+    if (launched[s.id]) s.guest = { email: launched[s.id].email, name: launched[s.id].name };
     s.ownedByWorkspace = live.has(s.id);
     s.focusCwd = focus[s.id] ?? null;
     s.triage = triage[s.id] ?? (Date.now() - Date.parse(s.lastTs ?? s.firstTs ?? 0) > PREVIOUS_AFTER_MS ? "previous" : "ongoing");
@@ -222,10 +225,12 @@ export function createApi(broadcast) {
     groupsTimer = setTimeout(() => broadcast("ws:groups", {}), 100);
   });
 
-  chats.onChatChange((sessionId) => broadcast("ws:chat", { sessionId, state: chats.chatState(sessionId) }));
+  chats.onChatChange((sessionId) => broadcast("ws:chat", { sessionId, state: chats.chatState(sessionId), ...chats.chatAudience(sessionId) }));
 
   return async function handle(req, res, next) {
     if (!isTrusted(req)) return send(res, 403, { error: "forbidden" });
+    const guest = guests.guestFrom(req);
+    if (guest) return handleGuest(req, res, next, guest, broadcast);
     if (req.url.startsWith("/files/")) {
       const rel = decodeURIComponent(req.url.replace(/^\/files\//, "").split("?")[0]);
       return serveStatic(res, store.PROJECTS_DIR, rel, req) || next();
@@ -241,6 +246,7 @@ export function createApi(broadcast) {
 
       if (resource === "health") return send(res, 200, { app: "mono", ok: true });
       if (resource === "me" && method === "GET") return send(res, 200, localAccount());
+      if (resource === "shares" || resource === "shared") return await handleShares(res, method, parts, body, url);
       if (resource === "chats") return await handleChats(res, method, parts, body);
       if (resource === "groups") return await handleGroups(res, method, parts, body);
       if (resource === "search" && method === "GET") return send(res, 200, brain.search(url.searchParams.get("q") ?? "", { projectId: url.searchParams.get("project") || undefined }));
@@ -398,4 +404,213 @@ export function createApi(broadcast) {
       return send(res, 400, { error: String(error.message ?? error), ...(error instanceof designs.FigmaTokenError ? { code: error.code } : {}) });
     }
   };
+}
+
+// ---------- sharing ----------
+
+/**
+ * The owner's side of sharing. Shares live in the relay (it's the one that lets guests in), so these
+ * calls go there as this Mac; they work from the local app and through the relay alike.
+ */
+async function handleShares(res, method, parts, body, url) {
+  const [resource, id, sub, subId] = parts;
+  const enc = encodeURIComponent;
+  if (resource === "shared" && method === "GET") {
+    // Local mode asks for the sidebar's "Shared with me"; a Mac that isn't connected just has none.
+    return send(res, 200, await relayApi("GET", "/shared").catch(() => []));
+  }
+  if (!id && method === "GET") {
+    const project = url.searchParams.get("project");
+    // Not connected (or the relay is down): nothing is shared, and the tree shouldn't fail over it.
+    return send(res, 200, await relayApi("GET", `/shares${project ? `?project=${enc(project)}` : ""}`).catch(() => []));
+  }
+  if (!id && method === "POST") {
+    const projectId = body.projectId ? String(body.projectId) : null;
+    const project = projectId ? store.getProject(projectId) : null;
+    if (projectId && !project) throw new Error(`Project not found: ${projectId}`);
+    if (body.pageId && !store.getPage(projectId, String(body.pageId))) throw new Error(`Page not found: ${body.pageId}`);
+    let title = body.title;
+    if (!title && body.sessionId) title = sessions.listSessions().find((s) => s.id === body.sessionId)?.title ?? "Session";
+    if (!title && body.pageId) title = store.flattenPages(project.pages).find((p) => p.id === body.pageId)?.title ?? body.pageId;
+    return send(res, 200, await relayApi("POST", "/shares", { projectId, pageId: body.pageId ?? null, sessionId: body.sessionId ?? null, title: title ?? project?.title ?? projectId }));
+  }
+  if (id && sub === "people" && !subId && method === "POST") return send(res, 200, await relayApi("POST", `/shares/${enc(id)}/people`, { email: body.email, role: body.role }));
+  if (id && sub === "people" && subId && method === "DELETE") return send(res, 200, await relayApi("DELETE", `/shares/${enc(id)}/people/${enc(subId)}`));
+  if (id && sub === "general" && method === "PUT") return send(res, 200, await relayApi("PUT", `/shares/${enc(id)}/general`, { general: body.general ?? null }));
+  if (id && !sub && method === "DELETE") return send(res, 200, await relayApi("DELETE", `/shares/${enc(id)}`));
+  return send(res, 404, { error: "not found" });
+}
+
+/** Project fields an editor of a whole shared project may change (never where it lives or what it links to). */
+const GUEST_PROJECT_FIELDS = ["title", "status", "icon", "tldr", "summary", "risk", "tags"];
+
+/**
+ * Everything a guest can do, and nothing else: an allowlist, so a route added later stays owner-only
+ * until it's added here. Scope checks come from guest.mjs; writes need the editor role.
+ */
+async function handleGuest(req, res, next, guest, broadcast) {
+  const forbidden = (why = "Not shared with you") => send(res, 403, { error: why });
+  if (!["viewer", "editor", "agents"].includes(guest.role)) return forbidden();
+  const readOnly = () => forbidden("You can view this but not change it");
+
+  if (req.url.startsWith("/files/")) {
+    if (req.method !== "GET") return forbidden();
+    const rel = decodeURIComponent(req.url.replace(/^\/files\//, "").split("?")[0]);
+    if (!guests.fileInScope(guest, rel)) return forbidden();
+    return serveStatic(res, store.PROJECTS_DIR, rel, req) || send(res, 404, { error: "not found" });
+  }
+  // The app shell (index.html, scripts) is the same for everyone.
+  if (!req.url.startsWith("/api/")) return req.method === "GET" ? next() : forbidden();
+
+  const url = new URL(req.url, "http://localhost");
+  const parts = url.pathname.split("/").filter(Boolean).slice(1).map(decodeURIComponent);
+  const method = req.method;
+  const [resource, id, sub, subId] = parts;
+  try {
+    const body = ["PUT", "POST"].includes(method) ? JSON.parse((await readBody(req)) || "{}") : undefined;
+
+    if (resource === "health") return send(res, 200, { app: "mono", ok: true });
+    // The guest's own Claude Code isn't this Mac's.
+    if (resource === "me" && method === "GET") return send(res, 200, { mode: "guest", claude: null });
+    if (method === "GET" && ["repos", "projects", "groups", "commands", "shared"].includes(resource) && !id) return send(res, 200, []);
+    if (resource === "models" && method === "GET") return send(res, 200, guests.canRunAgents(guest) ? chats.listModels() : []);
+
+    if (resource === "search" && method === "GET") {
+      if (!guest.projectId || guest.sessionId) return send(res, 200, []);
+      const hits = brain.search(url.searchParams.get("q") ?? "", { projectId: guest.projectId });
+      return send(res, 200, hits.filter((h) => (h.page ? guests.pageInScope(guest, h.page) : !guest.pageId)));
+    }
+
+    if (resource === "sessions") {
+      const launched = guests.readGuestSessions();
+      if (!id && method === "GET") return send(res, 200, sessionList(Number(url.searchParams.get("days")) || undefined).filter((s) => guests.sessionVisible(guest, s, launched)));
+      if (id && !sub && method === "GET") {
+        const visible = sessionList().find((s) => s.id === id);
+        if (!guests.sessionVisible(guest, visible, launched)) return forbidden();
+        const since = url.searchParams.get("since");
+        const detail = sessions.readSessionEvents(id, { since: since === null ? undefined : Number(since), agent: url.searchParams.get("agent") ?? undefined });
+        return detail ? send(res, 200, detail) : send(res, 404, { error: "not found" });
+      }
+      return forbidden();
+    }
+
+    if (resource === "chats") {
+      const [, sessionId, action, actionId] = parts;
+      if (!sessionId && method === "POST") {
+        if (!guests.canRunAgents(guest)) return forbidden("Your access doesn't include running agents");
+        const prompt = String(body.prompt ?? "").trim();
+        if (!prompt) throw new Error("Message is empty");
+        return send(res, 200, await chats.startChat({ taskId: guest.projectId, prompt, model: body.model, effort: body.effort, guest }));
+      }
+      if (sessionId && !action && method === "GET") {
+        const visible = sessionList().find((s) => s.id === sessionId);
+        return guests.sessionVisible(guest, visible) || guests.sessionDrivable(guest, sessionId) ? send(res, 200, chats.chatState(sessionId)) : forbidden();
+      }
+      if (!guests.sessionDrivable(guest, sessionId)) return forbidden("Only agents launched in this share take your messages");
+      if (action === "messages" && method === "POST") {
+        const text = String(body.text ?? "").trim();
+        if (!text) throw new Error("Message is empty");
+        return send(res, 200, await chats.sendMessage(sessionId, text, { workingSessions: workingElsewhere(sessionId), model: body.model, effort: body.effort, guest }));
+      }
+      if (action === "interrupt" && method === "POST") return send(res, 200, await chats.interrupt(sessionId));
+      if (action === "config" && method === "POST") return send(res, 200, await chats.configure(sessionId, { model: body.model, effort: body.effort }));
+      if (action === "permissions" && actionId && method === "POST") return send(res, 200, chats.answerPermission(sessionId, actionId, { allow: body.allow, message: body.message, answers: body.answers }));
+      return forbidden();
+    }
+
+    if (resource !== "tasks") return forbidden();
+    if (!id) return method === "GET" ? send(res, 200, [guest.projectId && guests.scopedProject(guest, store.getTask(guest.projectId))].filter(Boolean).map(withProjects)) : forbidden();
+    if (!guests.projectInScope(guest, id)) return forbidden();
+    const project = store.getTask(id);
+    if (!project) return send(res, 404, { error: "not found" });
+
+    if (!sub) {
+      if (method === "GET") return send(res, 200, withProjects(guests.scopedProject(guest, project)));
+      if (method === "PUT") {
+        if (!guests.canEdit(guest) || guest.pageId) return readOnly();
+        const patch = Object.fromEntries(Object.entries(body).filter(([k]) => GUEST_PROJECT_FIELDS.includes(k)));
+        return send(res, 200, withProjects(guests.scopedProject(guest, store.saveTask(id, patch))));
+      }
+      return forbidden();
+    }
+    // Owner-only parts of a project page: links to repos and PRs, Figma and the AI refresh read as empty.
+    if (method === "GET" && (sub === "worktrees" || sub === "prs")) return send(res, 200, []);
+    if (method === "GET" && sub === "designs") return send(res, 200, { hasToken: false });
+    if (method === "GET" && sub === "refresh") return send(res, 200, guest.pageId ? { status: "never" } : refreshStatus(id));
+    if (sub === "activity" && method === "GET") {
+      if (guest.pageId) return forbidden();
+      const activity = projectActivity(id, { days: Number(url.searchParams.get("days")) || undefined });
+      return activity ? send(res, 200, activity) : send(res, 404, { error: "not found" });
+    }
+
+    const pageId = subId;
+    const inScope = pageId && guests.pageInScope(guest, pageId);
+    const write = method !== "GET";
+    if (write && !guests.canEdit(guest)) return readOnly();
+
+    if (sub === "boards" && inScope) {
+      if (parts[4] === "undo" && method === "POST") {
+        const restored = store.restoreBoard(id, pageId);
+        return send(res, 200, { restored, remaining: store.boardHistory(id, pageId).length });
+      }
+      if (parts[4] === "history" && method === "GET") return send(res, 200, store.boardHistory(id, pageId));
+      if (parts[4]) return forbidden();
+      if (method === "GET") {
+        const board = store.getBoard(id, pageId);
+        return board ? send(res, 200, board) : send(res, 404, { error: "not found" });
+      }
+      if (method === "PUT") return send(res, 200, store.saveBoard(id, pageId, body));
+      if (method === "DELETE" && pageId !== guest.pageId) {
+        store.deleteBoard(id, pageId);
+        return send(res, 200, { ok: true });
+      }
+      return forbidden();
+    }
+    if (sub === "docs" && inScope) {
+      if (parts[4] === "undo" && method === "POST") {
+        const restored = store.restoreDoc(id, pageId);
+        return send(res, 200, { restored, remaining: store.docHistory(id, pageId).length });
+      }
+      if (parts[4]) return forbidden();
+      if (method === "GET") {
+        const doc = store.getDoc(id, pageId);
+        return doc === null ? send(res, 404, { error: "not found" }) : send(res, 200, { name: pageId, content: doc });
+      }
+      if (method === "PUT") {
+        store.saveDoc(id, pageId, body.content ?? "");
+        return send(res, 200, { ok: true });
+      }
+      return forbidden();
+    }
+    if (sub === "pages" && inScope) {
+      if (parts[4] === "move" && method === "POST") {
+        // Moving within the share only, and the shared page itself stays where the owner put it.
+        if (pageId === guest.pageId || !guests.pageInScope(guest, String(body.to ?? ""))) return forbidden();
+        return send(res, 200, { id: store.movePage(id, pageId, String(body.to ?? "")) });
+      }
+      if (parts[4]) return forbidden();
+      if (method === "GET") {
+        const page = store.getPage(id, pageId);
+        return page ? send(res, 200, page) : send(res, 404, { error: "not found" });
+      }
+      if (method === "PUT") {
+        store.saveFolder(id, pageId, body.title);
+        return send(res, 200, store.getPage(id, pageId));
+      }
+      if (method === "DELETE" && pageId !== guest.pageId) {
+        store.trashPage(id, pageId);
+        return send(res, 200, { ok: true });
+      }
+      return forbidden();
+    }
+    if (sub === "order" && !subId && method === "PUT") {
+      if (guest.pageId && !(body.parent && guests.pageInScope(guest, body.parent))) return forbidden();
+      store.setPageOrder(id, body.parent || null, Array.isArray(body.order) ? body.order : []);
+      return send(res, 200, { ok: true });
+    }
+    if (sub === "assets" && !subId && method === "POST") return send(res, 200, { path: store.saveAsset(id, String(body.name ?? "file"), String(body.data ?? "")) });
+    return forbidden();
+  } catch (error) {
+    return send(res, 400, { error: String(error.message ?? error) });
+  }
 }
