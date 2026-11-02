@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { GUEST_HEADER } from "./remote.mjs";
+import { readSessionEvents } from "./sessions.mjs";
 import * as store from "./store.mjs";
 
 /**
@@ -22,7 +23,8 @@ export function guestFrom(req) {
 }
 
 export const canEdit = (guest) => !guest.sessionId && (guest.role === "editor" || guest.role === "agents");
-export const canRunAgents = (guest) => !guest.sessionId && guest.role === "agents";
+/** On a shared session, "agents" means continuing it in their own confined agent, never messaging the owner's. */
+export const canRunAgents = (guest) => guest.role === "agents";
 
 /** True for the shared page itself and anything inside it (any page, for a whole-project share). */
 export function pageInScope(guest, pageId) {
@@ -97,8 +99,8 @@ export function recordGuestSession(sessionId, guest) {
 /** Which sessions a guest can see: the shared one, the project's (whole-project shares) and those launched under their share. */
 export function sessionVisible(guest, session, launched = readGuestSessions()) {
   if (!session) return false;
-  if (guest.sessionId) return session.id === guest.sessionId;
   if (launched[session.id]?.shareId === guest.shareId) return true;
+  if (guest.sessionId) return session.id === guest.sessionId;
   return !guest.pageId && projectInScope(guest, guest.projectId) && (session.taskIds ?? []).includes(guest.projectId);
 }
 
@@ -110,6 +112,13 @@ export const sessionDrivable = (guest, sessionId, launched = readGuestSessions()
  * canvas file plus its folder of children). `cwd` is where it starts.
  */
 export function agentScope(guest) {
+  if (guest.sessionId) {
+    // A shared session has no pages to work on: its guests' agents get a folder of their own.
+    if (!/^[A-Za-z0-9_-]+$/.test(guest.shareId)) throw new Error("Invalid share");
+    const dir = path.join(store.DATA_DIR, "shares", guest.shareId);
+    fs.mkdirSync(dir, { recursive: true });
+    return { cwd: dir, roots: [dir], files: [] };
+  }
   const projectDir = path.join(store.PROJECTS_DIR, guest.projectId);
   if (!guest.pageId) return { cwd: projectDir, roots: [projectDir], files: [] };
   const base = path.join(projectDir, "pages", ...store.pageSegments(guest.pageId));
@@ -136,4 +145,31 @@ export function pathInScope(scope, target) {
   const real = realish(path.resolve(target));
   const roots = scope.roots.map((r) => realish(r));
   return roots.some((r) => real === r || real.startsWith(r + path.sep)) || scope.files.map((f) => realish(f)).includes(real);
+}
+
+// ---------- continuing a shared session ----------
+
+const clip = (text, max) => (text.length > max ? `${text.slice(0, max)}… [cut]` : text);
+const MAX_DIGEST = 150_000;
+
+/**
+ * The shared session as markdown, written next to the guest's agent so it can read the conversation
+ * it continues. Prompts and answers in full, tool calls as one line, results clipped; newest last.
+ */
+export function writeSessionDigest(guest, dir) {
+  const detail = readSessionEvents(guest.sessionId);
+  if (!detail) throw new Error("The shared session is gone");
+  const lines = [];
+  for (const e of detail.events) {
+    if (e.kind === "prompt") lines.push(`\n## ${guest.owner} (${e.ts ?? ""})\n\n${e.text ?? ""}`);
+    else if (e.kind === "text") lines.push(`\n## Agent\n\n${e.text ?? ""}`);
+    else if (e.kind === "tool") lines.push(`- → ${e.name}: ${clip(String(e.title ?? ""), 200)}`);
+    else if (e.kind === "result" && e.text) lines.push(`  - ${e.isError ? "error" : "result"}: ${clip(String(e.text).replace(/\n+/g, " "), 300)}`);
+  }
+  let body = lines.join("\n");
+  if (body.length > MAX_DIGEST) body = `[…earlier part cut]\n${body.slice(-MAX_DIGEST)}`;
+  const file = path.join(dir, "shared-session.md");
+  const title = detail.session?.title ?? guest.title;
+  fs.writeFileSync(file, `# Shared session: ${title}\n\nShared by ${guest.owner}. Newest at the end.${detail.truncated ? " Only the most recent part of the session is here." : ""}\n${body}\n`);
+  return { file, title };
 }

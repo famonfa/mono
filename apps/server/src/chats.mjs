@@ -8,7 +8,7 @@ import * as store from "./store.mjs";
 import { projectContext } from "./brain.mjs";
 import { sessionCwd } from "./sessions.mjs";
 import { allProjects, descendantIds, launchRootFor } from "./projects.mjs";
-import { agentScope, pathInScope, recordGuestSession } from "./guest.mjs";
+import { agentScope, pathInScope, recordGuestSession, writeSessionDigest } from "./guest.mjs";
 
 const HOME = os.homedir();
 
@@ -280,6 +280,14 @@ function guestDecision(scope, cwd, toolName, toolInput) {
 }
 
 function guestContext(guest, scope) {
+  if (guest.sessionId) {
+    const { file, title } = writeSessionDigest(guest, scope.cwd);
+    return [
+      `${guest.name ?? guest.email} is continuing an idea from "${title}", a Claude Code session ${guest.owner} shared with them to watch. You are a separate agent on ${guest.owner}'s Mac: you can't message that session or touch its repos.`,
+      `The whole conversation so far is in ${file} (newest at the end). Read it before answering, and read it again when they say it moved on.`,
+      `You can only read and write inside ${scope.roots[0]}, a folder of your own. There's no shell, web access or other files here.`,
+    ].join("\n");
+  }
   const where = guest.pageId ? `the page "${guest.pageId}" of the Mono project ${guest.projectId}` : `the Mono project ${guest.projectId}`;
   return [
     `${guest.name ?? guest.email} is working with you on ${where} (shared with them by its owner, ${guest.owner}).`,

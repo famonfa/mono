@@ -510,6 +510,8 @@ async function handleGuest(req, res, next, guest, broadcast) {
       if (action === "messages" && method === "POST") {
         const text = String(body.text ?? "").trim();
         if (!text) throw new Error("Message is empty");
+        // The shared session may have moved on since this agent started: refresh what it reads.
+        if (guest.sessionId) guests.writeSessionDigest(guest, guests.agentScope(guest).cwd);
         return send(res, 200, await chats.sendMessage(sessionId, text, { workingSessions: workingElsewhere(sessionId), model: body.model, effort: body.effort, guest }));
       }
       if (action === "interrupt" && method === "POST") return send(res, 200, await chats.interrupt(sessionId));

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Layers, LayoutGrid, MessageSquarePlus, Moon, PanelLeft, Plus, Search, Sparkles, SquarePen, Sun, Users } from "lucide-react";
 import { guestShare, useAccount, type SharedItem } from "./account";
-import { ROLE_META, sharesApi } from "./shares";
+import { ROLE_META, roleLabel, sharesApi } from "./shares";
 import { api, useLiveData } from "./api";
 import { AppContext, useApp, type AppContextValue } from "./app-context";
 import { AgentsPage, SessionView, StatusDot } from "./components/Agents";
@@ -63,7 +63,7 @@ export function App() {
   const account = useAccount();
   const guest = guestShare(account);
   const canEdit = !guest || (!guest.sessionId && guest.role !== "viewer");
-  const canRunAgents = !guest || (!guest.sessionId && guest.role === "agents");
+  const canRunAgents = !guest || guest.role === "agents";
 
   const updateTask = useCallback(
     async (id: string, patch: Partial<Task>) => {
@@ -279,12 +279,18 @@ function GuestSidebar({ route, guest, onToggle }: { route: Route; guest: SharedI
         )}
       </div>
       <div className="guest-banner">
-        Shared by <b>{guest.ownerName ?? guest.owner}</b> · {ROLE_META[guest.role].label}
+        Shared by <b>{guest.ownerName ?? guest.owner}</b> · {roleLabel(guest.role, Boolean(guest.sessionId))}
         <br />
         <a href="/_mono/hosts">Back to my Macs</a>
       </div>
       {guest.sessionId ? (
         <nav className="sidebar-nav">
+          {guest.role === "agents" && (
+            <a href={href.newSession()} className={route.view === "newSession" ? "active" : ""}>
+              <MessageSquarePlus size={15} />
+              <span>Continue in your own agent</span>
+            </a>
+          )}
           {sessions.map((s) => (
             <a key={s.id} href={href.session(s.id)} className={route.view === "session" && route.sessionId === s.id ? "active" : ""}>
               <Bot size={15} />
@@ -329,7 +335,7 @@ function SharedWithMe() {
             target={remote ? undefined : "_blank"}
             rel="noreferrer"
             className={`shared-row ${s.online === false ? "offline" : ""} ${guest?.id === s.id ? "active" : ""}`}
-            title={`${s.title} · shared by ${s.ownerName ?? s.owner} · ${ROLE_META[s.role].label}${s.online === false ? " · their Mac is offline" : ""}`}
+            title={`${s.title} · shared by ${s.ownerName ?? s.owner} · ${roleLabel(s.role, Boolean(s.sessionId))}${s.online === false ? " · their Mac is offline" : ""}`}
           >
             <span className="share-avatar">{s.ownerPicture ? <img src={s.ownerPicture} alt="" referrerPolicy="no-referrer" /> : (s.ownerName ?? s.owner)[0]?.toUpperCase()}</span>
             <span className="recent-title">{s.title}</span>

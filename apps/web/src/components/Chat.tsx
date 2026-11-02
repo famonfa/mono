@@ -539,7 +539,14 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
         )}
         {chat?.error && <div className="composer-error">Session ended with an error: {chat.error}</div>}
         {!drivable ? (
-          <div className="composer-hint guest-readonly">Shared with you to watch. Only {guest?.ownerName ?? guest?.owner} can message it.</div>
+          <div className="guest-readonly">
+            <span className="composer-hint">Shared with you to watch. Only {guest?.ownerName ?? guest?.owner} can message it.</span>
+            {canRunAgents && guest?.sessionId === sessionId && (
+              <a className="btn primary" href={href.newSession()}>
+                Continue in your own agent
+              </a>
+            )}
+          </div>
         ) : (
         <Composer
           draftKey={`session-${sessionId}`}
@@ -617,12 +624,16 @@ export function NewSession({ task }: { task?: Task }) {
           <div className="new-session-icon">
             <Bot size={22} />
           </div>
-          <h2>New agent in {guest.title}</h2>
-          <p>Runs on {guest.ownerName ?? guest.owner}'s Mac and can only read and edit {guest.pageId ? "this folder's" : "this project's"} pages and canvases.</p>
+          <h2>{guest.sessionId ? `Continue “${guest.title}”` : `New agent in ${guest.title}`}</h2>
+          <p>
+            {guest.sessionId
+              ? `Your own agent starts from that session's conversation. It runs on ${guest.ownerName ?? guest.owner}'s Mac in a folder of its own: it can't message their session or touch their repos.`
+              : `Runs on ${guest.ownerName ?? guest.owner}'s Mac and can only read and edit ${guest.pageId ? "this folder's" : "this project's"} pages and canvases.`}
+          </p>
           <Composer
             autoFocus
             draftKey={`new-guest-${guest.id}`}
-            placeholder="What should we do?"
+            placeholder={guest.sessionId ? "Where should we take it?" : "What should we do?"}
             onSend={async (prompt) => {
               const state = await chatApi.start({ taskId: task?.id ?? guest.projectId ?? undefined, prompt, model: config.model, effort: config.effort });
               navigate(task ? href.taskSession(task.id, state.sessionId) : href.session(state.sessionId));

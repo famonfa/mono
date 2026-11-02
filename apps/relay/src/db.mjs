@@ -144,8 +144,11 @@ const validRole = (role) => {
   if (!ROLES.includes(role)) throw new Error(`Unknown role: ${role}`);
   return role;
 };
-/** A session can only be watched: messaging it would run the owner's own unrestricted agent. */
-const capRole = (share, role) => (share.session_id ? "viewer" : role);
+/**
+ * A session is never messaged by guests (that would run the owner's own unrestricted agent): they watch
+ * it, and with "agents" they continue it in a confined agent of their own. Editing means nothing there.
+ */
+const capRole = (share, role) => (share.session_id && role === "editor" ? "viewer" : role);
 const domainOf = (email) => norm(email).split("@")[1] ?? "";
 
 const shareRow = (id) => db.prepare("select * from shares where id = ?").get(String(id ?? ""));

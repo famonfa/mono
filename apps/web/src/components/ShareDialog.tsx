@@ -2,21 +2,22 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, Globe, Link2, Lock, Users, X } from "lucide-react";
 import { useAccount, type ShareRole } from "../account";
-import { ROLE_META, sharesApi, sharesChanged, type Share } from "../shares";
+import { ROLE_META, SESSION_ROLE_META, sharesApi, sharesChanged, type Share } from "../shares";
 import { Menu } from "../ui";
 
 export type ShareScope = { projectId?: string | null; pageId?: string | null; sessionId?: string | null; title: string };
 
 const ROLES = Object.keys(ROLE_META) as ShareRole[];
 
-/** A session can only be watched: messaging it would drive your own agent with your full access. */
-const rolesFor = (scope: ShareScope) => (scope.sessionId ? (["viewer"] as ShareRole[]) : ROLES);
+/** Nobody messages a shared session (it would drive your agent with your full access); they can continue it in their own. */
+const rolesFor = (scope: ShareScope) => (scope.sessionId ? (["viewer", "agents"] as ShareRole[]) : ROLES);
 
-function RolePicker({ value, roles, onChange }: { value: ShareRole; roles: ShareRole[]; onChange: (role: ShareRole) => void }) {
-  if (roles.length === 1) return <span className="share-role-fixed">{ROLE_META[value].label}</span>;
+function RolePicker({ value, roles, session, onChange }: { value: ShareRole; roles: ShareRole[]; session: boolean; onChange: (role: ShareRole) => void }) {
+  const meta = (r: ShareRole) => (session ? SESSION_ROLE_META[r] : null) ?? ROLE_META[r];
+  if (roles.length === 1) return <span className="share-role-fixed">{meta(value).label}</span>;
   return (
-    <Menu value={value} placeholder="Role…" options={roles.map((r) => ({ value: r, label: ROLE_META[r].label, hint: ROLE_META[r].hint }))} onChange={onChange} className="mode-trigger share-role">
-      {ROLE_META[value].label}
+    <Menu value={value} placeholder="Role…" options={roles.map((r) => ({ value: r, label: meta(r).label, hint: meta(r).hint }))} onChange={onChange} className="mode-trigger share-role">
+      {meta(value).label}
     </Menu>
   );
 }
@@ -103,12 +104,12 @@ export function ShareDialog({ scope, onClose }: { scope: ShareScope; onClose: ()
               }}
             >
               <input className="share-email" autoFocus placeholder="Add people by email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={!share} />
-              <RolePicker value={role} roles={roles} onChange={setRole} />
+              <RolePicker value={role} roles={roles} session={Boolean(scope.sessionId)} onChange={setRole} />
               <button className="btn primary" disabled={!share || busy || !email.trim()}>
                 Invite
               </button>
             </form>
-            {scope.sessionId && <p className="share-note">People you share a session with can watch it, not message it.</p>}
+            {scope.sessionId && <p className="share-note">They watch it live but never message it. With “Viewer + own agent” they can continue the idea in an agent of their own, in a separate folder: it can't touch your repos.</p>}
 
             <div className="share-section">People with access</div>
             <div className="share-people">
@@ -123,7 +124,7 @@ export function ShareDialog({ scope, onClose }: { scope: ShareScope; onClose: ()
                   <span className="share-avatar">{p.email[0]?.toUpperCase()}</span>
                   <span className="share-email-label">{p.email}</span>
                   <span className="spacer" />
-                  <RolePicker value={p.role} roles={roles} onChange={(next) => void run(() => sharesApi.grant(share.id, p.email, next))} />
+                  <RolePicker value={p.role} roles={roles} session={Boolean(scope.sessionId)} onChange={(next) => void run(() => sharesApi.grant(share.id, p.email, next))} />
                   <button className="icon-btn tiny" title="Remove access" disabled={busy} onClick={() => void run(() => sharesApi.revoke(share.id, p.email))}>
                     <X size={13} />
                   </button>
@@ -147,7 +148,7 @@ export function ShareDialog({ scope, onClose }: { scope: ShareScope; onClose: ()
                 {share?.general ? `Anyone at @${share.general.domain} with the link` : "Restricted"}
               </Menu>
               <span className="spacer" />
-              {share?.general && <RolePicker value={share.general.role} roles={roles} onChange={(next) => void run(() => sharesApi.setGeneral(share.id, { domain: share.general!.domain, role: next }))} />}
+              {share?.general && <RolePicker value={share.general.role} roles={roles} session={Boolean(scope.sessionId)} onChange={(next) => void run(() => sharesApi.setGeneral(share.id, { domain: share.general!.domain, role: next }))} />}
             </div>
             <p className="share-note">It runs on this Mac: while it's off or disconnected, people you share with can't open it.</p>
           </>

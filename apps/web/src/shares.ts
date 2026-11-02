@@ -13,6 +13,14 @@ export const ROLE_META: Record<ShareRole, { label: string; hint: string }> = {
   agents: { label: "Editor + agents", hint: "Also runs agents on your Mac, only inside what you shared" },
 };
 
+/** On a shared session nobody edits: they watch it, or also continue it in a confined agent of their own. */
+export const SESSION_ROLE_META: Partial<Record<ShareRole, { label: string; hint: string }>> = {
+  viewer: { label: "Viewer", hint: "Watches the session live" },
+  agents: { label: "Viewer + own agent", hint: "Can also continue it in an agent of their own, in a separate folder on your Mac" },
+};
+
+export const roleLabel = (role: ShareRole, session = false) => ((session ? SESSION_ROLE_META[role] : null) ?? ROLE_META[role]).label;
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { ...init, headers: { "Content-Type": "application/json", ...init?.headers } });
   const body = await res.json().catch(() => null);

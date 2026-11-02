@@ -98,7 +98,7 @@ function sharedList(shared) {
   if (!shared?.length) return "";
   return `<h2>Shared with you</h2><div class="hosts">${shared
     .map(
-      (s) => `<div class="host"><div><b>${s.online ? '<span class="dot"></span>' : ""}${escape(s.title)}</b><small>${escape(s.ownerName ?? s.owner)} · ${ROLE_LABELS[s.role] ?? s.role}${s.online ? "" : " · their Mac is offline"}</small></div>
+      (s) => `<div class="host"><div><b>${s.online ? '<span class="dot"></span>' : ""}${escape(s.title)}</b><small>${escape(s.ownerName ?? s.owner)} · ${s.sessionId ? (s.role === "agents" ? "Viewer + own agent" : "Viewer") : (ROLE_LABELS[s.role] ?? s.role)}${s.online ? "" : " · their Mac is offline"}</small></div>
       <a class="btn" href="/s/${escape(s.id)}">Open</a></div>`,
     )
     .join("")}</div>`;
