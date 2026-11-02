@@ -21,13 +21,48 @@ const SERVICE = "com.famonfa.mono";
 const PLIST = path.join(HOME, "Library", "LaunchAgents", `${SERVICE}.plist`);
 const PATH = [path.join(HOME, ".local/bin"), path.join(HOME, ".npm-global/bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"].join(":");
 
-export async function isUp() {
+/** The running server's health (version and pid), or null when none answers. */
+async function health() {
   try {
     const res = await fetch(`${APP_URL}/api/health`, { signal: AbortSignal.timeout(800) });
-    return res.ok && (await res.json()).app === "mono";
+    const json = res.ok ? await res.json() : null;
+    return json?.app === "mono" ? json : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export async function isUp() {
+  return Boolean(await health());
+}
+
+/**
+ * Updating Mono rewrites its files but a server that's already running keeps the old code, so a
+ * server from another version is restarted: through launchd when it's the service, otherwise
+ * stopped so ours takes over.
+ */
+async function restartIfStale() {
+  const running = await health();
+  const version = JSON.parse(fs.readFileSync(path.join(PKG_DIR, "package.json"), "utf8")).version;
+  // Servers older than this check don't report a version; they're stale too.
+  if (!running || running.version === version) return;
+  console.log(`Restarting the Mono server (${running.version ?? "old version"} → ${version})…`);
+  if (fs.existsSync(PLIST)) {
+    try {
+      execFileSync("launchctl", ["kickstart", "-k", `gui/${process.getuid()}/${SERVICE}`], { stdio: "ignore" });
+    } catch {}
+  } else if (running.pid) {
+    try {
+      process.kill(running.pid);
+    } catch {}
+  } else {
+    // An old server that doesn't say its pid: find whoever listens on the port.
+    try {
+      for (const pid of execFileSync("lsof", ["-ti", `tcp:${PORT}`, "-sTCP:LISTEN"], { encoding: "utf8" }).split(/\s+/).filter(Boolean)) process.kill(Number(pid));
+    } catch {}
+  }
+  const same = (h) => h && h.pid === running.pid && h.version === running.version;
+  for (let i = 0; i < 20 && same(await health()); i++) await new Promise((r) => setTimeout(r, 250));
 }
 
 /**
@@ -42,6 +77,7 @@ function setup() {
 /** Starts the server in the background unless it (or the launchd service) is already up. */
 export async function ensureServer() {
   setup();
+  await restartIfStale();
   if (await isUp()) return;
   fs.mkdirSync(path.dirname(LOG), { recursive: true });
   const out = fs.openSync(LOG, "a");

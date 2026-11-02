@@ -16,17 +16,45 @@ const PATH = [path.join(HOME, ".local/bin"), path.join(HOME, ".npm-global/bin"),
 const SERVER_DIR = app.isPackaged ? path.join(process.resourcesPath, "server") : path.resolve(here, "../../server");
 const SERVER_MAIN = path.join(SERVER_DIR, "src", "main.mjs");
 const CLI = path.join(SERVER_DIR, "bin", "mono.mjs");
+const PLIST = path.join(HOME, "Library", "LaunchAgents", "com.famonfa.mono.plist");
 
 /** Runs the bundled Node code with this app's own binary, so users don't need Node installed. */
 const nodeEnv = () => ({ ...process.env, ELECTRON_RUN_AS_NODE: "1", PORT: String(PORT), PATH: `${PATH}:${process.env.PATH ?? ""}` });
 
-async function isUp() {
+/** The running server's health (version and pid), or null when none answers. */
+async function health() {
   try {
     const res = await fetch(`${APP_URL}/api/health`, { signal: AbortSignal.timeout(800) });
-    return res.ok && (await res.json()).app === "mono";
+    const json = res.ok ? await res.json() : null;
+    return json?.app === "mono" ? json : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+const isUp = async () => Boolean(await health());
+
+/**
+ * A server left running from an older Mono keeps serving its old code after an update, so one
+ * from another version is restarted: through launchd when it's the service, otherwise stopped so
+ * the app runs its own.
+ */
+async function restartIfStale() {
+  const running = await health();
+  // Servers older than this check don't report a version; they're stale too.
+  if (!app.isPackaged || !running || running.version === app.getVersion()) return;
+  if (fs.existsSync(PLIST)) {
+    await new Promise((resolve) => execFile("launchctl", ["kickstart", "-k", `gui/${process.getuid()}/com.famonfa.mono`], () => resolve()));
+  } else {
+    const pids = running.pid ? [running.pid] : await new Promise((resolve) => execFile("lsof", ["-ti", `tcp:${PORT}`, "-sTCP:LISTEN"], (_, out) => resolve(String(out ?? "").split(/\s+/).filter(Boolean).map(Number))));
+    for (const pid of pids) {
+      try {
+        process.kill(pid);
+      } catch {}
+    }
+  }
+  const same = (h) => h && h.pid === running.pid && h.version === running.version;
+  for (let i = 0; i < 20 && same(await health()); i++) await new Promise((r) => setTimeout(r, 250));
 }
 
 async function waitUntilUp(tries = 60) {
@@ -41,6 +69,7 @@ let server = null;
 
 /** Reuses a running server (the launchd service or `mono`); otherwise runs ours while the app is open. */
 async function ensureServer() {
+  await restartIfStale();
   if (await isUp()) return;
   server = spawn(process.execPath, [SERVER_MAIN], { cwd: HOME, stdio: "inherit", env: nodeEnv() });
   if (!(await waitUntilUp())) throw new Error("Mono server failed to start");

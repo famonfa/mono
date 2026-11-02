@@ -18,6 +18,12 @@ import { projectActivity } from "./activity.mjs";
 import { prStatus } from "./prs.mjs";
 import { planSessions } from "./spawn.mjs";
 
+/**
+ * The version of the code this process is running, read once at startup: an update rewrites
+ * package.json on disk while an already-running server keeps the old code in memory.
+ */
+const VERSION = JSON.parse(fs.readFileSync(path.join(PKG_DIR, "package.json"), "utf8")).version;
+
 const MIME = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -126,12 +132,11 @@ function sessionList(days) {
 /** What the user widget shows when Mono is used on this Mac (through the relay it asks the relay instead). */
 function localAccount() {
   const remote = remoteStatus();
-  const pkg = JSON.parse(fs.readFileSync(path.join(PKG_DIR, "package.json"), "utf8"));
   return {
     mode: "local",
     hostname: os.hostname().replace(/\.local$/, ""),
     user: os.userInfo().username,
-    version: pkg.version,
+    version: VERSION,
     remote: remote.state === "connected" ? { email: remote.email, relay: remote.relay } : null,
     connectCommand: REPO_ROOT ? "mono connect" : "npx @famonfa/mono connect",
     claude: chats.claudeInfo(),
@@ -248,7 +253,7 @@ export function createApi(broadcast) {
       const body = ["PUT", "POST"].includes(method) ? JSON.parse((await readBody(req)) || "{}") : undefined;
       const [resource, id, sub, subId] = parts;
 
-      if (resource === "health") return send(res, 200, { app: "mono", ok: true });
+      if (resource === "health") return send(res, 200, { app: "mono", ok: true, version: VERSION, pid: process.pid });
       if (resource === "me" && method === "GET") return send(res, 200, localAccount());
       if (resource === "shares" || resource === "shared") return await handleShares(res, method, parts, body, url);
       if (resource === "chats") return await handleChats(res, method, parts, body);
@@ -483,7 +488,7 @@ async function handleGuest(req, res, next, guest, broadcast) {
   try {
     const body = ["PUT", "POST"].includes(method) ? JSON.parse((await readBody(req)) || "{}") : undefined;
 
-    if (resource === "health") return send(res, 200, { app: "mono", ok: true });
+    if (resource === "health") return send(res, 200, { app: "mono", ok: true, version: VERSION, pid: process.pid });
     // The guest's own Claude Code isn't this Mac's.
     if (resource === "me" && method === "GET") return send(res, 200, { mode: "guest", claude: null });
     if (method === "GET" && ["repos", "projects", "groups", "commands", "shared"].includes(resource) && !id) return send(res, 200, []);
