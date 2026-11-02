@@ -39,6 +39,14 @@ export const sharesApi = {
   setGeneral: (id: string, general: { domain: string; role: ShareRole } | null) => request<Share>(`/api/shares/${enc(id)}/general`, { method: "PUT", body: JSON.stringify({ general }) }),
   remove: (id: string) => request(`/api/shares/${enc(id)}`, { method: "DELETE" }),
   sharedWithMe: () => request<SharedItem[]>("/api/shared"),
+  /**
+   * Your own agent (your Claude Code, on your Mac) with a share as context. On your Mac it's a local call;
+   * from the browser, inside someone's share, the relay hands it to your connected Mac and switches to it.
+   */
+  startOnMyMac: (shareId: string, input: { prompt: string; cwd?: string; model?: string; effort?: string; permissionMode?: string }, remote: boolean) =>
+    remote
+      ? request<{ sessionId: string }>("/_mono/shared-start", { method: "POST", body: JSON.stringify({ shareId, ...input }) })
+      : request<{ sessionId: string }>(`/api/shared/${enc(shareId)}/sessions`, { method: "POST", body: JSON.stringify(input) }),
 };
 
 /** A share counts as shared once someone besides you can open it. */

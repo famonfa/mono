@@ -13,7 +13,8 @@ export type Route =
   | { view: "board"; taskId: string; boardId: string }
   | { view: "doc"; taskId: string; doc: string }
   | { view: "folder"; taskId: string; path: string }
-  | { view: "sessions"; taskId: string; sessionId?: string };
+  | { view: "sessions"; taskId: string; sessionId?: string }
+  | { view: "shared"; shareId: string };
 
 export function parse(hash: string): Route {
   const [kind, taskId, sub, name] = hash.replace(/^#\/?/, "").split("/").map(decodeURIComponent);
@@ -21,6 +22,7 @@ export function parse(hash: string): Route {
   if (kind === "nueva-sesion") return { view: "newSession" };
   if (kind === "skills") return { view: "skills", name: taskId || undefined };
   if (kind === "g" && taskId) return { view: "group", groupId: taskId };
+  if (kind === "compartido" && taskId) return { view: "shared", shareId: taskId };
   if (kind === "agentes") return taskId ? { view: "session", sessionId: taskId, agentId: sub || undefined } : { view: "agents" };
   if (kind !== "t" || !taskId) return { view: "home", filter: "todas" };
   if (sub === "b" && name) return { view: "board", taskId, boardId: name };
@@ -39,6 +41,7 @@ export const href = {
   newSession: () => "#/nueva-sesion",
   session: (id: string, agentId?: string) => `#/agentes/${encodeURIComponent(id)}${agentId ? `/${encodeURIComponent(agentId)}` : ""}`,
   group: (id: string) => `#/g/${encodeURIComponent(id)}`,
+  shared: (id: string) => `#/compartido/${encodeURIComponent(id)}`,
   board: (id: string, boardId: string) => `#/t/${encodeURIComponent(id)}/b/${encodeURIComponent(boardId)}`,
   folder: (id: string, path: string) => `#/t/${encodeURIComponent(id)}/f/${encodeURIComponent(path)}`,
   doc: (id: string, doc: string) => `#/t/${encodeURIComponent(id)}/d/${encodeURIComponent(doc)}`,

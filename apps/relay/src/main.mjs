@@ -206,6 +206,18 @@ async function hostApi(req, res, route) {
   const body = ["POST", "PUT"].includes(req.method) ? await readForm(req) : {};
   try {
     if (resource === "shared" && req.method === "GET") return send(res, 200, sharedWith(email));
+    // A guest's own Mac reading what was shared with them (to give its own agent the context): read-only,
+    // through the same guest checks as in the browser.
+    if (resource === "shares" && id && sub === "proxy" && req.method === "GET") {
+      const guest = guestScope(email, id);
+      if (!guest) return send(res, 403, { error: "Not shared with you" });
+      if (hosts.get(guest.hostId)?.email !== guest.owner) return send(res, 503, { error: `${guest.title} lives on ${guest.owner}'s Mac, which is offline right now` });
+      const rest = route.split("/").slice(4).join("/");
+      const reply = await forward(guest.hostId, { method: "GET", path: `/${rest}${url.search}`, headers: {}, body: null, guest });
+      res.statusCode = reply.status;
+      res.setHeader("Content-Type", reply.headers?.["content-type"] ?? "application/json");
+      return res.end(Buffer.from(reply.body ?? "", "base64"));
+    }
     if (resource !== "shares") return send(res, 404, { error: "not found" });
     if (!id && req.method === "GET") return send(res, 200, access.sharesFor(email, hostId, url.searchParams.get("project")).map(withLink));
     if (!id && req.method === "POST") {
@@ -527,6 +539,30 @@ async function relayRoute(req, res, url) {
     pairing.status = "approved";
     pairing.result = { hostId, email, token: sign({ t: "host", hostId, email, name: pairing.name, iat: Date.now() }) };
     return html(res, messagePage("Connected", `${pairing.name} is linked to your account. You can return to the terminal.`, { href: "/", label: "Open Mono" }));
+  }
+
+  // From someone else's share in the browser: start a session on your own Mac (your Claude Code), which
+  // pulls the share's context itself; then the app switches to your Mac.
+  if (route === "/shared-start" && req.method === "POST") {
+    if (!sameOrigin(req)) return send(res, 403, { error: "forbidden" });
+    const body = await readForm(req);
+    if (!access.roleOn(String(body.shareId ?? ""), email)) return send(res, 403, { error: "Not shared with you" });
+    const mine = hostsFor(email).sort((a, b) => b.connectedAt.localeCompare(a.connectedAt));
+    if (!mine.length) return send(res, 409, { error: "Connect your Mac first: run `npx @famonfa/mono connect` with this same Google account, then try again.", code: "no_mac" });
+    try {
+      const reply = await forward(mine[0].id, {
+        method: "POST",
+        path: `/api/shared/${encodeURIComponent(body.shareId)}/sessions`,
+        headers: { "content-type": "application/json" },
+        body: Buffer.from(JSON.stringify({ prompt: body.prompt, model: body.model, effort: body.effort, permissionMode: body.permissionMode })).toString("base64"),
+      });
+      const out = JSON.parse(Buffer.from(reply.body ?? "", "base64").toString() || "{}");
+      if (reply.status !== 200) return send(res, reply.status, out);
+      pickHost(res, email, mine[0].id);
+      return send(res, 200, { ...out, host: { id: mine[0].id, name: mine[0].name } });
+    } catch (error) {
+      return send(res, 502, { error: error.message });
+    }
   }
 
   if (route === "/hosts" && req.method === "GET") return html(res, hostsPage({ email, hosts: hostsFor(email), current: pickedHost(req, email), admin: access.isAdmin(email), relay: PUBLIC_URL, shared: sharedWith(email) }));

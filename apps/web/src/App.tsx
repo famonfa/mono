@@ -6,7 +6,7 @@ import { api, useLiveData } from "./api";
 import { AppContext, useApp, type AppContextValue } from "./app-context";
 import { AgentsPage, SessionView, StatusDot } from "./components/Agents";
 import { BoardView } from "./components/BoardView";
-import { FolderPicker, NewSession, TaskSessions } from "./components/Chat";
+import { FolderPicker, NewSession, SharedStart, TaskSessions } from "./components/Chat";
 import { CommandPalette } from "./components/CommandPalette";
 import { UpdateToast } from "./components/UpdateToast";
 import { AppearancePicker } from "./components/AppearancePicker";
@@ -176,6 +176,8 @@ export function App() {
             <SessionView key={`${route.sessionId}/${route.agentId ?? ""}`} sessionId={route.sessionId} agentId={route.agentId} sessions={sessions} />
           ) : route.view === "group" ? (
             <GroupView groupId={route.groupId} />
+          ) : route.view === "shared" ? (
+            <SharedStart key={route.shareId} shareId={route.shareId} />
           ) : (
             <TaskShell key={route.taskId} route={route} />
           )}
@@ -256,7 +258,7 @@ function OwnerSidebar({ route, onToggle }: { route: Route; onToggle: () => void 
 
       <div className="sidebar-groups">
         <GroupsSection route={route} />
-        <SharedWithMe />
+        <SharedWithMe route={route} />
       </div>
       <UserWidget />
       <SidebarFooter onToggle={onToggle} />
@@ -285,12 +287,10 @@ function GuestSidebar({ route, guest, onToggle }: { route: Route; guest: SharedI
       </div>
       {guest.sessionId ? (
         <nav className="sidebar-nav">
-          {guest.role === "agents" && (
-            <a href={href.newSession()} className={route.view === "newSession" ? "active" : ""}>
-              <MessageSquarePlus size={15} />
-              <span>Continue in your own agent</span>
-            </a>
-          )}
+          <a href={href.newSession()} className={route.view === "newSession" ? "active" : ""}>
+            <MessageSquarePlus size={15} />
+            <span>Continue in your own agent</span>
+          </a>
           {sessions.map((s) => (
             <a key={s.id} href={href.session(s.id)} className={route.view === "session" && route.sessionId === s.id ? "active" : ""}>
               <Bot size={15} />
@@ -304,7 +304,7 @@ function GuestSidebar({ route, guest, onToggle }: { route: Route; guest: SharedI
         </div>
       )}
       <div className="sidebar-groups">
-        <SharedWithMe />
+        <SharedWithMe route={route} />
       </div>
       <UserWidget />
       <SidebarFooter onToggle={onToggle} />
@@ -313,7 +313,7 @@ function GuestSidebar({ route, guest, onToggle }: { route: Route; guest: SharedI
 }
 
 /** Projects, folders and sessions other people shared with you (Drive's "Shared with me"). */
-function SharedWithMe() {
+function SharedWithMe({ route }: { route?: Route }) {
   const { account, guest } = useApp();
   const [local, setLocal] = useState<SharedItem[]>([]);
   const remote = account?.mode === "remote";
@@ -331,10 +331,8 @@ function SharedWithMe() {
         {shared.map((s) => (
           <a
             key={s.id}
-            href={remote ? `/s/${s.id}` : s.link}
-            target={remote ? undefined : "_blank"}
-            rel="noreferrer"
-            className={`shared-row ${s.online === false ? "offline" : ""} ${guest?.id === s.id ? "active" : ""}`}
+            href={remote ? `/s/${s.id}` : href.shared(s.id)}
+            className={`shared-row ${s.online === false ? "offline" : ""} ${guest?.id === s.id || (route?.view === "shared" && route.shareId === s.id) ? "active" : ""}`}
             title={`${s.title} · shared by ${s.ownerName ?? s.owner} · ${roleLabel(s.role, Boolean(s.sessionId))}${s.online === false ? " · their Mac is offline" : ""}`}
           >
             <span className="share-avatar">{s.ownerPicture ? <img src={s.ownerPicture} alt="" referrerPolicy="no-referrer" /> : (s.ownerName ?? s.owner)[0]?.toUpperCase()}</span>

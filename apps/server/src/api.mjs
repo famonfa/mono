@@ -4,6 +4,7 @@ import path from "node:path";
 import { PKG_DIR, REPO_ROOT } from "./paths.mjs";
 import { relayApi, remoteStatus } from "./remote.mjs";
 import * as guests from "./guest.mjs";
+import * as shared from "./shared.mjs";
 import * as store from "./store.mjs";
 import * as sessions from "./sessions.mjs";
 import * as chats from "./chats.mjs";
@@ -161,7 +162,10 @@ async function handleChats(res, method, parts, body) {
     if (!text) throw new Error("Message is empty");
     // Writing to a session filed away brings it back to the ongoing list.
     chats.setSessionTriage(sessionId, null);
-    return send(res, 200, await chats.sendMessage(sessionId, text, { workingSessions: workingElsewhere(sessionId), model: body.model, effort: body.effort, permissionMode: body.permissionMode, attachments: body.attachments ?? [] }));
+    // Started from something shared with you: refresh that copy first (a stale one beats failing to send).
+    const shareId = shared.readSharedLinks()[sessionId];
+    const synced = shareId ? await shared.syncShared(shareId).catch(() => null) : null;
+    return send(res, 200, await chats.sendMessage(sessionId, text, { workingSessions: workingElsewhere(sessionId), model: body.model, effort: body.effort, permissionMode: body.permissionMode, attachments: body.attachments ?? [], context: synced?.context, extraDirs: synced ? [synced.dir] : undefined }));
   }
   if (action === "interrupt" && method === "POST") return send(res, 200, await chats.interrupt(sessionId));
   if (action === "config" && method === "POST") return send(res, 200, await chats.configure(sessionId, body));
@@ -415,6 +419,16 @@ export function createApi(broadcast) {
 async function handleShares(res, method, parts, body, url) {
   const [resource, id, sub, subId] = parts;
   const enc = encodeURIComponent;
+  if (resource === "shared" && id && sub === "sessions" && method === "POST") {
+    // Your own agent (your Claude Code, on this Mac) with what someone shared with you as context.
+    const prompt = String(body.prompt ?? "").trim();
+    if (!prompt) throw new Error("Message is empty");
+    const { dir, context } = await shared.syncShared(id);
+    const cwd = body.cwd ? chats.expandHome(String(body.cwd)) : undefined;
+    const state = await chats.startChat({ cwd, prompt, model: body.model, effort: body.effort, permissionMode: body.permissionMode, context, extraDirs: [dir] });
+    shared.linkSharedSession(state.sessionId, id);
+    return send(res, 200, state);
+  }
   if (resource === "shared" && method === "GET") {
     // Local mode asks for the sidebar's "Shared with me"; a Mac that isn't connected just has none.
     return send(res, 200, await relayApi("GET", "/shared").catch(() => []));

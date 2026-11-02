@@ -7,6 +7,8 @@ import { rememberSession, useSessionFeed, type SessionSummary } from "../session
 import type { Task } from "../types";
 import { formatDate, Menu } from "../ui";
 import { useIsMobile } from "../mobile";
+import { sharesApi } from "../shares";
+import type { SharedItem } from "../account";
 import { useMarkSeen, useUnread } from "../unread";
 import { Feed, StatusDot, ToolIcon, TriageActions, useTriageFilter } from "./Agents";
 import { SendToGroup } from "./GroupCanvas";
@@ -541,7 +543,7 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
         {!drivable ? (
           <div className="guest-readonly">
             <span className="composer-hint">Shared with you to watch. Only {guest?.ownerName ?? guest?.owner} can message it.</span>
-            {canRunAgents && guest?.sessionId === sessionId && (
+            {guest?.sessionId === sessionId && (
               <a className="btn primary" href={href.newSession()}>
                 Continue in your own agent
               </a>
@@ -584,6 +586,128 @@ export function SessionChat({ sessionId, summary }: { sessionId: string; summary
   );
 }
 
+/**
+ * A new session from inside someone's share. By default it runs on your own Mac with your Claude Code
+ * (the share's pages and sessions come along as context); with the agents role it can also run on the
+ * owner's Mac, confined to the share.
+ */
+function GuestNewSession({ guest, task, canRunAgents }: { guest: SharedItem; task?: Task; canRunAgents: boolean }) {
+  const { models, stored, remember } = useChatDefaults();
+  const [config, setConfig] = useState<{ model?: string; effort?: string }>(stored);
+  const [where, setWhere] = useState<"mine" | "theirs">("mine");
+  const owner = guest.ownerName ?? guest.owner;
+  return (
+    <div className="new-session">
+      <div className="new-session-inner">
+        <div className="new-session-icon">
+          <Bot size={22} />
+        </div>
+        <h2>{guest.sessionId ? `Continue “${guest.title}”` : `New session in ${guest.title}`}</h2>
+        <p>
+          {where === "mine"
+            ? `Runs on your Mac with your Claude Code and your repos. ${guest.sessionId ? "That session's conversation" : `Everything ${owner} shared here (pages, canvases and sessions)`} comes along as context, refreshed on every message.`
+            : guest.sessionId
+              ? `Runs on ${owner}'s Mac in a folder of its own: it reads that session's conversation but can't message it or touch their repos.`
+              : `Runs on ${owner}'s Mac and can only read and edit ${guest.pageId ? "this folder's" : "this project's"} pages and canvases.`}
+        </p>
+        <Composer
+          autoFocus
+          draftKey={`new-guest-${guest.id}`}
+          placeholder={guest.sessionId ? "Where should we take it?" : "What should we do?"}
+          onSend={async (prompt) => {
+            if (where === "mine") {
+              const { sessionId } = await sharesApi.startOnMyMac(guest.id, { prompt, ...config }, true);
+              // The relay switched you to your own Mac: reload so the whole app follows.
+              window.location.assign(`/${href.session(sessionId)}`);
+              window.location.reload();
+              return;
+            }
+            const state = await chatApi.start({ taskId: task?.id ?? guest.projectId ?? undefined, prompt, ...config });
+            navigate(task ? href.taskSession(task.id, state.sessionId) : href.session(state.sessionId));
+          }}
+          footer={
+            <>
+              <ModelPicker
+                models={models}
+                model={config.model}
+                effort={config.effort}
+                onChange={(next) => {
+                  setConfig((c) => ({ ...c, ...next }));
+                  remember(next);
+                }}
+              />
+              {canRunAgents && (
+                <Menu
+                  value={where}
+                  options={[
+                    { value: "mine", label: "On your Mac", hint: "Your Claude Code, with this as context" },
+                    { value: "theirs", label: `On ${owner}'s Mac`, hint: "Confined to what they shared" },
+                  ]}
+                  onChange={(v) => setWhere(v as "mine" | "theirs")}
+                  className="mode-trigger"
+                >
+                  {where === "mine" ? "On your Mac" : `On ${owner}'s Mac`}
+                </Menu>
+              )}
+            </>
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
+/** On your own Mac: something shared with you, opened to start a session here with it as context. */
+export function SharedStart({ shareId }: { shareId: string }) {
+  const [item, setItem] = useState<SharedItem | null | undefined>(undefined);
+  const [cwd, setCwd] = useState("");
+  const { models, stored, remember } = useChatDefaults();
+  const [config, setConfig] = useState<{ model?: string; effort?: string; permissionMode?: PermissionMode }>(stored);
+  const updateConfig = (next: { model?: string; effort?: string; permissionMode?: PermissionMode }) => {
+    setConfig((c) => ({ ...c, ...next }));
+    remember(next);
+  };
+  useEffect(() => {
+    sharesApi.sharedWithMe().then((list) => setItem(list.find((s) => s.id === shareId) ?? null), () => setItem(null));
+  }, [shareId]);
+  if (item === undefined) return null;
+  if (!item) return <div className="empty">This isn't shared with you anymore.</div>;
+  const owner = item.ownerName ?? item.owner;
+  return (
+    <div className="new-session">
+      <div className="new-session-inner">
+        <div className="new-session-icon">
+          <Bot size={22} />
+        </div>
+        <h2>{item.title}</h2>
+        <p>
+          Shared by {owner}. A new session here uses your Claude Code with {item.sessionId ? "that session's conversation" : "its pages, canvases and sessions"} as context, refreshed on every message.{" "}
+          <a href={item.link} target="_blank" rel="noreferrer">
+            Open it in the browser
+          </a>
+          {item.online === false ? ` (${owner}'s Mac is offline right now, so the context can't load).` : "."}
+        </p>
+        <Composer
+          autoFocus
+          draftKey={`shared-${item.id}`}
+          placeholder="What should we do?"
+          onSend={async (prompt) => {
+            const { sessionId } = await sharesApi.startOnMyMac(item.id, { prompt, cwd: cwd || undefined, ...config }, false);
+            navigate(href.session(sessionId));
+          }}
+          footer={
+            <>
+              <ModelPicker models={models} model={config.model} effort={config.effort} onChange={updateConfig} />
+              <PermissionMenu value={config.permissionMode ?? "bypassPermissions"} onChange={(permissionMode) => updateConfig({ permissionMode })} />
+              <FolderPicker value={cwd} onChange={setCwd} />
+            </>
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
 const worktreeLabel = (w: Worktree) => (w.root ? `${w.repo} (root)` : `${w.repo} · ${w.branch}`);
 
 /** Starts a session for a task (with its context) or a standalone one in any project folder. */
@@ -616,34 +740,7 @@ export function NewSession({ task }: { task?: Task }) {
   const selected = worktrees.find((w) => w.path === cwd);
   const selectedProject = projects.find((p) => p.id === projectId);
 
-  if (guest && !canRunAgents) return <div className="empty">Your access to this project doesn't include running agents.</div>;
-  if (guest) {
-    return (
-      <div className="new-session">
-        <div className="new-session-inner">
-          <div className="new-session-icon">
-            <Bot size={22} />
-          </div>
-          <h2>{guest.sessionId ? `Continue “${guest.title}”` : `New agent in ${guest.title}`}</h2>
-          <p>
-            {guest.sessionId
-              ? `Your own agent starts from that session's conversation. It runs on ${guest.ownerName ?? guest.owner}'s Mac in a folder of its own: it can't message their session or touch their repos.`
-              : `Runs on ${guest.ownerName ?? guest.owner}'s Mac and can only read and edit ${guest.pageId ? "this folder's" : "this project's"} pages and canvases.`}
-          </p>
-          <Composer
-            autoFocus
-            draftKey={`new-guest-${guest.id}`}
-            placeholder={guest.sessionId ? "Where should we take it?" : "What should we do?"}
-            onSend={async (prompt) => {
-              const state = await chatApi.start({ taskId: task?.id ?? guest.projectId ?? undefined, prompt, model: config.model, effort: config.effort });
-              navigate(task ? href.taskSession(task.id, state.sessionId) : href.session(state.sessionId));
-            }}
-            footer={<ModelPicker models={models} model={config.model} effort={config.effort} onChange={updateConfig} />}
-          />
-        </div>
-      </div>
-    );
-  }
+  if (guest) return <GuestNewSession guest={guest} task={task} canRunAgents={canRunAgents} />;
 
   return (
     <div className="new-session">

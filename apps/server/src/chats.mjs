@@ -387,7 +387,7 @@ function linkSessionToTask(taskId, sessionId) {
  * `guest` (from guest.mjs) makes it a guest's agent: it starts in their share, can't touch anything
  * outside it, and gets none of the owner's settings, MCPs or environment.
  */
-export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort, permissionMode, attachments = [], context, onResult, guest }) {
+export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort, permissionMode, attachments = [], context, onResult, guest, extraDirs = [] }) {
   const mode = guest ? "default" : modeOrDefault(permissionMode);
   if (!CLAUDE_BIN) throw new Error("Claude Code not found on this Mac. Install it (https://docs.claude.com/en/docs/claude-code/setup) and restart Mono.");
   if (resume && chats.get(resume) && !chats.get(resume).closed) throw new Error("Session is already open in the workspace");
@@ -411,7 +411,7 @@ export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort
     prompt: input,
     options: {
       ...(workdir ? { cwd: workdir } : {}),
-      ...(focus !== workdir ? { additionalDirectories: [focus] } : {}),
+      ...(focus !== workdir || extraDirs.length ? { additionalDirectories: [...(focus !== workdir ? [focus] : []), ...extraDirs] } : {}),
       ...(resume ? { resume } : {}),
       permissionMode: mode,
       allowDangerouslySkipPermissions: !guest,
@@ -481,7 +481,7 @@ export function startChat({ taskId, cwd, focusCwd, prompt, resume, model, effort
   });
 }
 
-export function sendMessage(sessionId, text, { workingSessions = [], model, effort, permissionMode, attachments = [], guest } = {}) {
+export function sendMessage(sessionId, text, { workingSessions = [], model, effort, permissionMode, attachments = [], guest, context, extraDirs } = {}) {
   const chat = chats.get(sessionId);
   if (chat && !chat.closed) {
     chat.input.push(userMessage(text, attachments));
@@ -493,7 +493,7 @@ export function sendMessage(sessionId, text, { workingSessions = [], model, effo
   }
   const cwd = sessionCwd(sessionId);
   if (!cwd) throw new Error("Original folder for this session not found");
-  return startChat({ resume: sessionId, cwd, focusCwd: readSessionFocus()[sessionId], prompt: text, taskId: chat?.taskId ?? guest?.projectId, model, effort, permissionMode, attachments, guest });
+  return startChat({ resume: sessionId, cwd, focusCwd: readSessionFocus()[sessionId], prompt: text, taskId: chat?.taskId ?? guest?.projectId, model, effort, permissionMode, attachments, guest, context, extraDirs });
 }
 
 export function chatState(sessionId) {

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Bot, FileText, Folder, LayoutGrid, Layers, MessageSquarePlus, PanelLeft, Plus, Sparkles, X } from "lucide-react";
+import { Bot, FileText, Folder, LayoutGrid, Layers, MessageSquarePlus, PanelLeft, Plus, Sparkles, X, Users } from "lucide-react";
 import { useApp } from "../app-context";
 import { useGroups } from "../groups";
 import { StatusIcon } from "../icons";
@@ -106,6 +106,8 @@ function useDescribe() {
         return sessionTab(route.sessionId);
       case "group":
         return { label: groups.find((g) => g.id === route.groupId)?.name ?? "Group", icon: <LayoutGrid size={13} /> };
+      case "shared":
+        return { label: "Shared with me", icon: <Users size={13} /> };
     }
     const task = tasks.find((t) => t.id === route.taskId);
     const project = task?.title ?? route.taskId;

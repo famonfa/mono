@@ -152,24 +152,26 @@ export function pathInScope(scope, target) {
 const clip = (text, max) => (text.length > max ? `${text.slice(0, max)}… [cut]` : text);
 const MAX_DIGEST = 150_000;
 
-/**
- * The shared session as markdown, written next to the guest's agent so it can read the conversation
- * it continues. Prompts and answers in full, tool calls as one line, results clipped; newest last.
- */
-export function writeSessionDigest(guest, dir) {
-  const detail = readSessionEvents(guest.sessionId);
-  if (!detail) throw new Error("The shared session is gone");
+/** A session's events (from readSessionEvents) as markdown: prompts and answers in full, tool calls as one line, results clipped; newest last. */
+export function sessionMarkdown(detail, { owner, title }) {
   const lines = [];
   for (const e of detail.events) {
-    if (e.kind === "prompt") lines.push(`\n## ${guest.owner} (${e.ts ?? ""})\n\n${e.text ?? ""}`);
+    if (e.kind === "prompt") lines.push(`\n## ${owner} (${e.ts ?? ""})\n\n${e.text ?? ""}`);
     else if (e.kind === "text") lines.push(`\n## Agent\n\n${e.text ?? ""}`);
     else if (e.kind === "tool") lines.push(`- → ${e.name}: ${clip(String(e.title ?? ""), 200)}`);
     else if (e.kind === "result" && e.text) lines.push(`  - ${e.isError ? "error" : "result"}: ${clip(String(e.text).replace(/\n+/g, " "), 300)}`);
   }
   let body = lines.join("\n");
   if (body.length > MAX_DIGEST) body = `[…earlier part cut]\n${body.slice(-MAX_DIGEST)}`;
+  return `# Session: ${title}\n\nBy ${owner}. Newest at the end.${detail.truncated ? " Only the most recent part of the session is here." : ""}\n${body}\n`;
+}
+
+/** The shared session as markdown next to the guest's confined agent, so it can read the conversation it continues. */
+export function writeSessionDigest(guest, dir) {
+  const detail = readSessionEvents(guest.sessionId);
+  if (!detail) throw new Error("The shared session is gone");
   const file = path.join(dir, "shared-session.md");
   const title = detail.session?.title ?? guest.title;
-  fs.writeFileSync(file, `# Shared session: ${title}\n\nShared by ${guest.owner}. Newest at the end.${detail.truncated ? " Only the most recent part of the session is here." : ""}\n${body}\n`);
+  fs.writeFileSync(file, sessionMarkdown(detail, { owner: guest.owner, title }));
   return { file, title };
 }

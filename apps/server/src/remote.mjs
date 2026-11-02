@@ -117,14 +117,14 @@ export function startRemote({ port }) {
  * The relay's own API, called as this Mac (shares live there). Authenticated with the host token
  * `mono connect` saved, so it works from the local app too, where there's no relay sign-in.
  */
-export async function relayApi(method, route, body) {
+export async function relayApi(method, route, body, { timeout = 15_000 } = {}) {
   const config = readRemote();
   if (!config?.relay || !config?.token) throw new Error("Connect this Mac to the relay to share (mono connect)");
   const res = await fetch(new URL(`/_mono/host-api${route}`, config.relay), {
     method,
     headers: { authorization: `Bearer ${config.token}`, ...(body ? { "content-type": "application/json" } : {}) },
     body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(timeout),
   });
   const out = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(out.error ?? `Relay answered ${res.status}`);
