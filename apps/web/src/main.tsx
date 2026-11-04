@@ -5,6 +5,7 @@ import "./styles.css";
 import "./desktop.css";
 import "./mobile.css";
 import "./user-widget.css";
+import "./circuit.css";
 import { App } from "./App";
 
 createRoot(document.getElementById("root")!).render(

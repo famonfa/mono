@@ -1,6 +1,7 @@
 import http from "node:http";
 import { createApi, serveStatic } from "./api.mjs";
 import { startRemote } from "./remote.mjs";
+import { startSweeps } from "./circuit.mjs";
 import { WEB_DIST as DIST } from "./paths.mjs";
 
 const PORT = Number(process.env.PORT ?? 4600);
@@ -41,3 +42,4 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, HOST, () => console.log(`Mono at http://localhost:${PORT}`));
+if (!process.env.MONO_NO_REMOTE) startSweeps(broadcast);

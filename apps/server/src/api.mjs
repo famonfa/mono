@@ -16,6 +16,7 @@ import { listCommands, readCommand } from "./commands.mjs";
 import { refreshStatus, startRefresh } from "./refresh.mjs";
 import { projectActivity } from "./activity.mjs";
 import { prStatus } from "./prs.mjs";
+import * as circuit from "./circuit.mjs";
 import { planSessions } from "./spawn.mjs";
 
 /**
@@ -170,7 +171,7 @@ async function handleChats(res, method, parts, body) {
     // Started from something shared with you: refresh that copy first (a stale one beats failing to send).
     const shareId = shared.readSharedLinks()[sessionId];
     const synced = shareId ? await shared.syncShared(shareId).catch(() => null) : null;
-    return send(res, 200, await chats.sendMessage(sessionId, text, { workingSessions: workingElsewhere(sessionId), model: body.model, effort: body.effort, permissionMode: body.permissionMode, attachments: body.attachments ?? [], context: synced?.context, extraDirs: synced ? [synced.dir] : undefined }));
+    return send(res, 200, await chats.sendMessage(sessionId, text, { hooks: circuit.hooksFor(sessionId), workingSessions: workingElsewhere(sessionId), model: body.model, effort: body.effort, permissionMode: body.permissionMode, attachments: body.attachments ?? [], context: synced?.context, extraDirs: synced ? [synced.dir] : undefined }));
   }
   if (action === "interrupt" && method === "POST") return send(res, 200, await chats.interrupt(sessionId));
   if (action === "config" && method === "POST") return send(res, 200, await chats.configure(sessionId, body));
@@ -284,6 +285,39 @@ export function createApi(broadcast) {
         if (id && sub === "worktrees" && method === "GET") {
           return projects.listProjects().some((p) => p.id === id) ? send(res, 200, chats.worktreesForProject(id)) : send(res, 404, { error: "not found" });
         }
+        return send(res, 404, { error: "not found" });
+      }
+      if (resource === "prs") {
+        if (!id) return send(res, 404, { error: "not found" });
+        store.assertSafe(id);
+        if (sub === "detail" && method === "GET") return send(res, 200, await circuit.prDetail(url.searchParams.get("repo"), Number(url.searchParams.get("number"))));
+        if (sub === "sweep" && method === "POST") {
+          void circuit.sweep(id, broadcast);
+          return send(res, 200, { running: true });
+        }
+        if (sub === "github" && method === "POST") {
+          await circuit.githubAction(body.action, body.repo, Number(body.number));
+          return send(res, 200, { ok: true });
+        }
+        if (sub === "metro" && method === "GET") return send(res, 200, await circuit.metro("state", url.searchParams.get("repo"), Number(url.searchParams.get("number"))));
+        if (sub === "metro" && method === "POST") {
+          const notify = () => broadcast("ws:metro", { key: `${body.repo}#${body.number}` });
+          return send(res, 200, await circuit.metro(body.action, body.repo, Number(body.number), { tunnel: Boolean(body.tunnel), notify }));
+        }
+        if (sub === "branches" && method === "POST") return send(res, 200, await circuit.trackBranch(id, body.repo, String(body.branch ?? "").trim()));
+        if (sub === "open-pr" && method === "POST") {
+          await circuit.openPr(body.repo, String(body.branch));
+          return send(res, 200, { ok: true });
+        }
+        if (sub === "run" && method === "POST") {
+          const { cwd, prompt } = await circuit.prepareRun(body.repo, Number(body.number), String(body.command ?? ""));
+          const chat = await chats.startChat({ cwd, prompt, hooks: circuit.askBeforePublishing });
+          circuit.recordRun(body.repo, Number(body.number), chat.sessionId, String(body.command));
+          broadcast("ws:prs", { projectId: id });
+          return send(res, 200, chat);
+        }
+        if (!sub && method === "PUT") return send(res, 200, circuit.saveSettings(id, body));
+        if (!sub && method === "GET") return send(res, 200, circuit.snapshot(id));
         return send(res, 404, { error: "not found" });
       }
       if (resource === "sessions") {

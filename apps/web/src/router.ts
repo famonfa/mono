@@ -6,6 +6,8 @@ export type Route =
   | { view: "home"; filter: HomeFilter }
   | { view: "agents" }
   | { view: "skills"; name?: string }
+  | { view: "prs" }
+  | { view: "pr"; repo: string; number: number }
   | { view: "newSession" }
   | { view: "session"; sessionId: string; agentId?: string }
   | { view: "group"; groupId: string }
@@ -21,6 +23,7 @@ export function parse(hash: string): Route {
   if (kind === "activas" || kind === "hechas") return { view: "home", filter: kind };
   if (kind === "nueva-sesion") return { view: "newSession" };
   if (kind === "skills") return { view: "skills", name: taskId || undefined };
+  if (kind === "prs") return taskId && sub ? { view: "pr", repo: taskId, number: Number(sub) } : { view: "prs" };
   if (kind === "g" && taskId) return { view: "group", groupId: taskId };
   if (kind === "compartido" && taskId) return { view: "shared", shareId: taskId };
   if (kind === "agentes") return taskId ? { view: "session", sessionId: taskId, agentId: sub || undefined } : { view: "agents" };
@@ -38,6 +41,8 @@ export const href = {
   agents: () => "#/agentes",
   skills: () => "#/skills",
   skill: (name: string) => `#/skills/${encodeURIComponent(name)}`,
+  prs: () => "#/prs",
+  pr: (repo: string, number: number) => `#/prs/${encodeURIComponent(repo)}/${number}`,
   newSession: () => "#/nueva-sesion",
   session: (id: string, agentId?: string) => `#/agentes/${encodeURIComponent(id)}${agentId ? `/${encodeURIComponent(agentId)}` : ""}`,
   group: (id: string) => `#/g/${encodeURIComponent(id)}`,

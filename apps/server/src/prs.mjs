@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 
-const PATH = [path.join(os.homedir(), ".local/bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", process.env.PATH].join(":");
+export const PATH = [path.join(os.homedir(), ".local/bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", process.env.PATH].join(":");
 const TTL = 60_000;
 const cache = new Map();
 

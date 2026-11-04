@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Bot, FileText, Folder, LayoutGrid, Layers, MessageSquarePlus, PanelLeft, Plus, Sparkles, X, Users } from "lucide-react";
+import { Bot, FileText, Folder, GitPullRequest, Layers, LayoutGrid, MessageSquarePlus, PanelLeft, Plus, Sparkles, Users, X } from "lucide-react";
 import { useApp } from "../app-context";
 import { useGroups } from "../groups";
 import { StatusIcon } from "../icons";
@@ -100,6 +100,10 @@ function useDescribe() {
         return { label: "Agents", icon: <Bot size={13} /> };
       case "skills":
         return { label: route.name ?? "Skills", icon: <Sparkles size={13} /> };
+      case "prs":
+        return { label: "PRs", icon: <GitPullRequest size={13} /> };
+      case "pr":
+        return { label: `${route.repo.split("/")[1]} #${route.number}`, icon: <GitPullRequest size={13} /> };
       case "newSession":
         return { label: "New session", icon: <MessageSquarePlus size={13} /> };
       case "session":

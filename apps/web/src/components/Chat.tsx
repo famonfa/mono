@@ -309,7 +309,7 @@ function describePermission(p: PendingPermission) {
   return { title, detail };
 }
 
-function PermissionCard({ sessionId, request, onAnswered }: { sessionId: string; request: PendingPermission; onAnswered: (s: ChatState) => void }) {
+export function PermissionCard({ sessionId, request, onAnswered }: { sessionId: string; request: PendingPermission; onAnswered: (s: ChatState) => void }) {
   const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState("");
   const { title, detail } = describePermission(request);
@@ -357,7 +357,7 @@ type Question = { question: string; header?: string; multiSelect?: boolean; opti
 const RECOMMENDED = /\s*\((recommended|recomendad[ao])\)\s*$/i;
 
 /** AskUserQuestion as clickable options (one question per step) instead of a raw permission prompt. */
-function QuestionCard({ sessionId, request, onAnswered }: { sessionId: string; request: PendingPermission; onAnswered: (s: ChatState) => void }) {
+export function QuestionCard({ sessionId, request, onAnswered }: { sessionId: string; request: PendingPermission; onAnswered: (s: ChatState) => void }) {
   const questions = ((request.input as { questions?: Question[] }).questions ?? []).filter((q) => q?.question && Array.isArray(q.options));
   const [step, setStep] = useState(0);
   const [picked, setPicked] = useState<Record<string, string[]>>({});

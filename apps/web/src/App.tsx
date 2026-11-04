@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Layers, LayoutGrid, MessageSquarePlus, Moon, PanelLeft, Plus, Search, Sparkles, SquarePen, Sun, Users } from "lucide-react";
+import { Bot, GitPullRequest, Layers, LayoutGrid, MessageSquarePlus, Moon, PanelLeft, Plus, Search, Sparkles, SquarePen, Sun, Users } from "lucide-react";
 import { guestShare, useAccount, type SharedItem } from "./account";
 import { ROLE_META, roleLabel, sharesApi } from "./shares";
 import { api, useLiveData } from "./api";
@@ -17,6 +17,8 @@ import { SidebarProjects } from "./components/SidebarProjects";
 import { TabStrip } from "./components/TabStrip";
 import { ALL_PROJECTS, inProject, projectScope, ProjectSwitcher, sessionInProject } from "./components/Projects";
 import { SkillsPage, useSkillList } from "./components/Skills";
+import { PrDetailPage, PrsPage } from "./components/Circuit";
+import { useCircuit } from "./circuit";
 import { TaskOverview, TaskTopBar } from "./components/TaskView";
 import { flattenPages } from "./pages";
 import { UserWidget } from "./components/UserWidget";
@@ -169,6 +171,10 @@ export function App() {
             <AgentsPage sessions={sessions.filter((s) => sessionInProject(projectScope(project, projects), s, tasks))} />
           ) : route.view === "skills" ? (
             <SkillsPage name={route.name} />
+          ) : route.view === "prs" ? (
+            <PrsPage />
+          ) : route.view === "pr" ? (
+            <PrDetailPage key={`${route.repo}#${route.number}`} repo={route.repo} number={route.number} />
 
           ) : route.view === "newSession" ? (
             <NewSession />
@@ -209,6 +215,8 @@ function OwnerSidebar({ route, onToggle }: { route: Route; onToggle: () => void 
   const inAgents = ["agents", "session", "newSession"].includes(route.view);
   const last = lastSessionId();
   const agentsHref = !inAgents && last && allSessions.some((s) => s.id === last) ? href.session(last) : href.agents();
+  const { data: circuit } = useCircuit(project);
+  const conflicts = circuit?.prs.filter((p) => p.station === "base").length ?? 0;
 
   return (
     <aside className="sidebar">
@@ -236,6 +244,14 @@ function OwnerSidebar({ route, onToggle }: { route: Route; onToggle: () => void 
           <span>Agents</span>
           <span className="nav-count">
             <LiveCounts working={working.length} unread={unread.length} />
+          </span>
+        </a>
+        <a href={href.prs()} className={route.view === "prs" || route.view === "pr" ? "active" : ""}>
+          <GitPullRequest size={15} />
+          <span>PRs</span>
+          <span className="nav-count">
+            {conflicts > 0 && <span className="pr-conflict-dot" title={`${conflicts} with conflicts`} />}
+            {circuit?.prs.length || ""}
           </span>
         </a>
         <a href={href.skills()} className={route.view === "skills" ? "active" : ""} title={currentRoot ? `Skills available in ${currentRoot}` : "Personal and plugin skills"}>
