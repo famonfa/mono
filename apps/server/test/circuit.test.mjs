@@ -58,8 +58,8 @@ test("the sweep runs at 8:00 in Buenos Aires", () => {
 const COMMENT = `<!-- projectId:abc --> Runtime Version → **exposdk:54.0.0** [More info](https://expo.dev/projects/p/updates/9e513916-a93f-406c-8ffe-e6c4ab2dfe10) <a href="https://qr.expo.dev/eas-update?appScheme=KDS&projectId=ce6b&branchId=01a1"><img/></a>`;
 
 test("the Expo QR uses a scheme the app registers, so a camera can open it", () => {
-  const expo = expoPreview(COMMENT, ["instamenukds", "exp+instamenukds"]);
-  assert.equal(expo.link, "exp+instamenukds://expo-development-client/?url=https%3A%2F%2Fu.expo.dev%2Fce6b%2Fbranch%2F01a1");
+  const expo = expoPreview(COMMENT, ["myapp", "exp+myapp"]);
+  assert.equal(expo.link, "exp+myapp://expo-development-client/?url=https%3A%2F%2Fu.expo.dev%2Fce6b%2Fbranch%2F01a1");
   assert.equal(expo.update, "9e513916");
   assert.equal(expo.runtime, "exposdk:54.0.0");
   assert.equal(expo.production, false);
@@ -124,7 +124,7 @@ test("a PR runs in its own worktree and never moves the main checkout", async ()
 });
 
 test("the Metro QR is the link expo prints for a development build", () => {
-  assert.equal(metroLink(["instamenukds", "exp+instamenukds"], "192.168.0.70", 8099), "exp+instamenukds://expo-development-client/?url=http%3A%2F%2F192.168.0.70%3A8099");
+  assert.equal(metroLink(["myapp", "exp+myapp"], "192.168.0.10", 8099), "exp+myapp://expo-development-client/?url=http%3A%2F%2F192.168.0.10%3A8099");
 });
 
 test("whatever reaches GitHub needs an OK, reading it doesn't", () => {

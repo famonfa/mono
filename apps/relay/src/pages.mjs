@@ -156,7 +156,7 @@ export function privacyPage() {
     `<h1>Privacy</h1>
     <p>Mono uses your Google account only to identify you: it stores your email to grant access and link your Macs. It doesn't request or store any other Google data.</p>
     <p>Your agents, code and tasks stay on your Mac. The relay passes messages between your Mac and your browser while you use them, and doesn't store them.</p>
-    <p>To delete your account, email monsegurfacundo@gmail.com.</p>
+    <p>To delete your account, email ${escape(process.env.CONTACT_EMAIL ?? "the relay admin")}.</p>
     <a class="btn secondary" href="/">Back</a>`,
   );
 }

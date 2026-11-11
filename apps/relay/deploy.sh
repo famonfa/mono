@@ -4,8 +4,8 @@
 # Other services and Caddy sites on the VM are never touched.
 set -eu
 HOST=${MONO_RELAY_HOST:-mono-relay}
-DOMAIN=${MONO_RELAY_DOMAIN:-mono.155-181-39-178.sslip.io}
-ADMINS=${ADMIN_EMAILS:-monsegurfacundo@gmail.com}
+DOMAIN=${MONO_RELAY_DOMAIN:?set MONO_RELAY_DOMAIN to the relay public domain}
+ADMINS=${ADMIN_EMAILS:?set ADMIN_EMAILS to the admin email(s), comma separated}
 DIR=/srv/mono-relay
 cd "$(dirname "$0")"
 

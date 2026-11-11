@@ -28,8 +28,8 @@ npm run desktop:package  # builds apps/desktop/release/mac-arm64/Mono.app → co
 Each person runs Mono on **their own** Mac, with their own Claude Code. A single cloud relay provides Google sign-in and access from phone or web; each user sees only their Macs.
 
 **One-time setup (admin):**
-1. The relay runs on a free Oracle VM: `https://mono.155-181-39-178.sslip.io`. Deploy with `apps/relay/deploy.sh` (ssh `mono-relay`): it syncs `/srv/mono-relay` and, on first run, creates the `.env`, the `mono-relay` service (capped at 512 MB and 50% CPU) and its Caddy site. Other sites on the VM are never touched. Credentials go in `/srv/mono-relay/.env`; variables are documented in `apps/relay/.env.example`.
-2. Google Cloud Console → Credentials → *OAuth client ID* (Web application), with redirect `https://mono.155-181-39-178.sslip.io/_mono/auth/callback`.
+1. The relay runs on a free Oracle VM: `https://<relay>`. Deploy with `MONO_RELAY_DOMAIN=<relay> ADMIN_EMAILS=<you> apps/relay/deploy.sh` (ssh `mono-relay`): it syncs `/srv/mono-relay` and, on first run, creates the `.env`, the `mono-relay` service (capped at 512 MB and 50% CPU) and its Caddy site. Other sites on the VM are never touched. Credentials go in `/srv/mono-relay/.env`; variables are documented in `apps/relay/.env.example`.
+2. Google Cloud Console → Credentials → *OAuth client ID* (Web application), with redirect `https://<relay>/_mono/auth/callback`.
 3. Publish the package: `npm run release -w @famonfa/mono`. Builds `@famonfa/mono` with the compiled UI and bundled dependencies, without the Claude binary (~6 MB instead of 320 MB), and publishes it.
 
 **Access:** open to anyone. Any Google account becomes a member on first sign-in. Admins see members at `https://<relay>/_mono/admin`; "Block" locks an account out for good (their session ends and their Macs disconnect), "Unblock" undoes it.
@@ -40,7 +40,7 @@ npx @famonfa/mono            # opens Mono; first run installs to ~/.mono/runtime
 npx @famonfa/mono connect    # keeps running in the background and pairs via Google
 ```
 `npx` only bootstraps: it copies the same version to `~/.mono/runtime` and forwards commands there, since the npx cache can be cleared and the launchd service needs a fixed path.
-Then use `https://mono.155-181-39-178.sslip.io` from any browser or the mobile app (`npm run mobile:ios` / `mobile:android`).
+Then use `https://<relay>` from any browser or the mobile app (`npm run mobile:ios` / `mobile:android`).
 
 Outside the repo, Mono keeps everything in `~/.mono/` (config, connection and `data/`) and installs the `/workspace` skill for Claude Code if missing. New chats default to `defaultCwd` in `~/.mono/config.json` (home if unset).
 
